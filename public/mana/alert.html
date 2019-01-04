@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <link rel="stylesheet" type="text/css" href="toast.css">
+    <!-- development version, includes helpful console warnings -->
+    <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+</head>
+<body>
+<div id="app" client="follow,alert">
+	<div v-cloak>
+		<div id="toast" v-bind:class="{ show: alert }" v-html="alert">{{ alert }} </div>
+	</div>
+</div>
+<script src="../common/handlers.js"></script>
+</body>
+</html>
+

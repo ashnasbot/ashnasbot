@@ -1,0 +1,101 @@
+
+@font-face {
+    font-family: 'manaspace';
+    src: url('manaspc.woff2') format('woff2'),
+         url('manaspc.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+
+}
+.toast-inner {
+	display:table-cell;
+	box-shadow:0 0 5px 2px #222;
+	border-radius:6px;
+	padding: 0.2em 0.3em;
+	overflow:hidden;
+	background:url(
+	data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAAICAYAAADeM14FAAAAJElEQVQYV2NkVvb/z8DAwPD37kZGEM1IhgBIHwjAtIINIk0AACWVFdnTbUoAAAAAAElFTkSuQmCC
+	) repeat;
+}
+
+#toast {
+	visibility: hidden;
+	display:table;
+	width:800px;
+	border-spacing:3px;
+	box-shadow: 0 0 1px 2px rgba(0,0,0,.4), 0 0 0 6px #dadcd7, inset 2px 2px 2px rgba(0,0,0,.7);
+	border-radius:15px;
+	margin:15px auto;
+}
+
+#toast *{
+  color: #fff;
+  text-shadow: 1px 1px 0 #000,
+    -1px 1px 0 #000,
+    1px -1px 0 #000,
+    -1px -1px 0 #000,
+    0px 1px 0 #000,
+    0px -1px 0 #000,
+    -1px 0px 0 #000,
+    1px 0px 0 #000,
+    2px 2px 0 #000,
+    -2px 2px 0 #000,
+    2px -2px 0 #000,
+    -2px -2px 0 #000,
+    0px 2px 0 #000,
+    0px -2px 0 #000,
+    -2px 0px 0 #000,
+    2px 0px 0 #000,
+    1px 2px 0 #000,
+    -1px 2px 0 #000,
+    1px -2px 0 #000,
+    -1px -2px 0 #000,
+    2px 1px 0 #000,
+    -2px 1px 0 #000,
+    2px -1px 0 #000,
+    -2px -1px 0 #000;
+
+  font-family: manaspace;
+  font-size: 32px;
+  font-weight: normal;
+  margin: 5px 0;
+  word-wrap: break-word;
+}
+
+#toast.show {
+    visibility: visible; /* Show the toast */
+    /* Add animation: Take 0.5 seconds to fade in and out the toast. 
+   However, delay the fade out process for 2.5 seconds */
+   -webkit-animation: fadein 0.5s;
+   animation: fadein 0.5s;
+}
+
+/* Animations to fade the toast in and out */
+@-webkit-keyframes fadein {
+    from {bottom: 0; opacity: 0;} 
+    to {bottom: 30px; opacity: 1;}
+}
+
+@keyframes fadein {
+    from {bottom: 0; opacity: 0;}
+    to {bottom: 30px; opacity: 1;}
+}
+
+@-webkit-keyframes fadeout {
+    from {bottom: 30px; opacity: 1;} 
+    to {bottom: 0; opacity: 0;}
+}
+
+@keyframes fadeout {
+    from {bottom: 30px; opacity: 1;}
+    to {bottom: 0; opacity: 0;}
+}
+
+@keyframes fadeintext {
+	0% {
+		opacity: 0;
+	}
+	100% {
+		max-width: 230px;
+	}
+}

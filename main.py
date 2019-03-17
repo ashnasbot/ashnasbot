@@ -22,19 +22,19 @@ if __name__ == '__main__':
     with open('config.json') as f:
         config = json.load(f)
 
-    httpd = HTTPServer((HOST_NAME, config["port"]), Server)
-    httpd.chat_queue = queue.Queue()
+    #httpd = HTTPServer((HOST_NAME, config["port"]), Server)
+    #httpd.chat_queue = queue.Queue()
     chat = ChatBot(config["channel"])
     http = TwitchClient(config["client_id"], config["channel"])
-    httpd_thread = threading.Thread(target = httpd.serve_forever)
+    #httpd_thread = threading.Thread(target = httpd.serve_forever)
     socket_thread = socket_server.SocketServer(chat, http)
-    httpd_thread.start()
+    #httpd_thread.start()
     socket_thread.start()
 
     def sighandler(signum, frame):
         print("SIGNAL: ", signum)
         chat.stop()
-        httpd.shutdown()
+        #httpd.shutdown()
 
     signal.signal(signal.SIGINT, sighandler)
 
@@ -43,5 +43,5 @@ if __name__ == '__main__':
     except Exception as e:
         print(e)
 
-    httpd_thread.join()
+    #httpd_thread.join()
     socket_thread.join()

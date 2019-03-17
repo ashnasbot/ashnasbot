@@ -1,2 +1,6 @@
 __pycache__/
 *.pyc
+config.json
+data/followers.json
+.vscode/launch.json
+*.swp

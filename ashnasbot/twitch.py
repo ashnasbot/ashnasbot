@@ -1,4 +1,4 @@
-import av
+from . import av
 import sys
 import html
 
@@ -21,9 +21,7 @@ BADGES = {
 }
 
 EMOTE_URL_TEMPLATE = "<img src=\"" + STATIC_CDN + \
-"""emoticons/v1/{eid}/1.0"
-class="emote"
-/>"""
+"""emoticons/v1/{eid}/1.0" class="emote" />"""
 #can't add title as the replace is greedy
 #alt="{alt}"
 #title="{alt}"

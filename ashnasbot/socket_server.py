@@ -6,6 +6,7 @@ from threading import Thread
 
 from . import twitch
 from . import av
+from . import async_http
 
 class SocketServer(Thread):
 
@@ -85,9 +86,9 @@ class SocketServer(Thread):
                 print("No more alerts")
                 return
             if event['type'] == "FOLLOW":
-                av.play_sound("Mana_got_item")
+                event['audio'] = av.get_sound("Mana_got_item")
             if event['type'] == "SUB":
-                av.play_sound("Super_Nintendo_Chalmers")
+                event['audio'] = av.get_sound("Super_Nintendo_Chalmers")
 
             print(event)
 
@@ -116,7 +117,7 @@ class SocketServer(Thread):
         tasks.append(asyncio.create_task(self.heartbeat(websocket)))
 
         print("Socket client Join:", command)
-        done = await asyncio.gather(*tasks)
+        await asyncio.gather(*tasks)
         print("Socket client Leave:", command)
 
 
@@ -127,6 +128,16 @@ class SocketServer(Thread):
         asyncio.set_event_loop(self.loop)
         self.loop.set_debug(enabled=True)
         start_server = websockets.serve(self.handle_connect, 'localhost', 8765)
-
         self.loop.run_until_complete(start_server)
-        self.loop.run_forever()
+
+        async_http.WebServer(loop=self.loop)
+        try:
+            self.loop.run_forever()
+        except KeyboardInterrupt:
+            tasks = asyncio.gather(
+                        *asyncio.Task.all_tasks(loop=self.loop),
+                        loop=self.loop,
+                        return_exceptions=True)
+            tasks.add_done_callback(lambda t: self.loop.stop())
+            tasks.cancel()
+

@@ -42,7 +42,7 @@ class ChatBot():
                     evt.type = "HOST"
                 else:
                     print(evt.type)
-            print(msg_id, evt)
+                print(msg_id, evt)
             self.notifications.append(evt)
 
         return [ e for e in evts

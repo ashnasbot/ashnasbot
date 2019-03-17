@@ -95,6 +95,9 @@ new Vue({
 function checkOverflow(el)
 {
     var curOverflow = el.style.overflow;
+    if (document.hidden) {
+        return false
+    }
 
     if ( !curOverflow || curOverflow === "visible" )
         el.style.overflow = "hidden";
@@ -109,6 +112,10 @@ function checkOverflow(el)
 function do_alert(event, app)
 {
     name = event.nickname
+    if (event.audio) {
+        var audio = new Audio(event.audio);
+        audio.play();
+    }
 
     if (event.type == "FOLLOW") {
         var suffix = " gets whacked!"

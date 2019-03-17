@@ -1,4 +1,6 @@
-@import url("fonts/webfont.css");
+﻿@import url("fonts/webfont.css");
+@charset "utf-8";
+
 [v-cloak] { display: none; }
 
 body {

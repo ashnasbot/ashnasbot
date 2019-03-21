@@ -10,6 +10,7 @@ new Vue({
     data: {
         chat: [],
         alert: "",
+        alertLog: [],
         ping: null,
     },
     methods: {
@@ -28,6 +29,7 @@ new Vue({
                 case "FOLLOW":
                 case "SUB":
                     do_alert(msg, this);
+                    alertLog.add(msg)
                     break;
                 default: 
                     console.log(msg);
@@ -59,16 +61,17 @@ new Vue({
             this.reconnect();
         },
         reconnect: function() {
+            var boundReconnect = this.reconnect.bind(this);
             try {
                 this.chatsocket = new WebSocket("ws://localhost:8765/");
-                this.chatsocket.onerror(
-                    function() {
-                        setTimeout(this.reconnect, 5000);
-                    });
+                this.chatsocket.onerror = function() {
+                        setTimeout(boundReconnect, 5000);
+                };
                 this.chatsocket.onopen = this.socket_open
             }
             catch(error) {
-                setTimeout(this.reconnect, 1000);
+                console.log(error);
+                setTimeout(boundReconnect, 1000);
             }
         }
     },

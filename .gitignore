@@ -4,3 +4,4 @@ config.json
 data/followers.json
 .vscode/launch.json
 *.swp
+data/raid.txt

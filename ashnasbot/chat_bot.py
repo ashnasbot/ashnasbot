@@ -3,20 +3,20 @@ import time
 
 
 class ChatBot():
-    def __init__(self, channel):
+    def __init__(self, channel, bot_user, oauth):
         self.notifications = []
         self.channel = channel
-        self.observer = Observer('ashnasbot', 'oauth:rqa37dzo916hw0lqy0vw824z0rzkih')
+        self.observer = Observer(bot_user, oauth)
         self.observer.start()
         self.observer.join_channel(self.channel)
         print(f"Joining channel: {channel}")
 
-    def handle_event(self, event):
-        print("Twitch event", event)
-        if event.type == 'TWITCHCHATMESSAGE':
-            self.queue.put(event)
-        else:
-            print(event)
+#    def handle_event(self, event):
+#        print("Twitch event", event)
+#        if event.type == 'TWITCHCHATMESSAGE':
+#            self.queue.put(event)
+#        else:
+#            print(event)
 
     def get_chat_messages(self, clear=True):
         evts = self.observer.get_events()
@@ -37,9 +37,11 @@ class ChatBot():
                 elif msg_id == "resub":
                     evt.type = "SUB"
                 elif msg_id == "raid":
+                    print("RAID", evt)
                     evt.type = "RAID"
                 elif msg_id == "host":
                     evt.type = "HOST"
+                    print("HOST", evt)
                 else:
                     print(evt.type)
                 print(msg_id, evt)
@@ -57,23 +59,23 @@ class ChatBot():
         return alerts
 
 
-    def start(self):
-        self.running = True
-        with self.observer as observer:
-            observer.join_channel(self.channel)
+#    def start(self):
+#        self.running = True
+#        with self.observer as observer:
+#            observer.join_channel(self.channel)
+#
+#            while self.running:
+#                try:
+#                    for event in observer.get_events():
+#                        self.handle_event(event)
+#                    time.sleep(1)
+#                        
+#                except KeyboardInterrupt:
+#                    break
+#
+#            observer.leave_channel(self.channel)
 
-            while self.running:
-                try:
-                    for event in observer.get_events():
-                        self.handle_event(event)
-                    time.sleep(1)
-                        
-                except KeyboardInterrupt:
-                    break
-
-            observer.leave_channel(self.channel)
-
-    def stop(self):
-        self.observer.leave_channel(self.channel)
-        self.running = False
+#    def stop(self):
+#        self.observer.leave_channel(self.channel)
+#        self.running = False
 

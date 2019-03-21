@@ -13,8 +13,16 @@
             <input type="text" id="channel" class="form-control" v-model="config.channel">
         </div>
         <div class="form-field">
-            <label for="client_id">Your Client ID</label>
+            <label for="client_id">Your Twitch API Client ID</label>
             <input type="text" id="channel" class="form-control" v-model="config.client_id">
+        </div>
+        <div class="form-field">
+            <label for="username">Bot Username</label>
+            <input type="text" id="username" class="form-control" v-model="config.username">
+        </div>
+        <div class="form-field">
+            <label for="oauth">Bot OAuth Token</label>
+            <input type="text" id="oauth" class="form-control" v-model="config.oauth">
         </div>
         <input type="submit">
     </div>

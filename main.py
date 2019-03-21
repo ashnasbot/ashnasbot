@@ -13,7 +13,6 @@ from http.server import HTTPServer
 from ashnasbot.server import Server
 from ashnasbot.chat_bot import ChatBot
 from ashnasbot import socket_server
-from ashnasbot.twitch_client import TwitchClient
 
 
 HOST_NAME = '0.0.0.0'
@@ -22,26 +21,16 @@ if __name__ == '__main__':
     with open('config.json') as f:
         config = json.load(f)
 
-    #httpd = HTTPServer((HOST_NAME, config["port"]), Server)
-    #httpd.chat_queue = queue.Queue()
-    chat = ChatBot(config["channel"])
-    http = TwitchClient(config["client_id"], config["channel"])
-    #httpd_thread = threading.Thread(target = httpd.serve_forever)
-    socket_thread = socket_server.SocketServer(chat, http)
-    #httpd_thread.start()
-    socket_thread.start()
+    chat = ChatBot(config["channel"], config["username"], config["oauth"])
+    socket_thread = socket_server.SocketServer(chat, config["client_id"], config["channel"])
 
     def sighandler(signum, frame):
         print("SIGNAL: ", signum)
-        chat.stop()
-        #httpd.shutdown()
+        socket_thread.shutdown()
 
     signal.signal(signal.SIGINT, sighandler)
 
-    try:
-        threading.Event().wait()
-    except Exception as e:
-        print(e)
+    # blocks forever
+    socket_thread.start()
 
-    #httpd_thread.join()
     socket_thread.join()

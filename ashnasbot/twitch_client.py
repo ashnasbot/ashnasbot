@@ -1,6 +1,6 @@
-import requests
 import json
 
+import aiohttp
 
 API_BASE = "https://api.twitch.tv"
 
@@ -10,6 +10,7 @@ class TwitchClient():
     def __init__(self, client_id, target_user):
         self.client_id = client_id
         self.target_user = target_user
+        print("###", client_id, target_user)
 
         self._apis = {
             "login": {
@@ -18,7 +19,7 @@ class TwitchClient():
                 }
             }
 
-        self.channel_id = self.get_channel_id()
+        self.channel_id = None
 
         self._apis = {
             **self._apis,
@@ -28,9 +29,13 @@ class TwitchClient():
                 }
             }
 
-    def get_channel_id(self):
-        resp = self.make_api_request('login')
-        return resp["users"][0]["_id"]
+    async def get_channel_id(self):
+        resp = await self.make_api_request('login')
+        self.channel_id = resp["users"][0]["_id"]
+        self._apis["followers"] = {
+            "url": f"/kraken/channels/{self.channel_id}/follows",
+            "params": {'limit': 10}
+        }
         
 
     def get_api(self, api_name):
@@ -39,29 +44,30 @@ class TwitchClient():
 
         return None
 
-    def make_api_request(self, api):
+    async def make_api_request(self, api):
         api_req = self.get_api(api)
         headers = {
             "Client-ID": f"{self.client_id}",
             "Accept": "application/vnd.twitchtv.v5+json"
         }
 
-        r = requests.get(API_BASE + api_req["url"],
+        async with aiohttp.ClientSession() as session:
+            async with session.get(API_BASE + api_req["url"],
                          params=api_req['params'],
-                         headers=headers
-                        )
+                         headers=headers) as resp:
+                return await resp.json()
 
-        return r.json()
+    async def get_new_followers(self):
+        if self.channel_id == None:
+            await self.get_channel_id()
 
-
-    def get_new_followers(self):
-        followers = self.make_api_request('followers')
+        recent_followers = await self.make_api_request('followers')
         new_follows = []
 
         with open("data/followers.json", "rt") as f:
             follow_file = json.load(f)
 
-        for follower in followers['follows']:
+        for follower in recent_followers['follows']:
             user = follower['user']
             if user['_id'] not in follow_file:
                 print(user['display_name'], "is a new follower")

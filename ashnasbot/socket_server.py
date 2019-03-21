@@ -1,18 +1,22 @@
 import asyncio
 import json
-import websockets
 from queue import Empty
 from threading import Thread
 
-from . import twitch
-from . import av
-from . import async_http
+import websockets
+
+from .twitch import handle_message
+from .av import get_sound
+from .twitch_client import TwitchClient
+from .async_http import WebServer
 
 class SocketServer(Thread):
 
-    def __init__(self, chatbot, twitch_client):
+    def __init__(self, chatbot, client_id, channel):
         self.chatbot = chatbot
-        self.http_client = twitch_client
+        self.client_id = client_id
+        self.channel = channel
+        self.http_client = None
         self.loop = None
         Thread.__init__(self)
         self._event_queue = None
@@ -33,7 +37,7 @@ class SocketServer(Thread):
                     continue
 
                 for event in events:
-                    content = twitch.handle_message(event)
+                    content = handle_message(event)
                     if content:
                         await websocket.send(json.dumps(content))
         except Exception as e:
@@ -47,7 +51,7 @@ class SocketServer(Thread):
                 continue
 
             for event in events:
-                content = twitch.handle_message(event)
+                content = handle_message(event)
                 if content:
                     await self._event_queue.put(content)
 
@@ -64,12 +68,12 @@ class SocketServer(Thread):
 
     async def followers(self):
         while True:
-            followers = self.http_client.get_new_followers()
-            if not followers: 
+            recent_followers = await self.http_client.get_new_followers()
+            if not recent_followers: 
                 await asyncio.sleep(80)
                 continue
 
-            for nickname in followers:
+            for nickname in recent_followers:
                 evt_msg = {
                     'nickname': nickname,
                     'type' : "FOLLOW"
@@ -86,9 +90,9 @@ class SocketServer(Thread):
                 print("No more alerts")
                 return
             if event['type'] == "FOLLOW":
-                event['audio'] = av.get_sound("Mana_got_item")
+                event['audio'] = get_sound("Mana_got_item")
             if event['type'] == "SUB":
-                event['audio'] = av.get_sound("Super_Nintendo_Chalmers")
+                event['audio'] = get_sound("Super_Nintendo_Chalmers")
 
             print(event)
 
@@ -120,6 +124,13 @@ class SocketServer(Thread):
         await asyncio.gather(*tasks)
         print("Socket client Leave:", command)
 
+    def shutdown(self):
+        tasks = asyncio.gather(
+                    *asyncio.Task.all_tasks(loop=self.loop),
+                    loop=self.loop,
+                    return_exceptions=True)
+        tasks.add_done_callback(lambda t: self.loop.stop())
+        tasks.cancel()
 
     def run(self):
         print("Starting socket server")
@@ -129,15 +140,10 @@ class SocketServer(Thread):
         self.loop.set_debug(enabled=True)
         start_server = websockets.serve(self.handle_connect, 'localhost', 8765)
         self.loop.run_until_complete(start_server)
+        self.http_client = TwitchClient(self.client_id, self.channel)
 
-        async_http.WebServer(loop=self.loop)
+        WebServer(loop=self.loop)
         try:
             self.loop.run_forever()
         except KeyboardInterrupt:
-            tasks = asyncio.gather(
-                        *asyncio.Task.all_tasks(loop=self.loop),
-                        loop=self.loop,
-                        return_exceptions=True)
-            tasks.add_done_callback(lambda t: self.loop.stop())
-            tasks.cancel()
-
+            self.shutdown()

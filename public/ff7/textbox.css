@@ -4,7 +4,8 @@
 [v-cloak] { display: none; }
 
 body {
-	height: 100vh;
+  height: 100vh;
+  overflow: hidden;
 }
 
 #app {

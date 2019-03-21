@@ -10,7 +10,6 @@ import os
 
 from http.server import HTTPServer
 
-from ashnasbot.server import Server
 from ashnasbot.chat_bot import ChatBot
 from ashnasbot import socket_server
 

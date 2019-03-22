@@ -3,26 +3,31 @@
 
 <head>
     <title>Config</title>
+    <link rel="stylesheet" type="text/css" href="dashboard.css">
 </head>
 
 <body>
     <form id="app" @submit.prevent="save_config">
     <div class="form-group">
         <div class="form-field">
-            <label for="channel">Channel to Join</label>
+            <label for="channel"><span>Channel to Join</span>
             <input type="text" id="channel" class="form-control" v-model="config.channel">
+            </label>
         </div>
         <div class="form-field">
-            <label for="client_id">Your Twitch API Client ID</label>
+            <label for="client_id"><span>Your Twitch API Client ID</span>
             <input type="text" id="channel" class="form-control" v-model="config.client_id">
+            </label>
         </div>
         <div class="form-field">
-            <label for="username">Bot Username</label>
+            <label for="username"><span>Bot Username</span>
             <input type="text" id="username" class="form-control" v-model="config.username">
+            </label>
         </div>
         <div class="form-field">
-            <label for="oauth">Bot OAuth Token</label>
+            <label for="oauth"><span>Bot OAuth Token</span>
             <input type="text" id="oauth" class="form-control" v-model="config.oauth">
+            </label>
         </div>
         <input type="submit">
         <hr>
@@ -84,11 +89,6 @@
         })
     </script>
     <style>
-    label {
-        display: inline-block;
-        width: 140px;
-        text-align: right;
-    }​
     </style>
 
 </body>

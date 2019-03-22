@@ -3,9 +3,11 @@ import asyncio
 import json
 
 class WebServer(object):
-    def __init__(self, address='127.0.0.1', port=8080, loop=None):
+    def __init__(self, reload_evt=None, address='127.0.0.1', port=8080, loop=None, shutdown_evt=None):
         self.address = address
         self.port = port
+        self.reload_evt = reload_evt
+        self.shutdown_evt = shutdown_evt
         if loop is None:
             loop = asyncio.get_event_loop()
         self.loop = loop
@@ -25,19 +27,26 @@ class WebServer(object):
     def setup_routes(self):
         self.app.router.add_get('/api/config', self.get_config)
         self.app.router.add_post('/api/config', self.post_config)
+        self.app.router.add_post('/api/shutdown', self.post_shutdown)
         self.app.router.add_static('/static', path="public/")
 
     @staticmethod
     async def get_config(request):
         return web.FileResponse('config.json')
 
-    @staticmethod
-    async def post_config(request):
+    async def post_shutdown(self, request):
+        if self.shutdown_evt:
+            self.shutdown_evt.set()
+        return web.Response()
+
+    async def post_config(self, request):
         # TODO: validate
         if request.can_read_body:
             with open('config.json', 'w') as config:
                 new_config = await request.json()
                 json.dump(new_config, config)
+                if self.reload_evt:
+                    self.reload_evt.set()
 
         return web.json_response({})
 

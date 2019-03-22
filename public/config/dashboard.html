@@ -25,6 +25,8 @@
             <input type="text" id="oauth" class="form-control" v-model="config.oauth">
         </div>
         <input type="submit">
+        <hr>
+        <button v-on:click="shutdown">Shutdown</button>
     </div>
     </form>
 
@@ -60,6 +62,18 @@
                         data: JSON.stringify(self.config),
                         success: function (data) {
                             self.config = data.message;
+                        },
+                        error: function (error) {
+                            console.log(error);
+                        }
+                    });
+                },
+                shutdown: function () {
+                    $.ajax({
+                        url: '/api/shutdown',
+                        method: 'POST',
+                        success: function (data) {
+                            window.alert("Ashnasbot Shutdown")
                         },
                         error: function (error) {
                             console.log(error);

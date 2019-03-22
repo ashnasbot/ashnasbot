@@ -2,7 +2,7 @@
  * Max messages before several will be deleted per batch
  * Helps with high loads
  */
-var max_messages = 25
+var max_messages = Math.floor(window.innerHeight / 60 );
 
 new Vue({
     el: '#app',
@@ -63,7 +63,7 @@ new Vue({
         reconnect: function() {
             var boundReconnect = this.reconnect.bind(this);
             try {
-                this.chatsocket = new WebSocket("ws://localhost:8765/");
+                this.chatsocket = new WebSocket("ws://" + location.hostname + ":8765/");
                 this.chatsocket.onerror = function() {
                         setTimeout(boundReconnect, 5000);
                 };
@@ -76,7 +76,7 @@ new Vue({
         }
     },
     mounted: function () {
-        this.chatsocket = new WebSocket("ws://localhost:8765/");
+        this.chatsocket = new WebSocket("ws://" + location.hostname + ":8765/");
         this.chatsocket.onopen = this.socket_open
         var chat = document.getElementById('app');
         setInterval(function() {
@@ -157,4 +157,8 @@ function do_alert(event, app)
     setTimeout(function(){
         app.alert = "";
     }.bind(app), 10000);
+}
+
+window.onresize = function(event) {
+    max_messages = Math.floor(window.innerHeight / 60 );
 }

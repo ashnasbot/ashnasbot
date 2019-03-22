@@ -171,7 +171,7 @@ class SocketServer(Thread):
         asyncio.set_event_loop(self.loop)
         self.loop.set_debug(True)
         self.loop.set_debug(enabled=True)
-        start_server = websockets.serve(self.handle_connect, 'localhost', 8765)
+        start_server = websockets.serve(self.handle_connect, '0.0.0.0', 8765)
         self.websocket_server = self.loop.run_until_complete(start_server)
 
         self.load_clients()
@@ -187,4 +187,4 @@ class SocketServer(Thread):
             print("Interrrupted")
             self.shutdown()
             print("Done")
-        print("Ashnasboot Exited succesfully")
+        print("Ashnasbot Exited succesfully")

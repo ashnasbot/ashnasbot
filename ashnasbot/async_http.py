@@ -3,7 +3,7 @@ import asyncio
 import json
 
 class WebServer(object):
-    def __init__(self, reload_evt=None, address='127.0.0.1', port=8080, loop=None, shutdown_evt=None):
+    def __init__(self, reload_evt=None, address='0.0.0.0', port=8080, loop=None, shutdown_evt=None):
         self.address = address
         self.port = port
         self.reload_evt = reload_evt

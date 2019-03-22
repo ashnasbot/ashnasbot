@@ -24,11 +24,16 @@ class WebServer(object):
         print('------ serving on %s:%d ------'
               % (self.address, self.port))
 
+    @staticmethod
+    async def get_dashboard(request):
+        return web.HTTPFound('/static/config/dashboard.html')
+
     def setup_routes(self):
         self.app.router.add_get('/api/config', self.get_config)
         self.app.router.add_post('/api/config', self.post_config)
         self.app.router.add_post('/api/shutdown', self.post_shutdown)
         self.app.router.add_static('/static', path="public/")
+        self.app.router.add_get('/', self.get_dashboard)
 
     @staticmethod
     async def get_config(request):

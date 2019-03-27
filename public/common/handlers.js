@@ -63,7 +63,7 @@ new Vue({
         reconnect: function() {
             var boundReconnect = this.reconnect.bind(this);
             try {
-                this.chatsocket = new WebSocket("ws://" + location.hostname + ":8765/");
+                this.chatsocket = new WebSocket("wss://" + location.hostname + ":443/wsapp");
                 this.chatsocket.onerror = function() {
                         setTimeout(boundReconnect, 5000);
                 };
@@ -76,7 +76,7 @@ new Vue({
         }
     },
     mounted: function () {
-        this.chatsocket = new WebSocket("ws://" + location.hostname + ":8765/");
+        this.chatsocket = new WebSocket("wss://" + location.hostname + ":443/wsapp");
         this.chatsocket.onopen = this.socket_open
         var chat = document.getElementById('app');
         setInterval(function() {

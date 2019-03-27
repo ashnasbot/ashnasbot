@@ -1,8 +1,12 @@
-import winsound
 import os.path
 import os
 import glob
 import random
+
+try:
+    import winsound
+except ImportError:
+    pass
 
 BASE_PATH = os.path.abspath("public/audio")
 print(BASE_PATH)

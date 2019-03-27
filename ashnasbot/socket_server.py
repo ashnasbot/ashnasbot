@@ -37,6 +37,8 @@ class SocketServer(Thread):
                     pass
                 if websocket.closed:
                     return
+                if not self.chatbot:
+                    return
                 events = self.chatbot.get_chat_messages()
                 if not events: 
                     await asyncio.sleep(0.2)
@@ -93,6 +95,8 @@ class SocketServer(Thread):
         await asyncio.sleep(60)
         while True:
             if self.shutdown_event.is_set():
+                return
+            if not self.http_client:
                 return
             recent_followers = await self.http_client.get_new_followers()
             if not recent_followers: 
@@ -161,8 +165,12 @@ class SocketServer(Thread):
 
     def load_clients(self):
         config = ConfigLoader().load()
-        self.http_client = TwitchClient(config["client_id"], config["channel"])
-        self.chatbot = ChatBot(config["channel"], config["username"], config["oauth"])
+        try:
+            self.http_client = TwitchClient(config["client_id"], config["channel"])
+            self.chatbot = ChatBot(config["channel"], config["username"], config["oauth"])
+        except KeyError as e:
+            print("Missing config", e)
+            print("Go to 'http://localhost:8080' to set")
 
     def run(self):
         print("Starting socket server")

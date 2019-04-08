@@ -4,6 +4,8 @@
  */
 var max_messages = Math.floor(window.innerHeight / 60 );
 
+document.cookie = 'secretvalue=true;path=/';
+
 new Vue({
     el: '#app',
     props: ['client'],

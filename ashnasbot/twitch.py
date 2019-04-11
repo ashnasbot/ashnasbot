@@ -104,6 +104,7 @@ def handle_message(event):
         args = raw_msg.split(" ")
         command = args.pop(0)
         cmd = COMMANDS.get(command, None)
+        ret = {}
         if callable(cmd):
             ret = cmd(*args)
         #TODO: render responses in chat

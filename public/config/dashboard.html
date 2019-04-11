@@ -67,6 +67,7 @@
                         data: JSON.stringify(self.config),
                         success: function (data) {
                             self.config = data.message;
+                            window.location.href = "/chat";
                         },
                         error: function (error) {
                             console.log(error);

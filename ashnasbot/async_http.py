@@ -32,12 +32,27 @@ class WebServer(object):
     async def get_dashboard(request):
         return web.HTTPFound('/static/config/dashboard.html')
 
+    @staticmethod
+    async def get_chat(request):
+        return web.HTTPFound('/static/ff7/chat.html')
+
+    @staticmethod
+    async def get_favicon(request):
+        return web.FileResponse('/static/favicon.ico')
+
     def setup_routes(self):
         self.app.router.add_get('/api/config', self.get_config)
         self.app.router.add_post('/api/config', self.post_config)
         self.app.router.add_post('/api/shutdown', self.post_shutdown)
         self.app.router.add_static('/static', path="public/")
+
+        # This is very important
+        self.app.router.add_get('/favicon.ico', self.get_favicon)
+
+        # Shortcuts
         self.app.router.add_get('/', self.get_dashboard)
+        self.app.router.add_get('/dashboard', self.get_dashboard)
+        self.app.router.add_get('/chat', self.get_chat)
 
     @staticmethod
     async def get_config(request):

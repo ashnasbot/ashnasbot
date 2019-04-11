@@ -1,8 +1,10 @@
 import json
+import logging
 
 import aiohttp
 
 API_BASE = "https://api.twitch.tv"
+logger = logging.getLogger(__name__)
 
 
 class TwitchClient():
@@ -10,7 +12,7 @@ class TwitchClient():
     def __init__(self, client_id, target_user):
         self.client_id = client_id
         self.target_user = target_user
-        print("###", client_id, target_user)
+        logger.debug(f"starting twitch client for {client_id}/{target_user}")
 
         self._apis = {
             "login": {
@@ -70,7 +72,7 @@ class TwitchClient():
         for follower in recent_followers['follows']:
             user = follower['user']
             if user['_id'] not in follow_file:
-                print(user['display_name'], "is a new follower")
+                logger.info(user['display_name'], "is a new follower")
                 follow_file[user['_id']] = user['display_name']
                 new_follows.append(user['display_name'])
 

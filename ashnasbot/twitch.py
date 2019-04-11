@@ -1,6 +1,8 @@
-from . import av
-import sys
 import html
+import logging
+import sys
+
+from . import av
 
 STATIC_CDN = "https://static-cdn.jtvnw.net/"
 
@@ -26,6 +28,8 @@ EMOTE_URL_TEMPLATE = "<img src=\"" + STATIC_CDN + \
 #alt="{alt}"
 #title="{alt}"
 
+logger = logging.getLogger(__name__)
+
 def render_emotes(message, emotes):
     try:
         replacements = {}
@@ -35,7 +39,6 @@ def render_emotes(message, emotes):
             # Grab the 1st occurance, as we'll replace the rest by string.
             start, end = occurances[0].split('-')
             substr = message[int(start):int(end) + 1]
-            cls_attr = ""
             # TODO: do html-aware so we can handle attributes
             replace_str = EMOTE_URL_TEMPLATE.format(eid=eid, alt=substr)
 
@@ -50,7 +53,7 @@ def render_emotes(message, emotes):
             message = message.replace(f, r)
 
     except Exception as e:
-        print(e)
+        logger.info(e)
         raise
     
     return message
@@ -97,8 +100,7 @@ def handle_message(event):
         msg_tags.append(ACTION)
 
     if raw_msg.startswith('!'):
-        print(f"{etags['display-name']} COMMAND: {raw_msg}")
-        ret = None
+        logger.info(f"{etags['display-name']} COMMAND: {raw_msg}")
         args = raw_msg.split(" ")
         command = args.pop(0)
         cmd = COMMANDS.get(command, None)
@@ -106,7 +108,7 @@ def handle_message(event):
             ret = cmd(*args)
         #TODO: render responses in chat
 
-        return {}
+        return ret
 
     nickname = etags['display-name']
     if etags['badges']:
@@ -135,5 +137,5 @@ def handle_message(event):
             }
 
 COMMANDS = {
-    '!hey': lambda *args: av.play_random_sound('OOT_Navi_')
+    # '!hey': lambda *args: av.play_random_sound('OOT_Navi_')
 }

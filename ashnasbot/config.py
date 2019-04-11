@@ -1,4 +1,8 @@
 import json
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 class ReloadException(Exception):
     pass
@@ -22,7 +26,7 @@ class ConfigLoader():
 
         def __getitem__(self, key):
             if key not in self._config.keys():
-                print(self._config.keys())
+                logger.info(self._config.keys())
                 raise KeyError
             return self._config[key]
 

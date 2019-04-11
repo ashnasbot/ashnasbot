@@ -1,6 +1,10 @@
 from aiohttp import web
 import asyncio
 import json
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 class WebServer(object):
     def __init__(self, reload_evt=None, address='0.0.0.0', port=8080, loop=None, shutdown_evt=None):
@@ -21,7 +25,7 @@ class WebServer(object):
         await self.runner.setup()
         self.site = web.TCPSite(self.runner, self.address, self.port)
         await self.site.start()
-        print('------ serving on %s:%d ------'
+        logger.info('------ serving on %s:%d ------'
               % (self.address, self.port))
 
     @staticmethod
@@ -56,7 +60,6 @@ class WebServer(object):
         return web.json_response({})
 
 if __name__ == '__main__':
-    import logging
 
     loop = asyncio.get_event_loop()
     logging.basicConfig(level=logging.DEBUG)

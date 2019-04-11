@@ -1,5 +1,9 @@
-from twitchobserver import Observer
+import logging
 import time
+
+from twitchobserver import Observer
+
+logger = logging.getLogger(__name__)
 
 
 class ChatBot():
@@ -9,14 +13,14 @@ class ChatBot():
         self.observer = Observer(bot_user, oauth)
         self.observer.start()
         self.observer.join_channel(self.channel)
-        print(f"Joining channel: {channel}")
+        logger.info(f"Joining channel: {channel}")
 
 #    def handle_event(self, event):
-#        print("Twitch event", event)
+#        logger.info("Twitch event", event)
 #        if event.type == 'TWITCHCHATMESSAGE':
 #            self.queue.put(event)
 #        else:
-#            print(event)
+#            logger.info(event)
 
     def get_chat_messages(self, clear=True):
         evts = self.observer.get_events()
@@ -31,20 +35,20 @@ class ChatBot():
             if evt.type == "TWITCHCHATUSERNOTICE":
                 msg_id = evt.tags['msg-id']
                 if msg_id == "charity":
-                    print("Chraity stuff")
+                    logger.info("Chraity stuff")
                 elif msg_id == "sub":
                     evt.type = "SUB"
                 elif msg_id == "resub":
                     evt.type = "SUB"
                 elif msg_id == "raid":
-                    print("RAID", evt)
+                    logger.info(f"RAID {evt}")
                     evt.type = "RAID"
                 elif msg_id == "host":
                     evt.type = "HOST"
-                    print("HOST", evt)
+                    logger.info(f"HOST {evt}")
                 else:
-                    print(evt.type)
-                print(msg_id, evt)
+                    logger.info(evt.type)
+                logger.info(msg_id, evt)
             self.notifications.append(evt)
 
         return [ e for e in evts

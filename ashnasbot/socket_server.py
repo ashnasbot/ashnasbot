@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 from queue import Empty
 import time
 from threading import Thread
@@ -12,6 +13,9 @@ from .chat_bot import ChatBot
 from .config import ConfigLoader, ReloadException
 from .twitch import handle_message
 from .twitch_client import TwitchClient
+
+logger = logging.getLogger(__name__)
+
 
 class SocketServer(Thread):
 
@@ -49,7 +53,7 @@ class SocketServer(Thread):
                     if content:
                         await websocket.send(json.dumps(content))
         except Exception as e:
-            print("Failed to get chat:", e)
+            logger.info(f"Failed to get chat: {e}")
 
     async def chat_alerts(self):
         while True:
@@ -70,13 +74,13 @@ class SocketServer(Thread):
             if self.shutdown_event.is_set():
                 return
             await self.reload_event.wait()
-            print("Reloading config")
+            logger.info("Reloading config")
             self.load_clients()
             self.reload_event.clear()
 
     async def shutdown_listener(self):
         await self.shutdown_event.wait()
-        print("Shutdown Started")
+        logger.info("Shutdown Started")
         self.shutdown()
 
     async def heartbeat(self, websocket):
@@ -119,14 +123,14 @@ class SocketServer(Thread):
                 return
             event = await self._event_queue.get()
             if event is None:
-                print("No more alerts")
+                logger.info("No more alerts")
                 return
             if event['type'] == "FOLLOW":
                 event['audio'] = get_sound("Mana_got_item")
             if event['type'] == "SUB":
                 event['audio'] = get_sound("Super_Nintendo_Chalmers")
 
-            print(event)
+            logger.info(event)
 
             await websocket.send(json.dumps(event))
 
@@ -154,9 +158,9 @@ class SocketServer(Thread):
             return
         tasks.append(asyncio.create_task(self.heartbeat(websocket)))
 
-        print("Socket client Join:", command)
+        logger.info(f"Socket client Join: {command}")
         await asyncio.gather(*tasks)
-        print("Socket client Leave:", command)
+        logger.info(f"Socket client Leave: {command}")
 
     def shutdown(self):
         self.websocket_server.close()
@@ -169,11 +173,11 @@ class SocketServer(Thread):
             self.http_client = TwitchClient(config["client_id"], config["channel"])
             self.chatbot = ChatBot(config["channel"], config["username"], config["oauth"])
         except KeyError as e:
-            print("Missing config", e)
-            print("Go to 'http://localhost:8080' to set")
+            logger.error(f"Missing config ({e})")
+            logger.error("Go to 'http://localhost:8080' to set")
 
     def run(self):
-        print("Starting socket server")
+        logger.info("Starting socket server")
         self.loop = asyncio.new_event_loop()
         self._event_queue = asyncio.Queue(loop=self.loop)
         asyncio.set_event_loop(self.loop)
@@ -192,7 +196,7 @@ class SocketServer(Thread):
         try:
             self.loop.run_forever()
         except KeyboardInterrupt:
-            print("Interrrupted")
+            logger.info("Interrrupted")
             self.shutdown()
-            print("Done")
-        print("Ashnasbot Exited succesfully")
+            logger.info("Done")
+        logger.info("Ashnasbot Exited succesfully")

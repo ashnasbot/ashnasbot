@@ -5,6 +5,12 @@
 var max_messages = Math.floor(window.innerHeight / 60 );
 
 document.cookie = 'secretvalue=true;path=/';
+if (document.location.protocol == "https:") {
+    websocketLocation = "wss://" + location.hostname + ":443/wsapp"
+} else {
+    console.warn("Using unsecured websocket")
+    websocketLocation = "ws://" + location.hostname + ":8765"
+}
 
 new Vue({
     el: '#app',
@@ -60,12 +66,12 @@ new Vue({
                 clearInterval(this.ping);
                 this.ping = null;
             }
-            this.reconnect();
+            this.connect();
         },
-        reconnect: function() {
-            var boundReconnect = this.reconnect.bind(this);
+        connect: function() {
+            var boundReconnect = this.connect.bind(this);
             try {
-                this.chatsocket = new WebSocket("wss://" + location.hostname + ":443/wsapp");
+                this.chatsocket = new WebSocket(websocketLocation);
                 this.chatsocket.onerror = function() {
                         setTimeout(boundReconnect, 5000);
                 };
@@ -78,8 +84,7 @@ new Vue({
         }
     },
     mounted: function () {
-        this.chatsocket = new WebSocket("wss://" + location.hostname + ":443/wsapp");
-        this.chatsocket.onopen = this.socket_open
+        this.connect();
         var chat = document.getElementById('app');
         setInterval(function() {
             if (checkOverflow(chat)) {

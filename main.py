@@ -5,7 +5,7 @@ import signal
 from ashnasbot import socket_server
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.INFO)
     socket_thread = socket_server.SocketServer()
 
     def sighandler(signum, frame):

@@ -10,11 +10,6 @@
     <form id="app" @submit.prevent="save_config">
     <div class="form-group">
         <div class="form-field">
-            <label for="channel"><span>Channel to Join</span>
-            <input type="text" id="channel" class="form-control" v-model="config.channel">
-            </label>
-        </div>
-        <div class="form-field">
             <label for="client_id"><span>Your Twitch API Client ID</span>
             <input type="text" id="channel" class="form-control" v-model="config.client_id">
             </label>
@@ -67,7 +62,6 @@
                         data: JSON.stringify(self.config),
                         success: function (data) {
                             self.config = data.message;
-                            window.location.href = "/chat";
                         },
                         error: function (error) {
                             console.log(error);

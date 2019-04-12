@@ -2,7 +2,7 @@
 A simple twitch integration project to play with some python, very basic.
 
 ## Install
-(TODO: test these instructions & add windows)
+(TODO: test these instructions & add windows)  
 Requires python 3.6+ you can get it at https://www.python.org/downloads/
 
 ```

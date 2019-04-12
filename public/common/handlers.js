@@ -12,6 +12,7 @@ if (document.location.protocol == "https:") {
     websocketLocation = "ws://" + location.hostname + ":8765"
 }
 
+
 new Vue({
     el: '#app',
     props: ['client'],
@@ -22,6 +23,16 @@ new Vue({
         ping: null,
     },
     methods: {
+        getClientConfig: function() {
+            cmds = this.$el.attributes.client.value.split(',');
+            const urlParams = new URLSearchParams(window.location.search);
+            const channel = urlParams.get('channel');
+            clientConfig = {};
+            for (var i = 0; i < cmds.length; i++) {
+                clientConfig[cmds[i]] = channel;
+            }
+            return JSON.stringify(clientConfig);
+        },
         loadData: function() {
             if (event.data == "ping") {
                 this.chatsocket.send("pong");
@@ -45,7 +56,7 @@ new Vue({
         },
         socket_open: function () {
             console.log("Connected")
-            this.chatsocket.send(this.$el.attributes.client.value);
+            this.chatsocket.send(this.getClientConfig());
             this.chatsocket.onmessage = this.loadData;
             this.chatsocket.onclose = this.socket_close;
             if (this.ping) {

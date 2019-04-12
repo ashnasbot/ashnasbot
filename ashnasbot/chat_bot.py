@@ -48,19 +48,20 @@ class ChatBot():
                     logger.info(f"HOST {evt}")
                 else:
                     logger.info(evt.type)
-                logger.info(msg_id, evt)
+                logger.info(f"{msg_id}: {evt}")
             self.notifications.append(evt)
 
         return [ e for e in evts
                  if e.type in evt_types]
 
- #       return [ e for e in self.observer.get_events()
- #               if e.type == 'TWITCHCHATMESSAGE']
-
     def get_chat_alerts(self):
         alerts = self.notifications.copy()
         self.notifications = []
         return alerts
+
+    def close(self):
+        logger.info(f"closing chat {self.channel}")
+        self.observer.leave_channel(self.channel)
 
 
 #    def start(self):

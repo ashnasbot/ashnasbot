@@ -20,8 +20,8 @@ logger = logging.getLogger(__name__)
 class SocketServer(Thread):
 
     def __init__(self):
-        self.chatbot = None
-        self.http_client = None
+        self.chatbots = {}
+        self.http_clients = {}
         self.loop = None
         self.reload_event = None
         self.shutdown_event = None
@@ -29,8 +29,9 @@ class SocketServer(Thread):
         self._event_queue = None
         self.websocket_server = None
 
-    async def chat(self, websocket):
+    async def chat(self, websocket, channel):
         try:
+            
             while True:
                 if self.shutdown_event.is_set():
                     return
@@ -41,9 +42,9 @@ class SocketServer(Thread):
                     pass
                 if websocket.closed:
                     return
-                if not self.chatbot:
-                    return
-                events = self.chatbot.get_chat_messages()
+                if not channel in self.chatbots:
+                    self.chatbots[channel] = ChatBot(channel, self.config["username"], self.config["oauth"])
+                events = self.chatbots[channel].get_chat_messages()
                 if not events: 
                     await asyncio.sleep(0.2)
                     continue
@@ -54,12 +55,17 @@ class SocketServer(Thread):
                         await websocket.send(json.dumps(content))
         except Exception as e:
             logger.info(f"Failed to get chat: {e}")
+            if channel in self.chatbots:
+                self.chatbots[channel].close()
+                del self.chatbots[channel]
 
-    async def chat_alerts(self):
+    async def chat_alerts(self, channel):
         while True:
             if self.shutdown_event.is_set():
                 return
-            events = self.chatbot.get_chat_alerts()
+            if not channel in self.chatbots:
+                self.chatbots[channel] = ChatBot(channel, self.config["username"], self.config["oauth"])
+            events = self.chatbots[channel].get_chat_alerts()
             if not events: 
                 await asyncio.sleep(3)
                 continue
@@ -95,14 +101,14 @@ class SocketServer(Thread):
         except asyncio.CancelledError:
             pass
 
-    async def followers(self):
+    async def followers(self, channel):
         await asyncio.sleep(60)
         while True:
             if self.shutdown_event.is_set():
                 return
-            if not self.http_client:
-                return
-            recent_followers = await self.http_client.get_new_followers()
+            if not channel in self.http_clients:
+                self.http_clients[channel] = TwitchClient(self.config["client_id"], channel)
+            recent_followers = await self.http_clients[channel].get_new_followers()
             if not recent_followers: 
                 await asyncio.sleep(80)
                 continue
@@ -145,14 +151,16 @@ class SocketServer(Thread):
             return
         if self.shutdown_event.is_set():
             return
+        logger.info(command)
 
-        commands = command.split(",")
+        commands = json.loads(command)
+
         tasks = []
         if "chat" in commands:
-            tasks.append(asyncio.create_task(self.chat(websocket)))
+            tasks.append(asyncio.create_task(self.chat(websocket, commands["chat"])))
         if "alert" in commands:
-            tasks.append(asyncio.create_task(self.chat_alerts()))
-            tasks.append(asyncio.create_task(self.followers()))
+            tasks.append(asyncio.create_task(self.chat_alerts(commands["alert"])))
+            tasks.append(asyncio.create_task(self.followers(commands["alert"])))
             tasks.append(asyncio.create_task(self.alerts(websocket)))
         if not tasks:
             return
@@ -170,8 +178,7 @@ class SocketServer(Thread):
     def load_clients(self):
         config = ConfigLoader().load()
         try:
-            self.http_client = TwitchClient(config["client_id"], config["channel"])
-            self.chatbot = ChatBot(config["channel"], config["username"], config["oauth"])
+            self.config = config
         except KeyError as e:
             logger.error(f"Missing config ({e})")
             logger.error("Go to 'http://localhost:8080' to set")

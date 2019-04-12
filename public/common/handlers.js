@@ -4,6 +4,8 @@
  */
 var max_messages = Math.floor(window.innerHeight / 60 );
 
+// This serves only to stop random things knocking the websocket
+// can filter though proxy
 document.cookie = 'secretvalue=true;path=/';
 if (document.location.protocol == "https:") {
     websocketLocation = "wss://" + location.hostname + ":443/wsapp"

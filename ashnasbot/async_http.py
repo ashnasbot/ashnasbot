@@ -38,7 +38,7 @@ class WebServer(object):
 
     @staticmethod
     async def get_favicon(request):
-        return web.FileResponse('/public/favicon.ico')
+        return web.FileResponse('public/favicon.ico')
 
     def setup_routes(self):
         self.app.router.add_get('/api/config', self.get_config)

@@ -5,7 +5,6 @@ from twitchobserver import Observer
 
 logger = logging.getLogger(__name__)
 
-
 class ChatBot():
     def __init__(self, channel, bot_user, oauth):
         self.notifications = []
@@ -51,8 +50,11 @@ class ChatBot():
                 logger.info(f"{msg_id}: {evt}")
             self.notifications.append(evt)
 
-        return [ e for e in evts
+        new_messages = [ e for e in evts
                  if e.type in evt_types]
+        for m in new_messages:
+            logger.debug(m)
+        return new_messages
 
     def get_chat_alerts(self):
         alerts = self.notifications.copy()

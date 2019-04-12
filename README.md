@@ -35,4 +35,4 @@ Then you just need the 'username' of the token and the username of the channel y
 
 ## TODO
 - Fix credentials to only need oauth
-- Enable multiple clients, one per socket
+- allow multiple views per page (user key + channel)

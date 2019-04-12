@@ -12,7 +12,7 @@ class TwitchClient():
     def __init__(self, client_id, target_user):
         self.client_id = client_id
         self.target_user = target_user
-        logger.debug(f"starting twitch client for {client_id}/{target_user}")
+        logger.info(f"starting twitch client for {client_id}/{target_user}")
 
         self._apis = {
             "login": {

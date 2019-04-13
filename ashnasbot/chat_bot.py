@@ -1,85 +1,91 @@
 import logging
 import time
+import functools
+from threading import Thread, current_thread, Event
+from concurrent.futures import Future
+
+import asyncio
 
 from twitchobserver import Observer
 
 logger = logging.getLogger(__name__)
 
-
 class ChatBot():
-    def __init__(self, channel, bot_user, oauth):
+    evt_filter = ["TWITCHCHATJOIN", "TWITCHCHATMODE", "TWITCHCHATMESSAGE",
+                  "TWITCHCHATCOMMAND", "TWITCHCHATUSERSTATE",
+                  "TWITCHCHATROOMSTATE", "TWITCHCHATLEAVE"]
+    evt_types = ["TWITCHCHATMESSAGE"]
+
+    def __init__(self, loop, channel, bot_user, oauth):
         self.notifications = []
         self.channel = channel
         self.observer = Observer(bot_user, oauth)
         self.observer.start()
         self.observer.join_channel(self.channel)
+        self.loop = loop
+
+        self.chat_queue = asyncio.Queue(maxsize=100, loop=loop)
+        self.alert_queue = asyncio.Queue(maxsize=100, loop=loop)
+        self.observer.subscribe(self.handle_event)
         logger.info(f"Joining channel: {channel}")
 
-#    def handle_event(self, event):
-#        logger.info("Twitch event", event)
-#        if event.type == 'TWITCHCHATMESSAGE':
-#            self.queue.put(event)
-#        else:
-#            logger.info(event)
+    def alerts(self):
+        return self.alert_queue
 
-    def get_chat_messages(self, clear=True):
-        evts = self.observer.get_events()
-        evt_filter = ["TWITCHCHATJOIN", "TWITCHCHATMODE", "TWITCHCHATMESSAGE",
-                "TWITCHCHATCOMMAND", "TWITCHCHATUSERSTATE",
-                "TWITCHCHATROOMSTATE", "TWITCHCHATLEAVE"]
-        evt_types = ["TWITCHCHATMESSAGE"]
+    def chat(self):
+        return self.chat_queue
 
-        for evt in evts:
-            if evt.type in evt_filter:
-                continue
-            if evt.type == "TWITCHCHATUSERNOTICE":
-                msg_id = evt.tags['msg-id']
-                if msg_id == "charity":
-                    logger.info("Chraity stuff")
-                elif msg_id == "sub":
-                    evt.type = "SUB"
-                elif msg_id == "resub":
-                    evt.type = "SUB"
-                elif msg_id == "raid":
-                    logger.info(f"RAID {evt}")
-                    evt.type = "RAID"
-                elif msg_id == "host":
-                    evt.type = "HOST"
-                    logger.info(f"HOST {evt}")
-                else:
-                    logger.info(evt.type)
-                logger.info(msg_id, evt)
-            self.notifications.append(evt)
+    def add_task(self, coro):
+        """Add a task into a loop on another thread."""
+        def _async_add(func, fut):
+            try:
+                ret = func()
+                fut.set_result(ret)
+            except Exception as e:
+                fut.set_exception(e)
 
-        return [ e for e in evts
-                 if e.type in evt_types]
+        f = functools.partial(asyncio.ensure_future, coro, loop=self.loop)
+        # We're in a non-event loop thread so we use a Future
+        # to get the task from the event loop thread once
+        # it's ready.
+        fut = Future()
+        self.loop.call_soon_threadsafe(_async_add, f, fut)
+        return fut.result()
 
- #       return [ e for e in self.observer.get_events()
- #               if e.type == 'TWITCHCHATMESSAGE']
+    def handle_event(self, evt):
+        logger.debug(evt)
 
-    def get_chat_alerts(self):
-        alerts = self.notifications.copy()
-        self.notifications = []
-        return alerts
+        if evt.type == 'TWITCHCHATMESSAGE':
+            try:
+                self.add_task(self.chat_queue.put(evt))
+            except asyncio.QueueFull:
+                logger.error("Alerts queue full, discarding alert")
+            return
 
+        if evt.type in self.evt_filter:
+            return
 
-#    def start(self):
-#        self.running = True
-#        with self.observer as observer:
-#            observer.join_channel(self.channel)
-#
-#            while self.running:
-#                try:
-#                    for event in observer.get_events():
-#                        self.handle_event(event)
-#                    time.sleep(1)
-#                        
-#                except KeyboardInterrupt:
-#                    break
-#
-#            observer.leave_channel(self.channel)
+        if evt.type == "TWITCHCHATUSERNOTICE":
+            msg_id = evt.tags['msg-id']
+            if msg_id == "charity":
+                logger.info("Chraity stuff")
+            elif msg_id == "sub":
+                evt.type = "SUB"
+            elif msg_id == "resub":
+                evt.type = "SUB"
+            elif msg_id == "raid":
+                logger.info(f"RAID {evt}")
+                evt.type = "RAID"
+            elif msg_id == "host":
+                evt.type = "HOST"
+                logger.info(f"HOST {evt}")
+            else:
+                logger.info(evt.type)
+            try:
+                self.add_task(self.alert_queue.put(evt))
+            except asyncio.QueueFull:
+                logger.error("Alerts queue full, discarding alert")
 
-#    def stop(self):
-#        self.observer.leave_channel(self.channel)
-#        self.running = False
-
+    def close(self):
+        logger.info(f"closing chat {self.channel}")
+        self.observer.leave_channel(self.channel)

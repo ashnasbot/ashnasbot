@@ -2,7 +2,7 @@
 A simple twitch integration project to play with some python, very basic.
 
 ## Install
-(TODO: test these instructions & add windows)
+(TODO: test these instructions & add windows)  
 Requires python 3.6+ you can get it at https://www.python.org/downloads/
 
 ```
@@ -35,4 +35,4 @@ Then you just need the 'username' of the token and the username of the channel y
 
 ## TODO
 - Fix credentials to only need oauth
-- Enable multiple clients, one per socket
+- allow multiple views per page (user key + channel)

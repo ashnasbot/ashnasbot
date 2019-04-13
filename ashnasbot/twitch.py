@@ -1,5 +1,6 @@
 import html
 import logging
+import re
 import sys
 
 from . import av
@@ -23,16 +24,24 @@ BADGES = {
 }
 
 EMOTE_URL_TEMPLATE = "<img src=\"" + STATIC_CDN + \
-"""emoticons/v1/{eid}/1.0" class="emote" />"""
-#can't add title as the replace is greedy
-#alt="{alt}"
-#title="{alt}"
+"""emoticons/v1/{eid}/1.0" class="emote" 
+alt="{alt}"
+title="{alt}"
+/>
+"""
+
+BADGE_URL_TEMPLATE = """<img class="badge" src="{url}"
+alt="{alt}"
+title="{alt}"
+/>"""
 
 logger = logging.getLogger(__name__)
+
 
 def render_emotes(message, emotes):
     try:
         replacements = {}
+
         for emote in emotes.split("/"):
             eid, pos = emote.split(':')
             occurances = pos.split(',')
@@ -44,28 +53,17 @@ def render_emotes(message, emotes):
 
             replacements[substr] = replace_str
 
-        # Tactically timed html escape
         message = html.escape(message)
 
-        for f, r in sorted(replacements.items(), key=lambda e:len(e[1]), reverse=True):
-            # find = "\s+{}|{}\s+)".format(f, r)
-            # message = re.sub(find, r, message)
-            message = message.replace(f, r)
+        pattern = re.compile("|".join([re.escape(k) for k in sorted(replacements,key=len,reverse=True)]), flags=re.DOTALL)
+        message = pattern.sub(lambda x: replacements[x.group(0)], message)
 
     except Exception as e:
-        logger.info(e)
+        logger.error(e)
         raise
     
     return message
-
-BADGE_URL_TEMPLATE = """<img 
-class="badge"
-src="{url}"
-alt="{alt}"
-title="{alt}"
-/>"""
-
-
+        
 def render_badges(badges):
 
     rendered = []
@@ -97,6 +95,7 @@ def handle_message(event):
     msg_type = event.type
 
     if raw_msg.startswith('\u0001'):
+        raw_msg = raw_msg.replace('\u0001', "")[7:]
         msg_tags.append(ACTION)
 
     if raw_msg.startswith('!'):
@@ -121,11 +120,6 @@ def handle_message(event):
         message = render_emotes(raw_msg, etags['emotes'])
     else:
         message = html.escape(raw_msg)
-
-    # Post render message actions
-    if ACTION in msg_tags:
-        message = message.replace('\u0001', "")
-        message = message[7:]
 
     return {
             'badges': badges,

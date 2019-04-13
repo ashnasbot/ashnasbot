@@ -19,7 +19,7 @@ pip install -r requirements.txt
 ```
 
 ## Running
-```python3 ./main.py```
+```python3 ./__main__.py```
 navigate to `localhost:8080/dashboard` to configure!
 
 ## config
@@ -27,6 +27,10 @@ You must [register your application on the Twitch dev portal](https://dev.twitch
 currently the bot requires both.
 
 Then you just need the 'username' of the token and the username of the channel you want to join.
+
+navigate to `http://localhost/static/ff7/chat.html?channel=username` to get chat!
+
+TODO: Document alerts
 
 ## Known Issues
 - Tags seem to be funky i.e. "@ashnasbot SeemsGood"
@@ -36,3 +40,5 @@ Then you just need the 'username' of the token and the username of the channel y
 ## TODO
 - Fix credentials to only need oauth
 - allow multiple views per page (user key + channel)
+- alerts betterer
+- bits emotes

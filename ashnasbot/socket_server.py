@@ -31,7 +31,7 @@ class SocketServer(Thread):
 
     async def chat(self, websocket, channel):
         try:
-            
+            queue = None 
             while True:
                 if self.shutdown_event.is_set():
                     return
@@ -43,16 +43,16 @@ class SocketServer(Thread):
                 if websocket.closed:
                     return
                 if not channel in self.chatbots:
-                    self.chatbots[channel] = ChatBot(channel, self.config["username"], self.config["oauth"])
-                events = self.chatbots[channel].get_chat_messages()
-                if not events: 
-                    await asyncio.sleep(0.2)
-                    continue
+                    self.chatbots[channel] = ChatBot(self.loop, channel, self.config["username"], self.config["oauth"])
+                    queue = self.chatbots[channel].chat()
 
-                for event in events:
+                event = await queue.get()
+                if event: 
                     content = handle_message(event)
                     if content:
                         await websocket.send(json.dumps(content))
+                queue.task_done()
+
         except Exception as e:
             logger.info(f"Failed to get chat: {e}")
             if channel in self.chatbots:
@@ -60,20 +60,20 @@ class SocketServer(Thread):
                 del self.chatbots[channel]
 
     async def chat_alerts(self, channel):
+        queue = None
         while True:
             if self.shutdown_event.is_set():
                 return
             if not channel in self.chatbots:
-                self.chatbots[channel] = ChatBot(channel, self.config["username"], self.config["oauth"])
-            events = self.chatbots[channel].get_chat_alerts()
-            if not events: 
-                await asyncio.sleep(3)
-                continue
+                self.chatbots[channel] = ChatBot(self.loop, channel, self.config["username"], self.config["oauth"])
+                queue = self.chatbots[channel].chat()
 
-            for event in events:
+            event = await queue.get()
+            if event: 
                 content = handle_message(event)
                 if content:
                     await self._event_queue.put(content)
+            queue.task_done()
 
     async def config_listener(self):
         while True:

@@ -16,18 +16,26 @@ class ChatBot():
                   "TWITCHCHATROOMSTATE", "TWITCHCHATLEAVE"]
     evt_types = ["TWITCHCHATMESSAGE"]
 
-    def __init__(self, loop, channel, bot_user, oauth):
+    def __init__(self, loop, bot_user, oauth):
         self.notifications = []
-        self.channel = channel
+        self.channels = set()
         self.observer = Observer(bot_user, oauth)
         self.observer.start()
-        self.observer.join_channel(self.channel)
         self.loop = loop
 
         self.chat_queue = asyncio.Queue(maxsize=100, loop=loop)
         self.alert_queue = asyncio.Queue(maxsize=100, loop=loop)
         self.observer.subscribe(self.handle_event)
+
+    def subscribe(self, channel):
         logger.info(f"Joining channel: {channel}")
+        self.observer.join_channel(channel)
+        self.channels.add(channel)
+
+    def unsubscribe(self, channel):
+        logger.info(f"Leaving channel: {channel}")
+        self.observer.leave_channel(channel)
+        self.channels.remove(channel)
 
     def alerts(self):
         return self.alert_queue
@@ -87,5 +95,6 @@ class ChatBot():
                 logger.error("Alerts queue full, discarding alert")
 
     def close(self):
-        logger.info(f"closing chat {self.channel}")
-        self.observer.leave_channel(self.channel)
+        for c in self.channels:
+            logger.info(f"closing chat {c}")
+            self.observer.leave_channel(c)

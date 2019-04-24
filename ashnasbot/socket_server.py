@@ -20,7 +20,8 @@ logger = logging.getLogger(__name__)
 class SocketServer(Thread):
 
     def __init__(self):
-        self.chatbots = {}
+        self.websockets = {}
+        self.chatbot = None
         self.http_clients = {}
         self.loop = None
         self.reload_event = None
@@ -29,45 +30,47 @@ class SocketServer(Thread):
         self._event_queue = None
         self.websocket_server = None
 
-    async def chat(self, websocket, channel):
-        try:
-            queue = None 
-            while True:
+    async def chat(self):
+        queue = None 
+        while True:
+            try:
                 if self.shutdown_event.is_set():
                     return
-                # Ping to minimise messages being thrown away
-                try:
-                    await websocket.ping()
-                except asyncio.CancelledError:
-                    pass
-                if websocket.closed:
-                    return
-                if not channel in self.chatbots:
-                    self.chatbots[channel] = ChatBot(self.loop, channel, self.config["username"], self.config["oauth"])
-                    queue = self.chatbots[channel].chat()
+                if not self.chatbot:
+                    await asyncio.sleep(1)
+                    continue
 
+                queue = self.chatbot.chat()
                 event = await queue.get()
+                channel = event.channel
+                if channel not in self.websockets:
+                    logger.error(f"Message for channel '{channel}' but no socket")
+                    self.chatbot.unsubscribe(channel)
                 if event: 
                     content = handle_message(event)
                     if content:
-                        await websocket.send(json.dumps(content))
+                        self.websockets[channel] = [s for s in self.websockets[channel] if not s.closed]
+                        for s in self.websockets[channel]:
+                            await s.send(json.dumps(content))
                 queue.task_done()
 
-        except Exception as e:
-            logger.info(f"Failed to get chat: {e}")
-            if channel in self.chatbots:
-                self.chatbots[channel].close()
-                del self.chatbots[channel]
+            except websockets.exceptions.ConnectionClosed as e:
+                logger.debug(f"Connection closed {e.code}")
 
-    async def chat_alerts(self, channel):
+            except Exception as e:
+                logger.info(f"Failed to get chat: {e}")
+
+    async def chat_alerts(self):
         queue = None
         while True:
             if self.shutdown_event.is_set():
                 return
-            if not channel in self.chatbots:
-                self.chatbots[channel] = ChatBot(self.loop, channel, self.config["username"], self.config["oauth"])
-                queue = self.chatbots[channel].chat()
 
+            if not self.chatbot:
+                await asyncio.sleep(1)
+                continue
+
+            queue = self.chatbot.alerts()
             event = await queue.get()
             if event: 
                 content = handle_message(event)
@@ -116,14 +119,15 @@ class SocketServer(Thread):
             for nickname in recent_followers:
                 evt_msg = {
                     'nickname': nickname,
-                    'type' : "FOLLOW"
+                    'type' : "FOLLOW",
+                    'channel': channel
                 }
 
                 await self._event_queue.put(evt_msg)
             # Don't spam api
             await asyncio.sleep(80)
 
-    async def alerts(self, websocket):
+    async def alerts(self):
         while True:
             if self.shutdown_event.is_set():
                 return
@@ -131,6 +135,10 @@ class SocketServer(Thread):
             if event is None:
                 logger.info("No more alerts")
                 return
+            try:
+                channel = event['channel']
+            except KeyError:
+                channel = event.channel
             if event['type'] == "FOLLOW":
                 event['audio'] = get_sound("Mana_got_item")
             if event['type'] == "SUB":
@@ -138,7 +146,9 @@ class SocketServer(Thread):
 
             logger.info(event)
 
-            await websocket.send(json.dumps(event))
+            self.websockets[channel] = [s for s in self.websockets[channel] if not s.closed]
+            for s in self.websockets[channel]:
+                await s.send(json.dumps(event))
 
             self._event_queue.task_done()
             await asyncio.sleep(30)
@@ -157,13 +167,14 @@ class SocketServer(Thread):
 
         tasks = []
         if "chat" in commands:
-            tasks.append(asyncio.create_task(self.chat(websocket, commands["chat"])))
+            channel = commands["chat"]
+            if channel in self.websockets:
+                self.websockets[channel].append(websocket)
+            else:
+                self.websockets[channel] = [websocket]
+                self.chatbot.subscribe(channel)
         if "alert" in commands:
-            tasks.append(asyncio.create_task(self.chat_alerts(commands["alert"])))
             tasks.append(asyncio.create_task(self.followers(commands["alert"])))
-            tasks.append(asyncio.create_task(self.alerts(websocket)))
-        if not tasks:
-            return
         tasks.append(asyncio.create_task(self.heartbeat(websocket)))
 
         logger.info(f"Socket client Join: {command}")
@@ -194,8 +205,12 @@ class SocketServer(Thread):
         self.websocket_server = self.loop.run_until_complete(start_server)
 
         self.load_clients()
+        self.chatbot = ChatBot(self.loop, self.config["username"], self.config["oauth"])
         self.reload_event = asyncio.Event()
         self.shutdown_event = asyncio.Event()
+        self.loop.create_task(self.chat())
+        self.loop.create_task(self.chat_alerts())
+        self.loop.create_task(self.alerts())
         self.loop.create_task(self.config_listener())
         self.loop.create_task(self.shutdown_listener())
 

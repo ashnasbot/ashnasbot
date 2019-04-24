@@ -128,7 +128,8 @@ def handle_message(event):
             'id' : etags['id'],
             'tags' : etags,
             'extra' : msg_tags,
-            'type' : msg_type
+            'type' : msg_type,
+            'channel' : event.channel
             }
 
 COMMANDS = {

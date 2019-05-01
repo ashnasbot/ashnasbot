@@ -199,8 +199,7 @@ class SocketServer(Thread):
         self.loop = asyncio.new_event_loop()
         self._event_queue = asyncio.Queue(loop=self.loop)
         asyncio.set_event_loop(self.loop)
-        self.loop.set_debug(True)
-        self.loop.set_debug(enabled=True)
+        self.loop.set_debug(enabled=False)
         start_server = websockets.serve(self.handle_connect, '0.0.0.0', 8765)
         self.websocket_server = self.loop.run_until_complete(start_server)
 

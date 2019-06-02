@@ -17,6 +17,7 @@ from .twitch_client import TwitchClient
 from .users import Users
 
 logger = logging.getLogger(__name__)
+SCRAPE_AVATARS = True
 
 
 class SocketServer(Thread):
@@ -52,7 +53,8 @@ class SocketServer(Thread):
                 if event: 
                     content = handle_message(event)
                     if content:
-                        content['logo'] = await self.users.get_picture(content['tags']['user-id'])
+                        if SCRAPE_AVATARS:
+                            content['logo'] = await self.users.get_picture(content['tags']['user-id'])
                         self.websockets[channel] = [s for s in self.websockets[channel] if not s.closed]
                         for s in self.websockets[channel]:
                             await s.send(json.dumps(content))

@@ -4,6 +4,7 @@ import logging
 from queue import Empty
 import time
 from threading import Thread
+from concurrent.futures import ThreadPoolExecutor
 
 import websockets
 
@@ -13,8 +14,10 @@ from .chat_bot import ChatBot
 from .config import ConfigLoader, ReloadException
 from .twitch import handle_message
 from .twitch_client import TwitchClient
+from .users import Users
 
 logger = logging.getLogger(__name__)
+SCRAPE_AVATARS = True
 
 
 class SocketServer(Thread):
@@ -22,6 +25,7 @@ class SocketServer(Thread):
     def __init__(self):
         self.websockets = {}
         self.chatbot = None
+        self.users = None
         self.http_clients = {}
         self.loop = None
         self.reload_event = None
@@ -49,13 +53,16 @@ class SocketServer(Thread):
                 if event: 
                     content = handle_message(event)
                     if content:
+                        if SCRAPE_AVATARS:
+                            content['logo'] = await self.users.get_picture(content['tags']['user-id'])
                         self.websockets[channel] = [s for s in self.websockets[channel] if not s.closed]
                         for s in self.websockets[channel]:
                             await s.send(json.dumps(content))
                 queue.task_done()
 
+
             except websockets.exceptions.ConnectionClosed as e:
-                logger.debug(f"Connection closed {e.code}")
+                logger.info(f"Connection closed {e.code}")
 
             except Exception as e:
                 logger.info(f"Failed to get chat: {e}")
@@ -174,12 +181,17 @@ class SocketServer(Thread):
                 self.websockets[channel] = [websocket]
                 self.chatbot.subscribe(channel)
         if "alert" in commands:
-            tasks.append(asyncio.create_task(self.followers(commands["alert"])))
+            channel = commands['alert']
+            tasks.append(asyncio.create_task(self.followers(channel)))
         tasks.append(asyncio.create_task(self.heartbeat(websocket)))
 
         logger.info(f"Socket client Join: {command}")
         await asyncio.gather(*tasks)
         logger.info(f"Socket client Leave: {command}")
+        websocket.close()
+        self.websockets[channel] = [s for s in self.websockets[channel] if not s.closed]
+        if not self.websockets[channel]:
+            self.chatbot.unsubscribe(channel)
 
     def shutdown(self):
         self.websocket_server.close()
@@ -197,15 +209,17 @@ class SocketServer(Thread):
     def run(self):
         logger.info("Starting socket server")
         self.loop = asyncio.new_event_loop()
+        self.loop.set_default_executor(ThreadPoolExecutor(max_workers=5))
         self._event_queue = asyncio.Queue(loop=self.loop)
         asyncio.set_event_loop(self.loop)
-        self.loop.set_debug(True)
-        self.loop.set_debug(enabled=True)
+        self.loop.set_debug(enabled=False)
         start_server = websockets.serve(self.handle_connect, '0.0.0.0', 8765)
         self.websocket_server = self.loop.run_until_complete(start_server)
 
+
         self.load_clients()
         self.chatbot = ChatBot(self.loop, self.config["username"], self.config["oauth"])
+        self.users = Users(TwitchClient(self.config["client_id"], ''))
         self.reload_event = asyncio.Event()
         self.shutdown_event = asyncio.Event()
         self.loop.create_task(self.chat())

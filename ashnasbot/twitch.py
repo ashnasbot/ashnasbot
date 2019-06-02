@@ -88,8 +88,8 @@ def handle_message(event):
         raw_msg = f"{etags['msg-param-displayName']} is raiding with a party of " \
                   f"{etags['msg-param-viewerCount']}"
     if event.type == "HOST":
-        raw_msg = f"{etags['msg-param-displayName']} is raiding with a party of " \
-                  f"{etags['msg-param-viewerCount']}"
+        raw_msg = f"{etags['msg-param-displayName']} is hosting for " \
+                  f"{etags['msg-param-viewerCount']} viewers"
 
     msg_tags = []
     msg_type = event.type

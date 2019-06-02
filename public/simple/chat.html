@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+	<link href="https://fonts.googleapis.com/css?family=Karla" rel="stylesheet">
+    <link rel="stylesheet" type="text/css" href="textbox.css">
+    <!-- development version, includes helpful console warnings -->
+    <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+</head>
+<body>
+<div id="app" client="chat">
+	<div v-cloak>
+		<transition-group name="slide-fade" tag="ol">
+		<li v-for="msg in chat" v-bind:key="msg.id">
+			<div class="msg msg-msg msg-frame msg-bg">
+				<img class="logo" :src="msg.logo"/>
+				<span class="badges">
+					<span v-for="badge in msg.badges" v-html="badge"></span>
+				</span>
+				<span class="nick" v-html="msg.nickname">:</span>
+				<p><q v-bind:class="msg.extra" v-html="msg.message"></p>
+			</div>
+		</li>
+		</transition-group>
+	</div>
+</div>
+<script src="../common/handlers.js"></script>
+</body>
+</html>
+

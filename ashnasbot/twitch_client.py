@@ -9,6 +9,7 @@ logger = logging.getLogger(__name__)
 
 class TwitchClient():
 
+    # TODO: Refactor to be a generic client
     def __init__(self, client_id, target_user):
         self.client_id = client_id
         self.target_user = target_user
@@ -18,7 +19,11 @@ class TwitchClient():
             "login": {
                 "url": "/kraken/users",
                 "params": {'login': f'{self.target_user}'}
-                }
+                },
+            "users": {
+                "url": "/kraken/users",
+                "params": {'id':None}
+            }
             }
 
         self.channel_id = None
@@ -38,6 +43,13 @@ class TwitchClient():
             "url": f"/kraken/channels/{self.channel_id}/follows",
             "params": {'limit': 10}
         }
+
+    async def get_user_info(self, user):
+        resp = await self.make_api_request('users', params={'id': user})
+        try:
+            return resp["users"][0]
+        except:
+            return {}
         
 
     def get_api(self, api_name):
@@ -46,16 +58,20 @@ class TwitchClient():
 
         return None
 
-    async def make_api_request(self, api):
+    async def make_api_request(self, api, params=None):
         api_req = self.get_api(api)
         headers = {
             "Client-ID": f"{self.client_id}",
             "Accept": "application/vnd.twitchtv.v5+json"
         }
+        if params:
+            req_params = {**api_req['params'], **params}
+        else:
+            req_params = api_req['params']
 
         async with aiohttp.ClientSession() as session:
             async with session.get(API_BASE + api_req["url"],
-                         params=api_req['params'],
+                         params=req_params,
                          headers=headers) as resp:
                 return await resp.json()
 

@@ -54,6 +54,16 @@ div.msg img {
     box-shadow: none
 }
 
+div.msg img.logo {
+  height: 64px;
+  float: left;
+  position: relative;
+  padding-right: 8px;
+
+  margin-top:auto;
+  margin-bottom:auto;
+}
+
 div.msg q {
   quotes: "“" "”" "‘" "’";
 }

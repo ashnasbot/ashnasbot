@@ -4,6 +4,7 @@ import re
 import sys
 
 from . import av
+from . import commands
 
 STATIC_CDN = "https://static-cdn.jtvnw.net/"
 
@@ -77,6 +78,16 @@ def render_badges(badges):
 
     return rendered
 
+def handle_command(event):
+    etags = event.tags
+    raw_msg = event.message
+    logger.info(f"{etags['display-name']} COMMAND: {raw_msg}")
+    args = raw_msg.split(" ")
+    command = args.pop(0)
+    cmd = COMMANDS.get(command, None)
+    if callable(cmd):
+        return cmd(*args)
+
 def handle_message(event):
     etags = event.tags
     raw_msg = ""
@@ -100,15 +111,15 @@ def handle_message(event):
 
     if raw_msg.startswith('!'):
         logger.info(f"{etags['display-name']} COMMAND: {raw_msg}")
-        args = raw_msg.split(" ")
-        command = args.pop(0)
-        cmd = COMMANDS.get(command, None)
-        ret = {}
-        if callable(cmd):
-            ret = cmd(*args)
+        #args = raw_msg.split(" ")
+        #command = args.pop(0)
+        #cmd = COMMANDS.get(command, None)
+        #ret = {}
+        #if callable(cmd):
+        #    ret = cmd(*args)
         #TODO: render responses in chat
 
-        return ret
+        return {}
 
     nickname = etags['display-name']
     if etags['badges']:
@@ -134,4 +145,5 @@ def handle_message(event):
 
 COMMANDS = {
     # '!hey': lambda *args: av.play_random_sound('OOT_Navi_')
+    '!no': commands.no_cmd
 }

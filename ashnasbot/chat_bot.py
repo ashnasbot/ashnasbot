@@ -8,6 +8,8 @@ import asyncio
 
 from twitchobserver import Observer
 
+from . import twitch
+
 logger = logging.getLogger(__name__)
 
 class ChatBot():
@@ -65,6 +67,14 @@ class ChatBot():
 
         if evt.type == 'TWITCHCHATMESSAGE':
             try:
+                if evt.message.startswith("!"):
+                    res = twitch.handle_command(evt)
+                    if res:
+                        self.send_message(res, evt.channel)
+            except Exception as e:
+                logger.warn(f"Error processing command ({e})")
+
+            try:
                 self.add_task(self.chat_queue.put(evt))
             except asyncio.QueueFull:
                 logger.error("Alerts queue full, discarding alert")
@@ -93,6 +103,19 @@ class ChatBot():
                 self.add_task(self.alert_queue.put(evt))
             except asyncio.QueueFull:
                 logger.error("Alerts queue full, discarding alert")
+
+    def send_message(self, message, channel):
+        if not message:
+            return
+        if channel not in self.channels:
+            logger.warn("Sending a message to a channel we're not in: {channel}")
+            self.observer.join_channel(channel)
+
+        self.observer.send_message(message, channel)
+
+        if channel not in self.channels:
+            self.observer.leave_channel(channel)
+
 
     def close(self):
         for c in self.channels:

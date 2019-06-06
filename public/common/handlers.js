@@ -14,6 +14,11 @@ if (document.location.protocol == "https:") {
     websocketLocation = "ws://" + location.hostname + ":8765"
 }
 
+function getChannel() {
+    // TODO: Cache result
+    const urlParams = new URLSearchParams(window.location.search);
+    return urlParams.get('channel');
+}
 
 new Vue({
     el: '#app',
@@ -23,12 +28,12 @@ new Vue({
         alert: "",
         alertLog: [],
         ping: null,
+        channel: getChannel()
     },
     methods: {
         getClientConfig: function() {
-            cmds = this.$el.attributes.client.value.split(',');
-            const urlParams = new URLSearchParams(window.location.search);
-            const channel = urlParams.get('channel');
+            const channel = getChannel();
+            const cmds = this.$el.attributes.client.value.split(',');
             clientConfig = {};
             for (var i = 0; i < cmds.length; i++) {
                 clientConfig[cmds[i]] = channel;
@@ -104,6 +109,17 @@ new Vue({
                 this.chat.shift();
             }
         }.bind(this), 300);
+
+        this.menu_timeout = setTimeout(function() {
+            document.getElementsByClassName("menu")[0].style.display = "none";
+        }, 3000);
+
+        window.addEventListener("keypress", function(e) {
+            document.getElementsByClassName("menu")[0].style.display = "block";
+            this.menu_timeout = setTimeout(function() {
+                document.getElementsByClassName("menu")[0].style.display = "none";
+            }, 3000);
+        }.bind(this));
 
     },
 

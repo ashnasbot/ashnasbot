@@ -9,6 +9,13 @@
 </head>
 <body>
 <div id="app" client="chat">
+	<div class="menu">
+		<form method="GET">
+			<label for="menu_channel">Channel</label>
+			<input v-model="channel" id="menu_channel" name="channel"/>
+			<input type="submit"/>
+		</form>
+	</div>
 	<div v-cloak>
 		<transition-group name="slide-fade" tag="ol">
 		<li v-for="msg in chat" v-bind:key="msg.id">

@@ -105,3 +105,16 @@ list-style-type: none;
   position: relative;
   top: -200px;
 }
+
+div.menu {
+  height: 1.5em;
+  background-color: #333;
+  color: #DDD;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 1em;
+
+  position: absolute;
+  width: 100vw;
+  top: 0;
+  left: 0;
+}

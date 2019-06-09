@@ -20,12 +20,16 @@
 		<transition-group name="slide-fade" tag="ol">
 		<li v-for="msg in chat" v-bind:key="msg.id">
 			<div class="msg msg-msg msg-frame msg-bg">
-				<img class="logo" :src="msg.logo"/>
+				<div class="img-frame column">
+					<img class="logo" :src="msg.logo"/>
+				</div>
+				<div class="column">
 				<span class="badges">
 					<span v-for="badge in msg.badges" v-html="badge"></span>
 				</span>
 				<span class="nick" v-html="msg.nickname">:</span>
 				<p><q v-bind:class="msg.extra" v-html="msg.message"></p>
+				</div>
 			</div>
 		</li>
 		</transition-group>

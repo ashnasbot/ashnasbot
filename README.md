@@ -33,12 +33,11 @@ navigate to `http://localhost/static/ff7/chat.html?channel=username` to get chat
 TODO: Document alerts
 
 ## Known Issues
-- Tags seem to be funky i.e. "@ashnasbot SeemsGood"
-  suspect the 'tag' to be rendered in the text differently to whats seen.
-- multiple windows will receive messages in a round-robin fashion rather than duplicates.
+- Websocket sometimes gets confused - breaks eventloop
 
 ## TODO
 - Fix credentials to only need oauth
-- allow multiple views per page (user key + channel)
 - alerts betterer
 - bits emotes
+- chat commands
+- bot replies

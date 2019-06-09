@@ -1,3 +1,4 @@
+import copy
 import html
 import logging
 import re
@@ -28,8 +29,7 @@ EMOTE_URL_TEMPLATE = "<img src=\"" + STATIC_CDN + \
 """emoticons/v1/{eid}/1.0" class="emote" 
 alt="{alt}"
 title="{alt}"
-/>
-"""
+/>"""
 
 BADGE_URL_TEMPLATE = """<img class="badge" src="{url}"
 alt="{alt}"
@@ -101,6 +101,8 @@ def handle_message(event):
     if event.type == "HOST":
         raw_msg = f"{etags['msg-param-displayName']} is hosting for " \
                   f"{etags['msg-param-viewerCount']} viewers"
+    if event.type == "SUB":
+        raw_msg = html.unescape(etags['system-msg'].replace("\\s", " "))
 
     msg_tags = []
     msg_type = event.type
@@ -108,6 +110,9 @@ def handle_message(event):
     if raw_msg.startswith('\u0001'):
         raw_msg = raw_msg.replace('\u0001', "")[7:]
         msg_tags.append(ACTION)
+
+    if "cheer" in raw_msg or "Cheer" in raw_msg:
+        logger.info(raw_msg)
 
     if raw_msg.startswith('!'):
         logger.info(f"{etags['display-name']} COMMAND: {raw_msg}")
@@ -136,6 +141,7 @@ def handle_message(event):
             'badges': badges,
             'nickname': nickname,
             'message' : message,
+            'orig_message': event.message,
             'id' : etags['id'],
             'tags' : etags,
             'extra' : msg_tags,
@@ -147,3 +153,8 @@ COMMANDS = {
     # '!hey': lambda *args: av.play_random_sound('OOT_Navi_')
     '!no': commands.no_cmd
 }
+
+def create_event(from_evt, message):
+    new_evt = copy.copy(from_evt)
+    new_evt.message = message
+    return new_evt

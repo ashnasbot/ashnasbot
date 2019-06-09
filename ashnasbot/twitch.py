@@ -46,10 +46,9 @@ def render_emotes(message, emotes):
         for emote in emotes.split("/"):
             eid, pos = emote.split(':')
             occurances = pos.split(',')
-            # Grab the 1st occurance, as we'll replace the rest by string.
+            # Grab the 1st occurance, as we'll replace the rest inplace with regex.
             start, end = occurances[0].split('-')
             substr = message[int(start):int(end) + 1]
-            # TODO: do html-aware so we can handle attributes
             replace_str = EMOTE_URL_TEMPLATE.format(eid=eid, alt=substr)
 
             replacements[substr] = replace_str

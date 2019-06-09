@@ -5,6 +5,7 @@
 var max_messages = Math.floor(window.innerHeight / 60 );
 
 // Load at startup, this is done async (we should use window.speechSynthesis.onvoiceschanged)
+var synth = window.speechSynthesis;
 var voices = synth.getVoices();
 
 // This serves only to stop random things knocking the websocket
@@ -118,7 +119,7 @@ new Vue({
 
         this.menu_timeout = setTimeout(function() {
             document.getElementsByClassName("menu")[0].style.opacity = "0";
-        }, 3000);
+        }, 10000);
 
         window.addEventListener("keypress", function(e) {
             document.getElementsByClassName("menu")[0].style.opacity = "1";
@@ -161,7 +162,6 @@ function do_alert(event, app)
         var audio = new Audio(event.audio);
         audio.play().then(function(){
             audio.addEventListener("ended", function(){
-                var synth = window.speechSynthesis;
                 voice = synth.getVoices()[0].name;
                 var utterThis = new SpeechSynthesisUtterance(event.orig_message);
                 synth.speak(utterThis);

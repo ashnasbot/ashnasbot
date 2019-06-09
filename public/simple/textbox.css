@@ -124,9 +124,15 @@ div.menu {
   color: #DDD;
   font-family: 'Montserrat', sans-serif;
   font-size: 1em;
+  transition: opacity .3s ease;
 
   position: absolute;
   width: 100vw;
   top: 0;
   left: 0;
+  z-index: 10;
+}
+
+div.menu:focus-within, div.menu:hover {
+  opacity: 1 !important;
 }

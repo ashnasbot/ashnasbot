@@ -4,6 +4,9 @@
  */
 var max_messages = Math.floor(window.innerHeight / 60 );
 
+// Load at startup, this is done async (we should use window.speechSynthesis.onvoiceschanged)
+var voices = synth.getVoices();
+
 // This serves only to stop random things knocking the websocket
 // can filter though proxy
 document.cookie = 'secretvalue=true;path=/';
@@ -54,6 +57,8 @@ new Vue({
                     break;
                 case "FOLLOW":
                 case "SUB":
+                    //Disable alerts for now
+                    return;
                     do_alert(msg, this);
                     this.alertLog.push(msg)
                     console.log(msg.message);
@@ -112,13 +117,13 @@ new Vue({
         }.bind(this), 300);
 
         this.menu_timeout = setTimeout(function() {
-            document.getElementsByClassName("menu")[0].style.display = "none";
+            document.getElementsByClassName("menu")[0].style.opacity = "0";
         }, 3000);
 
         window.addEventListener("keypress", function(e) {
-            document.getElementsByClassName("menu")[0].style.display = "block";
+            document.getElementsByClassName("menu")[0].style.opacity = "1";
             this.menu_timeout = setTimeout(function() {
-                document.getElementsByClassName("menu")[0].style.display = "none";
+                document.getElementsByClassName("menu")[0].style.opacity = "0";
             }, 3000);
         }.bind(this));
 
@@ -155,10 +160,12 @@ function do_alert(event, app)
     if (event.audio) {
         var audio = new Audio(event.audio);
         audio.play().then(function(){
-            var synth = window.speechSynthesis;
-            voice = synth.getVoices()[0].name;
-            var utterThis = new SpeechSynthesisUtterance(event.orig_message);
-            synth.speak(utterThis);
+            audio.addEventListener("ended", function(){
+                var synth = window.speechSynthesis;
+                voice = synth.getVoices()[0].name;
+                var utterThis = new SpeechSynthesisUtterance(event.orig_message);
+                synth.speak(utterThis);
+            });
         });
     }
 

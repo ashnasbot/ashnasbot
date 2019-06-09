@@ -4,6 +4,9 @@ import functools
 from threading import Thread, current_thread, Event
 from concurrent.futures import Future
 
+#Remove me
+import traceback
+
 import asyncio
 
 from twitchobserver import Observer
@@ -37,7 +40,11 @@ class ChatBot():
     def unsubscribe(self, channel):
         logger.info(f"Leaving channel: {channel}")
         self.observer.leave_channel(channel)
-        self.channels.remove(channel)
+        if channel not in self.channels:
+            logger.warn(f"Subscribing from channel not subbed: {channel}")
+            logging.debug(traceback.format_stack())
+        else:
+            self.channels.remove(channel)
 
     def alerts(self):
         return self.alert_queue
@@ -70,7 +77,7 @@ class ChatBot():
                 if evt.message.startswith("!"):
                     res = twitch.handle_command(evt)
                     if res:
-                        self.send_message(res, evt.channel)
+                        self.send_message(res.message, evt.channel)
             except Exception as e:
                 logger.warn(f"Error processing command ({e})")
 

@@ -28,16 +28,19 @@ currently the bot requires both.
 
 Then you just need the 'username' of the token and the username of the channel you want to join.
 
-navigate to `http://localhost/static/ff7/chat.html?channel=username` to get chat!
+navigate to `http://localhost/static/simple/chat.html` and enter a username to get chat!
 
 TODO: Document alerts
+TODO: Example config.json
 
 ## Known Issues
-- Websocket sometimes gets confused - breaks eventloop
+- No way to enable/disable alerts
+- some substitutions not supported e.g. "<3"
 
 ## TODO
 - Fix credentials to only need oauth
-- alerts betterer
 - bits emotes
 - chat commands
 - bot replies
+- cleanup ff7 css
+- use CDN for all fonts

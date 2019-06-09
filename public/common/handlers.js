@@ -55,7 +55,8 @@ new Vue({
                 case "FOLLOW":
                 case "SUB":
                     do_alert(msg, this);
-                    alertLog.add(msg)
+                    this.alertLog.push(msg)
+                    console.log(msg.message);
                     break;
                 default: 
                     console.log(msg);
@@ -153,7 +154,12 @@ function do_alert(event, app)
     name = event.nickname
     if (event.audio) {
         var audio = new Audio(event.audio);
-        audio.play();
+        audio.play().then(function(){
+            var synth = window.speechSynthesis;
+            voice = synth.getVoices()[0].name;
+            var utterThis = new SpeechSynthesisUtterance(event.orig_message);
+            synth.speak(utterThis);
+        });
     }
 
     if (event.type == "FOLLOW") {

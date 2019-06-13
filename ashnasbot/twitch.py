@@ -102,6 +102,15 @@ def handle_message(event):
                   f"{etags['msg-param-viewerCount']} viewers"
     if event.type == "SUB":
         raw_msg = html.unescape(etags['system-msg'].replace("\\s", " "))
+    if event.type == "CLEARMSG":
+        return {
+                'nickname': etags['login'],
+                'orig_message': event.message,
+                'id' : etags['target-msg-id'],
+                'type' : event.type,
+                'channel' : event.channel
+                }
+
 
     msg_tags = []
     msg_type = event.type

@@ -1,6 +1,7 @@
 import logging
 import time
 import functools
+import re
 from threading import Thread, current_thread, Event
 from concurrent.futures import Future
 
@@ -110,6 +111,24 @@ class ChatBot():
                 self.add_task(self.alert_queue.put(evt))
             except asyncio.QueueFull:
                 logger.error("Alerts queue full, discarding alert")
+        elif evt.type == "RECONNECT":
+            logger.warn("Twitch chat is going down")
+            evt = {
+                "message": "Twitch chat is going down"
+            }
+        elif evt.type == "HOSTTARGET":
+            if re.search(r"HOSTTARGET\s#\w+\s:-", evt.message):
+                # TODO: Store channels hosting
+                evt['message'] = "Stopped hosting"
+            else:
+                channel = re.search(r"HOSTTARGET\s#\w+\s(\w+)\s", evt.message).group(1)
+                evt['message'] = f"Hosting {channel}"
+            logger.info(evt['message'])
+            self.add_task(self.chat_queue.put(evt))
+        elif evt.type == "CLEARMSG":
+            self.add_task(self.alert_queue.put(evt))
+
+            
 
     def send_message(self, message, channel):
         if not message:

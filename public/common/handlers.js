@@ -56,6 +56,9 @@ new Vue({
                         chat.length - max_messages, 0)
                     );
                     break;
+                case "CLEARMSG":
+                    var element = document.getElementById(msg.id)
+                    element.parentNode.removeChild(element);
                 case "FOLLOW":
                 case "SUB":
                     //Disable alerts for now

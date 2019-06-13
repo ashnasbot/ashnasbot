@@ -60,7 +60,7 @@ div.msg img {
 }
 
 div.msg img.logo {
-  height: 64px;
+  width: 88px;
   padding-right: 8px;
 
   margin-top:auto;

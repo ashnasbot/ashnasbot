@@ -57,8 +57,9 @@ new Vue({
                     );
                     break;
                 case "CLEARMSG":
-                    var element = document.getElementById(msg.id)
-                    element.parentNode.removeChild(element);
+                    this.chat = this.chat.filter(m => m.id != msg.id)
+                case "CLEARCHAT":
+                    this.chat = this.chat.filter(m => m.nickname.toLowerCase() != msg.nickname.toLowerCase());
                 case "FOLLOW":
                 case "SUB":
                     //Disable alerts for now

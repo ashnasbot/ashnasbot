@@ -38,6 +38,21 @@ title="{alt}"
 
 logger = logging.getLogger(__name__)
 
+class ResponseEvent(dict):
+    """Render our own msgs through the bot."""
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.__dict__ = self
+        self.nickname = "Ashnasbot"
+        self.tags = {
+            'display-name': 'Ashnasbot',
+            'badges': [],
+            'emotes': [],
+            'id': 'bot',
+            'user-id': 275857969
+        }
+        self.type = 'TWITCHCHATMESSAGE'
+
 
 def render_emotes(message, emotes):
     try:
@@ -84,8 +99,34 @@ def handle_command(event):
     args = raw_msg.split(" ")
     command = args.pop(0)
     cmd = COMMANDS.get(command, None)
+
+    ret_event = ResponseEvent()
+    ret_event.channel = event.channel
     if callable(cmd):
-        return cmd(*args)
+        ret_event = cmd(ret_event, *args)
+        return ret_event
+
+def handle_other_commands(event):
+    try:
+        if event._command == "CLEARMSG":
+            channel = re.search(r"^#(\w+)\s", event._params).group(1)
+            return {
+                    'nickname': etags['login'],
+                    'orig_message': event._params,
+                    'id' : etags['target-msg-id'],
+                    'type' : event._command,
+                    'channel' : channel
+                    }
+        elif event._command == "CLEARCHAT":
+            channel, nick = re.search(r"^#(\w+)\s:(\w+)$", event._params).groups()
+            return {
+                    'nickname': nick,
+                    'type' : event._command,
+                    'channel' : channel
+                    }
+    except:
+        return
+
 
 def handle_message(event):
     etags = event.tags
@@ -102,15 +143,10 @@ def handle_message(event):
                   f"{etags['msg-param-viewerCount']} viewers"
     if event.type == "SUB":
         raw_msg = html.unescape(etags['system-msg'].replace("\\s", " "))
-    if event.type == "CLEARMSG":
-        return {
-                'nickname': etags['login'],
-                'orig_message': event.message,
-                'id' : etags['target-msg-id'],
-                'type' : event.type,
-                'channel' : event.channel
-                }
 
+    other = handle_other_commands(event)
+    if other:
+        return other
 
     msg_tags = []
     msg_type = event.type
@@ -135,10 +171,9 @@ def handle_message(event):
         return {}
 
     nickname = etags['display-name']
+    badges = []
     if etags['badges']:
         badges = render_badges(etags['badges'])
-    else:
-        badges = []
 
     if etags['emotes']:
         message = render_emotes(raw_msg, etags['emotes'])
@@ -159,7 +194,8 @@ def handle_message(event):
 
 COMMANDS = {
     # '!hey': lambda *args: av.play_random_sound('OOT_Navi_')
-    '!no': commands.no_cmd
+    '!no': commands.no_cmd,
+    '!so': commands.so_cmd
 }
 
 def create_event(from_evt, message):

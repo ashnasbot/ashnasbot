@@ -135,8 +135,6 @@ div.menu {
   padding: 0.25ex 0.5ex;
 }
 
-
-
 div.menu:focus-within, div.menu:hover {
   opacity: 1 !important;
 }

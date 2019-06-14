@@ -40,9 +40,3 @@ def get_random_sound(prefix=""):
             logger.info(f"Sound '{file_path}' not in av dir!")
     else:
         logger.info(f"No sounds with prefix '{prefix}' found!")
-
-
-# TODO: check for win/*nix
-def play(file_path):
-    winsound.PlaySound(file_path, winsound.SND_FILENAME)
-

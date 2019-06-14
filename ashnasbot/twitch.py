@@ -124,6 +124,20 @@ def handle_other_commands(event):
                     'type' : event._command,
                     'channel' : channel
                     }
+        elif evt._command == "RECONNECT":
+            ret_event = ResponseEvent()
+            logger.warn("Twitch chat is going down")
+            ret_event.message = "Twitch chat is going down"
+        elif evt._command == "HOSTTARGET":
+            ret_event = ResponseEvent()
+            if re.search(r"HOSTTARGET\s#\w+\s:-", evt.message):
+                # TODO: Store channels hosting
+                ret_event['message'] = "Stopped hosting"
+            else:
+                channel = re.search(r"HOSTTARGET\s#\w+\s(\w+)\s", evt.message).group(1)
+                ret_event['message'] = f"Hosting {channel}"
+            logger.info(ret_evt['message'])
+
     except:
         return
 
@@ -159,15 +173,7 @@ def handle_message(event):
         logger.info(raw_msg)
 
     if raw_msg.startswith('!'):
-        logger.info(f"{etags['display-name']} COMMAND: {raw_msg}")
-        #args = raw_msg.split(" ")
-        #command = args.pop(0)
-        #cmd = COMMANDS.get(command, None)
-        #ret = {}
-        #if callable(cmd):
-        #    ret = cmd(*args)
-        #TODO: render responses in chat
-
+        # Don't render commands
         return {}
 
     nickname = etags['display-name']

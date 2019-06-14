@@ -19,7 +19,6 @@ if (document.location.protocol == "https:") {
 }
 
 function getChannel() {
-    // TODO: Cache result
     const urlParams = new URLSearchParams(window.location.search);
     return urlParams.get('channel');
 }

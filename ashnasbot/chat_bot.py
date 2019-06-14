@@ -20,6 +20,7 @@ class ChatBot():
     evt_filter = ["TWITCHCHATJOIN", "TWITCHCHATMODE", "TWITCHCHATMESSAGE",
                   "TWITCHCHATUSERSTATE", "TWITCHCHATROOMSTATE", "TWITCHCHATLEAVE"]
     evt_types = ["TWITCHCHATMESSAGE"]
+    handled_commands = ["CLEARMSG", "RECONNECT", "HOSTTARGET", "CLEARCHAT"]
 
     def __init__(self, loop, bot_user, oauth):
         self.notifications = []
@@ -113,27 +114,9 @@ class ChatBot():
                 logger.error("Alerts queue full, discarding alert")
         elif evt.type == "TWITCHCHATCOMMAND" or \
              evt.type == "TWITCHCHATCLEARCHAT":
-            #TODO: move some of this to twitch.py handle_chat
-            if evt._command == "CLEARMSG":
+            if evt._command in self.handled_commands:
                 self.add_task(self.alert_queue.put(evt))
-            elif evt._command == "RECONNECT":
-                logger.warn("Twitch chat is going down")
-                evt = {
-                    "message": "Twitch chat is going down"
-                }
-                self.add_task(self.alert_queue.put(evt))
-            elif evt._command == "HOSTTARGET":
-                if re.search(r"HOSTTARGET\s#\w+\s:-", evt.message):
-                    # TODO: Store channels hosting
-                    evt['message'] = "Stopped hosting"
-                else:
-                    channel = re.search(r"HOSTTARGET\s#\w+\s(\w+)\s", evt.message).group(1)
-                    evt['message'] = f"Hosting {channel}"
-                logger.info(evt['message'])
-                self.add_task(self.chat_queue.put(evt))
-            elif evt._command == "CLEARCHAT":
-                self.add_task(self.alert_queue.put(evt))
-                logger.warn(f"CLEARCHAT: {evt}")
+
 
             
 

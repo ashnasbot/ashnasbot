@@ -37,6 +37,13 @@ TODO: Example config.json
 - No way to enable/disable alerts
 - some substitutions not supported e.g. "<3"
 
+## Licence
+Unless stated here, code and assets are my own and free to use however you like.
+I'd love to hear where my work ends up if you do use it though.
+
+Includes the excellent Reactor7 font by Cava
+(CC-by-nc-sa) http://caveras.net
+
 ## TODO
 - Fix credentials to only need oauth
 - bits emotes

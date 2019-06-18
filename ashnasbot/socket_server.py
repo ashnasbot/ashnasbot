@@ -38,6 +38,7 @@ class SocketServer(Thread):
         queue = None 
         while True:
             try:
+                processing = False
                 if self.shutdown_event.is_set():
                     return
                 if not self.chatbot:
@@ -46,6 +47,7 @@ class SocketServer(Thread):
 
                 queue = self.chatbot.chat()
                 event = await queue.get()
+                processing = True
                 channel = event.channel
                 if channel not in self.websockets:
                     logger.error(f"Message for channel '{channel}' but no socket")
@@ -58,14 +60,22 @@ class SocketServer(Thread):
                         self.websockets[channel] = [s for s in self.websockets[channel] if not s.closed]
                         for s in self.websockets[channel]:
                             await s.send(json.dumps(content))
+                processing = False
                 queue.task_done()
 
 
             except websockets.exceptions.ConnectionClosed as e:
                 logger.info(f"Connection closed {e.code}")
+                if processing:
+                    queue.task_done()
 
             except Exception as e:
-                logger.info(f"Failed to get chat: {e}")
+                import traceback
+                err = traceback.format_exc()
+                logger.error(f"Failed to get chat: {e}")
+                logger.debug(err)
+                if processing:
+                    queue.task_done()
 
     async def chat_alerts(self):
         queue = None

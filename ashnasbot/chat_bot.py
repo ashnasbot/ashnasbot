@@ -89,10 +89,10 @@ class ChatBot():
                 logger.error("Alerts queue full, discarding alert")
             return
 
-        if evt.type in self.evt_filter:
+        elif evt.type in self.evt_filter:
             return
 
-        if evt.type == "TWITCHCHATUSERNOTICE":
+        elif evt.type == "TWITCHCHATUSERNOTICE":
             msg_id = evt.tags['msg-id']
             if msg_id == "charity":
                 logger.info("Chraity stuff")
@@ -112,10 +112,11 @@ class ChatBot():
                 self.add_task(self.alert_queue.put(evt))
             except asyncio.QueueFull:
                 logger.error("Alerts queue full, discarding alert")
+
         elif evt.type == "TWITCHCHATCOMMAND" or \
              evt.type == "TWITCHCHATCLEARCHAT":
             if evt._command in self.handled_commands:
-                self.add_task(self.alert_queue.put(evt))
+                self.add_task(self.chat_queue.put(evt))
 
 
             

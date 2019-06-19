@@ -37,10 +37,14 @@ TODO: Example config.json
 - No way to enable/disable alerts
 - some substitutions not supported e.g. "<3"
 
+### Observer
+- non-UTF-8 messages break the transport
+- subs have no message
+
 ## TODO
 - Fix credentials to only need oauth
 - bits emotes
-- chat commands
 - bot replies
 - cleanup ff7 css
 - use CDN for all fonts
+- multi-room

@@ -1,5 +1,7 @@
+import bisect
 import copy
 import html
+import json
 import logging
 import re
 import sys
@@ -26,15 +28,31 @@ BADGES = {
 }
 
 EMOTE_URL_TEMPLATE = "<img src=\"" + STATIC_CDN + \
-"""emoticons/v1/{eid}/1.0" class="emote" 
+"""emoticons/v1/{eid}/1.5" class="emote" 
 alt="{alt}"
 title="{alt}"
 />"""
+
+CHEERMOTE_URL_TEMPLATE = "<img src=\"" + STATIC_CDN + \
+"""bits/dark/animated/{color}/1.5" class="emote" 
+alt="{alt}"
+title="{alt}"
+/>"""
+
+CHEERMOTE_TEXT_TEMPLATE = """<span class="cheertext-{color}">{text}</span> """
 
 BADGE_URL_TEMPLATE = """<img class="badge" src="{url}"
 alt="{alt}"
 title="{alt}"
 />"""
+
+BITS_COLORS = [
+    (1, 'gray'),
+    (100, 'purple'),
+    (1000, 'green'),
+    (5000, 'blue'),
+    (10000, 'red'),
+]
 
 logger = logging.getLogger(__name__)
 
@@ -80,9 +98,7 @@ def render_emotes(message, emotes):
     return message
         
 def render_badges(badges):
-
     rendered = []
-
     for badgever in badges.split(','):
         badge, _ = badgever.split('/')
         url = BADGES.get(badge, None)
@@ -91,6 +107,25 @@ def render_badges(badges):
         rendered.append(BADGE_URL_TEMPLATE.format(url=url, alt=badge))
 
     return rendered
+
+def render_bits(message, bits):
+    def render_cheer(match):
+        ammount = match.group(3)
+        bits_indecies = [ v for v, c in BITS_COLORS]
+        _, color = BITS_COLORS[bisect.bisect_right(bits_indecies, int(ammount)) - 1]
+        return CHEERMOTE_URL_TEMPLATE.format(color=color, alt=f"Cheer{ammount}") + \
+               CHEERMOTE_TEXT_TEMPLATE.format(text=ammount, color=color)
+
+    # TODO: compile
+    cheer_regex = r"(^|\s)(?P<emotename>[a-zA-Z]+)(\d+)(\s|$)"
+    match = re.search(cheer_regex, message)
+    if not match:
+        logger.warn("Cannot find bits in message")
+    elif match.group('emotename').lower().startswith('cheer'):
+        message = re.sub(cheer_regex, render_cheer, message, flags=re.IGNORECASE)
+    else:
+        logger.warn("Non cheer bits message used")
+    return message
 
 def handle_command(event):
     etags = event.tags
@@ -148,7 +183,7 @@ def handle_message(event):
     try:
         raw_msg = event.message
     except:
-        pass
+        event.message = ""
     if event.type == "RAID":
         raw_msg = f"{etags['msg-param-displayName']} is raiding with a party of " \
                   f"{etags['msg-param-viewerCount']}"
@@ -166,17 +201,18 @@ def handle_message(event):
     msg_type = event.type
 
     if raw_msg.startswith('\u0001'):
+        # Strip "\001ACTION"
         raw_msg = raw_msg.replace('\u0001', "")[7:]
         msg_tags.append(ACTION)
-
-    if "cheer" in raw_msg or "Cheer" in raw_msg:
-        logger.info(raw_msg)
 
     if raw_msg.startswith('!'):
         # Don't render commands
         return {}
 
-    nickname = etags['display-name']
+    nickname = ''
+    if 'display-name' in etags:
+        nickname = etags['display-name']
+
     badges = []
     if etags['badges']:
         badges = render_badges(etags['badges'])
@@ -185,6 +221,10 @@ def handle_message(event):
         message = render_emotes(raw_msg, etags['emotes'])
     else:
         message = html.escape(raw_msg)
+
+    if "bits" in etags:
+        logger.info(raw_msg)
+        message = render_bits(message, etags["bits"])
 
     return {
             'badges': badges,

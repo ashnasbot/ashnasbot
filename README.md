@@ -41,6 +41,13 @@ TODO: Example config.json
 - non-UTF-8 messages break the transport
 - subs have no message
 
+## Licence
+Unless stated here, code and assets are my own and free to use however you like.
+I'd love to hear where my work ends up if you do use it though.
+
+Includes the excellent Reactor7 font by Cava
+(CC-by-nc-sa) http://caveras.net
+
 ## TODO
 - Fix credentials to only need oauth
 - bits emotes

@@ -1,20 +1,26 @@
 import logging
 import time
 import functools
+import re
 from threading import Thread, current_thread, Event
 from concurrent.futures import Future
+
+#Remove me
+import traceback
 
 import asyncio
 
 from twitchobserver import Observer
 
+from . import twitch
+
 logger = logging.getLogger(__name__)
 
 class ChatBot():
     evt_filter = ["TWITCHCHATJOIN", "TWITCHCHATMODE", "TWITCHCHATMESSAGE",
-                  "TWITCHCHATCOMMAND", "TWITCHCHATUSERSTATE",
-                  "TWITCHCHATROOMSTATE", "TWITCHCHATLEAVE"]
+                  "TWITCHCHATUSERSTATE", "TWITCHCHATROOMSTATE", "TWITCHCHATLEAVE"]
     evt_types = ["TWITCHCHATMESSAGE"]
+    handled_commands = ["CLEARMSG", "RECONNECT", "HOSTTARGET", "CLEARCHAT"]
 
     def __init__(self, loop, bot_user, oauth):
         self.notifications = []
@@ -35,7 +41,11 @@ class ChatBot():
     def unsubscribe(self, channel):
         logger.info(f"Leaving channel: {channel}")
         self.observer.leave_channel(channel)
-        self.channels.remove(channel)
+        if channel not in self.channels:
+            logger.warn(f"Subscribing from channel not subbed: {channel}")
+            logging.debug(traceback.format_stack())
+        else:
+            self.channels.remove(channel)
 
     def alerts(self):
         return self.alert_queue
@@ -65,15 +75,24 @@ class ChatBot():
 
         if evt.type == 'TWITCHCHATMESSAGE':
             try:
+                if evt.message.startswith("!"):
+                    res = twitch.handle_command(evt)
+                    if res:
+                        self.send_message(res["message"], res["channel"])
+                        self.add_task(self.chat_queue.put(res))
+            except Exception as e:
+                logger.warn(f"Error processing command ({e})")
+
+            try:
                 self.add_task(self.chat_queue.put(evt))
             except asyncio.QueueFull:
                 logger.error("Alerts queue full, discarding alert")
             return
 
-        if evt.type in self.evt_filter:
+        elif evt.type in self.evt_filter:
             return
 
-        if evt.type == "TWITCHCHATUSERNOTICE":
+        elif evt.type == "TWITCHCHATUSERNOTICE":
             msg_id = evt.tags['msg-id']
             if msg_id == "charity":
                 logger.info("Chraity stuff")
@@ -93,6 +112,27 @@ class ChatBot():
                 self.add_task(self.alert_queue.put(evt))
             except asyncio.QueueFull:
                 logger.error("Alerts queue full, discarding alert")
+
+        elif evt.type == "TWITCHCHATCOMMAND" or \
+             evt.type == "TWITCHCHATCLEARCHAT":
+            if evt._command in self.handled_commands:
+                self.add_task(self.chat_queue.put(evt))
+
+
+            
+
+    def send_message(self, message, channel):
+        if not message:
+            return
+        if channel not in self.channels:
+            logger.warn("Sending a message to a channel we're not in: {channel}")
+            self.observer.join_channel(channel)
+
+        self.observer.send_message(message, channel)
+
+        if channel not in self.channels:
+            self.observer.leave_channel(channel)
+
 
     def close(self):
         for c in self.channels:

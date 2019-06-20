@@ -28,17 +28,30 @@ currently the bot requires both.
 
 Then you just need the 'username' of the token and the username of the channel you want to join.
 
-navigate to `http://localhost/static/ff7/chat.html?channel=username` to get chat!
+navigate to `http://localhost/static/simple/chat.html` and enter a username to get chat!
 
 TODO: Document alerts
+TODO: Example config.json
 
 ## Known Issues
-- Tags seem to be funky i.e. "@ashnasbot SeemsGood"
-  suspect the 'tag' to be rendered in the text differently to whats seen.
-- multiple windows will receive messages in a round-robin fashion rather than duplicates.
+- No way to enable/disable alerts
+- some substitutions not supported e.g. "<3"
+
+### Observer
+- non-UTF-8 messages break the transport
+- subs have no message
+
+## Licence
+Unless stated here, code and assets are my own and free to use however you like.
+I'd love to hear where my work ends up if you do use it though.
+
+Includes the excellent Reactor7 font by Cava
+(CC-by-nc-sa) http://caveras.net
 
 ## TODO
 - Fix credentials to only need oauth
-- allow multiple views per page (user key + channel)
-- alerts betterer
 - bits emotes
+- bot replies
+- cleanup ff7 css
+- use CDN for all fonts
+- multi-room

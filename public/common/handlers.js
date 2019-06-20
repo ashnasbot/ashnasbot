@@ -4,6 +4,10 @@
  */
 var max_messages = Math.floor(window.innerHeight / 60 );
 
+// Load at startup, this is done async (we should use window.speechSynthesis.onvoiceschanged)
+var synth = window.speechSynthesis;
+var voices = synth.getVoices();
+
 // This serves only to stop random things knocking the websocket
 // can filter though proxy
 document.cookie = 'secretvalue=true;path=/';
@@ -14,6 +18,10 @@ if (document.location.protocol == "https:") {
     websocketLocation = "ws://" + location.hostname + ":8765"
 }
 
+function getChannel() {
+    const urlParams = new URLSearchParams(window.location.search);
+    return urlParams.get('channel');
+}
 
 new Vue({
     el: '#app',
@@ -23,12 +31,12 @@ new Vue({
         alert: "",
         alertLog: [],
         ping: null,
+        channel: getChannel()
     },
     methods: {
         getClientConfig: function() {
-            cmds = this.$el.attributes.client.value.split(',');
-            const urlParams = new URLSearchParams(window.location.search);
-            const channel = urlParams.get('channel');
+            const channel = getChannel();
+            const cmds = this.$el.attributes.client.value.split(',');
             clientConfig = {};
             for (var i = 0; i < cmds.length; i++) {
                 clientConfig[cmds[i]] = channel;
@@ -47,10 +55,17 @@ new Vue({
                         chat.length - max_messages, 0)
                     );
                     break;
+                case "CLEARMSG":
+                    this.chat = this.chat.filter(m => m.id != msg.id)
+                case "CLEARCHAT":
+                    this.chat = this.chat.filter(m => m.nickname.toLowerCase() != msg.nickname.toLowerCase());
                 case "FOLLOW":
                 case "SUB":
+                    //Disable alerts for now
+                    return;
                     do_alert(msg, this);
-                    alertLog.add(msg)
+                    this.alertLog.push(msg)
+                    console.log(msg.message);
                     break;
                 default: 
                     console.log(msg);
@@ -105,6 +120,17 @@ new Vue({
             }
         }.bind(this), 300);
 
+        this.menu_timeout = setTimeout(function() {
+            document.getElementsByClassName("menu")[0].style.opacity = "0";
+        }, 10000);
+
+        window.addEventListener("keypress", function(e) {
+            document.getElementsByClassName("menu")[0].style.opacity = "1";
+            this.menu_timeout = setTimeout(function() {
+                document.getElementsByClassName("menu")[0].style.opacity = "0";
+            }, 3000);
+        }.bind(this));
+
     },
 
     beforeDestroy: function(){
@@ -137,7 +163,13 @@ function do_alert(event, app)
     name = event.nickname
     if (event.audio) {
         var audio = new Audio(event.audio);
-        audio.play();
+        audio.play().then(function(){
+            audio.addEventListener("ended", function(){
+                voice = synth.getVoices()[0].name;
+                var utterThis = new SpeechSynthesisUtterance(event.orig_message);
+                synth.speak(utterThis);
+            });
+        });
     }
 
     if (event.type == "FOLLOW") {

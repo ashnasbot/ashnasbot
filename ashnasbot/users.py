@@ -14,8 +14,6 @@ class Users():
             info = await self.http_client.get_user_info(user)
             self.users[user] = info
         
-        print(info)
-
         return info['logo']
             
             

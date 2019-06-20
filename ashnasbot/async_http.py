@@ -64,10 +64,12 @@ class WebServer(object):
         return web.Response()
 
     async def post_config(self, request):
-        # TODO: validate
         if request.can_read_body:
             with open('config.json', 'w') as config:
                 new_config = await request.json()
+                if not all(k in new_config for k in ("client_id","oauth", "username")):
+                    logger.error("Config not complete")
+                    return
                 json.dump(new_config, config)
                 if self.reload_evt:
                     self.reload_evt.set()

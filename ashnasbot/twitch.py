@@ -137,6 +137,7 @@ def handle_command(event):
 
     ret_event = ResponseEvent()
     ret_event.channel = event.channel
+    ret_event.tags['caller'] = event.tags['display-name']
     if callable(cmd):
         ret_event = cmd(ret_event, *args)
         return ret_event
@@ -241,7 +242,8 @@ def handle_message(event):
 COMMANDS = {
     # '!hey': lambda *args: av.play_random_sound('OOT_Navi_')
     '!no': commands.no_cmd,
-    '!so': commands.so_cmd
+    '!so': commands.so_cmd,
+    '!praise': commands.praise_cmd
 }
 
 def create_event(from_evt, message):

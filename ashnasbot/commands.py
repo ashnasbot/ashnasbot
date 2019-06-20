@@ -22,7 +22,9 @@ PRAISE_ENDINGS = [
     "Wololo.",
     "lord and saviour",
     "and also CUBE",
-    "healer of leopards"
+    "healer of leopards",
+    "a good egg",
+    "'cause why not?"
 ]
 
 def praise_cmd(event, praise, *args):

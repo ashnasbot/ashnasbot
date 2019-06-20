@@ -48,7 +48,7 @@ div.msg *{
   margin: 5px 0;
   word-wrap: break-word;
   font-family: 'Montserrat', sans-serif;
-  word-wrap: break-word;
+  word-break: break-all;
 }
 
 div.msg img {

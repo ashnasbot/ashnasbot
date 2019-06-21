@@ -25,7 +25,7 @@ function getChannel() {
 
 new Vue({
     el: '#app',
-    props: ['client'],
+    props: ['client', 'incoming'],
     data: {
         chat: [],
         alert: "",
@@ -46,30 +46,16 @@ new Vue({
         loadData: function() {
             if (event.data == "ping") {
                 this.chatsocket.send("pong");
+                return;
             }
-            msg = JSON.parse(event.data);
-            switch(msg.type) {
-                case "TWITCHCHATMESSAGE":
-                    chat = this.chat.concat(msg);
-                    this.chat = chat.slice(Math.max(
-                        chat.length - max_messages, 0)
-                    );
-                    break;
-                case "CLEARMSG":
-                    this.chat = this.chat.filter(m => m.id != msg.id)
-                case "CLEARCHAT":
-                    this.chat = this.chat.filter(m => m.nickname.toLowerCase() != msg.nickname.toLowerCase());
-                case "FOLLOW":
-                case "SUB":
-                    //Disable alerts for now
-                    return;
-                    do_alert(msg, this);
-                    this.alertLog.push(msg)
-                    console.log(msg.message);
-                    break;
-                default: 
-                    console.log(msg);
-            };
+            if (!Array.isArray(this.incoming)) {
+                this.incoming = [];
+            }
+            this.incoming.push(event);
+        },
+        unload: function (event) {
+            const parsed = JSON.stringify(this.chat);
+            localStorage.setItem('chat-' + this.channel, parsed);
         },
         socket_open: function () {
             console.log("Connected")
@@ -89,7 +75,6 @@ new Vue({
             }.bind(this), 20000);
         },
         socket_close: function () {
-            console.log("Connection closed")
             if (this.ping) {
                 clearInterval(this.ping);
                 this.ping = null;
@@ -111,6 +96,45 @@ new Vue({
             }
         }
     },
+    watch: {
+        incoming: function(events) {
+            if (events.length == 0) {
+                return;
+            }
+            if (events.length > 1) {
+                console.log("Processing " + events.length + " events at once!");
+            }
+            for (const event of events) {
+                msg = JSON.parse(event.data);
+                switch(msg.type) {
+                    case "TWITCHCHATMESSAGE":
+                        chat = this.chat.concat(msg);
+                        this.chat = chat.slice(Math.max(
+                            chat.length - max_messages, 0)
+                        );
+                        break;
+                    case "CLEARMSG":
+                        this.chat = this.chat.filter(m => m.id != msg.id)
+                    case "CLEARCHAT":
+                        this.chat = this.chat.filter(m => m.nickname.toLowerCase() != msg.nickname.toLowerCase());
+                    case "FOLLOW":
+                    case "SUB":
+                        //Disable alerts for now
+                        continue;
+                        do_alert(msg, this);
+                        this.alertLog.push(msg)
+                        console.log(msg.message);
+                        break;
+                    default: 
+                        console.log(msg);
+                };
+            }
+            this.incoming = [];
+        }
+    },
+    created: function () {
+        window.addEventListener('beforeunload', this.unload)
+    },
     mounted: function () {
         this.connect();
         var chat = document.getElementById('app');
@@ -130,6 +154,14 @@ new Vue({
                 document.getElementsByClassName("menu")[0].style.opacity = "0";
             }, 3000);
         }.bind(this));
+
+        if (localStorage.getItem('chat-' + this.channel)) {
+            try {
+              this.chat = JSON.parse(localStorage.getItem('chat-' + this.channel));
+            } catch(e) {
+              localStorage.removeItem('chat-' + this.channel);
+            }
+          }
 
     },
 

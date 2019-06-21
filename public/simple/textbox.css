@@ -52,13 +52,18 @@ div.msg *{
 
 div.msg img {
     border: 0;
-    display:inline;
+    display:inline-block;
     margin: 2px;
     box-shadow: none;
     vertical-align: middle;
 }
 
 img.emote {
+  height: 36px;
+}
+
+div.msg img.badge {
+  margin: 0 2px;
   height: 36px;
 }
 

@@ -17,16 +17,16 @@ logger.info(BASE_PATH)
 def get_sound(name):
 
     glob_path = os.path.join(BASE_PATH, name)
-    logger.info(f'globbing {glob_path}')
+    logger.debug(f'globbing {glob_path}')
     for file_path in glob.glob(rf'{glob_path}.*'):
-        logger.info(file_path)
+        logger.debug(file_path)
         if file_path.startswith(os.path.abspath(BASE_PATH) + os.sep):
             # winsound.PlaySound(file_path, winsound.SND_FILENAME)
             return '/static/audio/' + os.path.relpath(file_path, BASE_PATH)
         else:
-            logger.info(f"Sound '{file_path}' not in av dir!")
+            logger.warn(f"Sound '{file_path}' not in av dir!")
     else:
-        logger.info(f"Sound {name} not found!")
+        logger.error(f"Sound {name} not found!")
 
 def get_random_sound(prefix=""):
     glob_path = os.path.join(BASE_PATH, prefix)
@@ -37,6 +37,6 @@ def get_random_sound(prefix=""):
             #winsound.PlaySound(file_path, winsound.SND_FILENAME)
             return '/static/audio/' + os.path.relpath(file_path, BASE_PATH)
         else:
-            logger.info(f"Sound '{file_path}' not in av dir!")
+            logger.warn(f"Sound '{file_path}' not in av dir!")
     else:
-        logger.info(f"No sounds with prefix '{prefix}' found!")
+        logger.warn(f"No sounds with prefix '{prefix}' found!")

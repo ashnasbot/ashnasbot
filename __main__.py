@@ -9,7 +9,7 @@ if __name__ == '__main__':
     socket_thread = socket_server.SocketServer()
 
     def sighandler(signum, frame):
-        logging.info("SIGNAL: {signum}")
+        logging.info(f"SIGNAL: {signum}")
         socket_thread.shutdown()
 
     signal.signal(signal.SIGINT, sighandler)

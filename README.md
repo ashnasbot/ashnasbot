@@ -50,8 +50,8 @@ Includes the excellent Reactor7 font by Cava
 
 ## TODO
 - Fix credentials to only need oauth
-- bits emotes
-- bot replies
-- cleanup ff7 css
+- more cheeremotes (ShowLove etc)
+- redo ff7 css
 - use CDN for all fonts
 - multi-room
+- Subscriber badges

@@ -34,17 +34,22 @@ class ChatBot():
         self.observer.subscribe(self.handle_event)
 
     def subscribe(self, channel):
-        logger.info(f"Joining channel: {channel}")
-        self.observer.join_channel(channel)
-        self.channels.add(channel)
+        logger.debug(f"Subscribe: {channel}")
+        if channel not in self.channels:
+            logger.info(f"Joining channel: {channel}")
+            self.observer.join_channel(channel)
+            self.channels.add(channel)
+        else:
+            logger.debug(f"Already subbed to channel: {channel}")
 
     def unsubscribe(self, channel):
-        logger.info(f"Leaving channel: {channel}")
+        logger.debug(f"unsubscribe: {channel}")
         self.observer.leave_channel(channel)
         if channel not in self.channels:
-            logger.warn(f"Subscribing from channel not subbed: {channel}")
+            logger.warn(f"unsubscribing from channel not subbed: {channel}")
             logging.debug(traceback.format_stack())
         else:
+            logger.info(f"Leaving channel: {channel}")
             self.channels.remove(channel)
 
     def alerts(self):

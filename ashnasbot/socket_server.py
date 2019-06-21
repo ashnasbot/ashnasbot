@@ -161,15 +161,15 @@ class SocketServer(Thread):
             if event['type'] == "SUB":
                 event['audio'] = get_sound("Super_Nintendo_Chalmers")
 
-            logger.info(event)
-
-            self.websockets[channel] = [s for s in self.websockets[channel] if not s.closed]
-            for s in self.websockets[channel]:
-                await s.send(json.dumps(event))
+            if channel:
+                self.websockets[channel] = [s for s in self.websockets[channel] if not s.closed]
+                for s in self.websockets[channel]:
+                    await s.send(json.dumps(event))
+            else:
+                logger.error("No channel for alert")
 
             self._event_queue.task_done()
             await asyncio.sleep(30)
-
 
     async def handle_connect(self, websocket, path):
         try:
@@ -185,11 +185,11 @@ class SocketServer(Thread):
         tasks = []
         if "chat" in commands:
             channel = commands["chat"]
+            self.chatbot.subscribe(channel)
             if channel in self.websockets:
                 self.websockets[channel].append(websocket)
             else:
                 self.websockets[channel] = [websocket]
-                self.chatbot.subscribe(channel)
         if "alert" in commands:
             channel = commands['alert']
             tasks.append(asyncio.create_task(self.followers(channel)))
@@ -199,7 +199,7 @@ class SocketServer(Thread):
         await asyncio.gather(*tasks)
         logger.info(f"Socket client Leave: {command}")
         websocket.close()
-        self.websockets[channel] = [s for s in self.websockets[channel] if not s.closed]
+        self.websockets[channel] = [s for s in self.websockets[channel] if s.open]
         if not self.websockets[channel]:
             self.chatbot.unsubscribe(channel)
 

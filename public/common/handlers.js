@@ -18,9 +18,15 @@ if (document.location.protocol == "https:") {
     websocketLocation = "ws://" + location.hostname + ":8765"
 }
 
+var channel = "";
+
 function getChannel() {
+    if (channel != "") {
+        return channel;
+    }
     const urlParams = new URLSearchParams(window.location.search);
-    return urlParams.get('channel');
+    channel = urlParams.get('channel');
+    return channel;
 }
 
 new Vue({
@@ -31,7 +37,8 @@ new Vue({
         alert: "",
         alertLog: [],
         ping: null,
-        channel: getChannel()
+        channel: getChannel(),
+        curChannel: ""
     },
     methods: {
         getClientConfig: function() {
@@ -54,8 +61,14 @@ new Vue({
             this.incoming.push(event);
         },
         unload: function (event) {
-            const parsed = JSON.stringify(this.chat);
-            localStorage.setItem('chat-' + this.channel, parsed);
+            save = {
+                ts: Date.now(),
+                chat: this.chat
+            }
+            const parsed = JSON.stringify(save);
+            localStorage.setItem('chat-' + this.curChannel, parsed);
+            this.chatsocket.onclose = null;
+            this.chatsocket.close();
         },
         socket_open: function () {
             console.log("Connected")
@@ -155,11 +168,20 @@ new Vue({
             }, 3000);
         }.bind(this));
 
-        if (localStorage.getItem('chat-' + this.channel)) {
+        this.curChannel = getChannel();
+
+        if (localStorage.getItem('chat-' + this.curChannel)) {
             try {
-              this.chat = JSON.parse(localStorage.getItem('chat-' + this.channel));
+              save = JSON.parse(localStorage.getItem('chat-' + this.curChannel));
+              console.log(save.ts)
+              console.log(Date.now() - 600)
+              if (save.ts > (Date.now() - 600)){
+                  this.chat = save.chat;
+              } else {
+                  console.log("Cache exists but is over 10 minutes old")
+              }
             } catch(e) {
-              localStorage.removeItem('chat-' + this.channel);
+              localStorage.removeItem('chat-' + this.curChannel);
             }
           }
 

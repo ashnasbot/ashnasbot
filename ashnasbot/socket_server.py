@@ -204,8 +204,12 @@ class SocketServer(Thread):
             self.chatbot.unsubscribe(channel)
 
     def shutdown(self):
+        logger.info("Shutting down server")
         self.websocket_server.close()
         self.websocket_server.wait_closed()
+        for task in asyncio.Task.all_tasks():
+            task.cancel()
+        logger.info("Stopping loop")
         self.loop.stop()
 
     def load_clients(self):

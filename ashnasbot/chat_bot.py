@@ -35,6 +35,11 @@ class ChatBot():
 
     def subscribe(self, channel):
         logger.debug(f"Subscribe: {channel}")
+        if not self.observer._socket:
+            logger.error("Twitch chat Socket not connected,"
+                         " Attempting to reconnect.")
+            self.observer.stop()
+            self.observer.start()
         if channel not in self.channels:
             logger.info(f"Joining channel: {channel}")
             self.observer.join_channel(channel)

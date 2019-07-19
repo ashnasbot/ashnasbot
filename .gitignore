@@ -5,3 +5,5 @@ data/followers.json
 .vscode/launch.json
 *.swp
 data/raid.txt
+bits.json
+ashnasbot.db

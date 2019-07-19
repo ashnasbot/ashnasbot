@@ -6,8 +6,12 @@ import logging
 import re
 import sys
 
+import dataset
+
 from . import av
 from . import commands
+
+db = dataset.connect('sqlite:///twitchdata.db')
 
 STATIC_CDN = "https://static-cdn.jtvnw.net/"
 
@@ -103,6 +107,9 @@ def render_emotes(message, emotes):
     return message
         
 def render_badges(badges):
+    # Check db for table
+    # if exists - use for badges
+    # else make api request and save to db
     rendered = []
     for badgever in badges.split(','):
         badge, val = badgever.split('/')
@@ -252,7 +259,8 @@ COMMANDS = {
     # '!hey': lambda *args: av.play_random_sound('OOT_Navi_')
     '!no': commands.no_cmd,
     '!so': commands.so_cmd,
-    '!praise': commands.praise_cmd
+    '!praise': commands.praise_cmd,
+    '!deaths': commands.death_cmd
 }
 
 def create_event(from_evt, message):

@@ -7,6 +7,7 @@ import re
 import sys
 
 import dataset
+from .twitch_client import TwitchClient
 
 from . import av
 from . import commands
@@ -42,9 +43,13 @@ alt="{alt}"
 title="{alt}"
 />"""
 
-CHEERMOTE_URL_TEMPLATE = "<img src=\"" + STATIC_CDN + \
-"""bits/dark/animated/{color}/1.5" class="emote" 
-alt="{alt}"
+#CHEERMOTE_URL_TEMPLATE = "<img src=\"" + STATIC_CDN + \
+#"""bits/dark/animated/{color}/1.5" class="emote" 
+#alt="{alt}"
+#title="{alt}"
+#/>"""
+CHEERMOTE_URL_TEMPLATE = "<img src=\"{url}\" class=\"emote\"" + \
+"""alt="{alt}"
 title="{alt}"
 />"""
 
@@ -62,6 +67,7 @@ BITS_COLORS = [
     (5000, 'blue'),
     (10000, 'red'),
 ]
+BITS_INDICIES = [1, 100, 1000, 5000, 10000]
 
 logger = logging.getLogger(__name__)
 
@@ -105,44 +111,101 @@ def render_emotes(message, emotes):
         raise
     
     return message
+
+async def get_channel_badges(channel):
+    table = db.create_table(channel + "_badges", 
+                            primary_id="name",
+                            primary_type=db.types.text)
+    if table:
+        # TODO: Check timestamp and re-pull
+        logger.debug("Found badge cache for %s", channel)
+    else:
+        logger.info("No badge cache for %s", channel)
+        client = TwitchClient(None, None)
+        badges = await client.get_badges_for_channel(channel)
+        rows = [{"name":k, "url":v} for k,v in badges.items()]
+
+        table.insert_many(rows, ensure=True)
+
+    ret = {}
+    for badge in table.all():
+        name = badge.pop('name')
+        ret[name] = badge["url"]
+    return ret
+
+CHEERMOTES = {}
+async def load_cheermotes():
+    global CHEERMOTES 
+    client = TwitchClient(None, None)
+    CHEERMOTES = await client.get_cheermotes()
+
+def get_cheermotes(cheer, value):
+    data = []
+
+    for p,v in CHEERMOTES.items():
+        for i,u in v.items():
+            data.append({
+                "cheer": p,
+                "value": i,
+                "url": u
+            })
+
+    table = db["cheermotes"]
+    table.insert_many(data)
+
+    return table.find_one(cheer=cheer, value=value)
         
-def render_badges(badges):
-    # Check db for table
-    # if exists - use for badges
-    # else make api request and save to db
+async def render_badges(channel, badges):
+    channel_badges = await get_channel_badges(channel)
     rendered = []
     for badgever in badges.split(','):
-        badge, val = badgever.split('/')
+        if "/" in badgever:
+            badge, val = badgever.split('/')
+        else:
+            badge = badgever
         if badge == 'bits':
             logger.info(f"Bits badge: {val}")
             url = BADGES.get(badge + val, None)
         else:
-            url = BADGES.get(badge, None)
+            url = channel_badges.get(badge, None)
         if not url:
-            continue
+            url = BADGES.get(badge, None)
+            if not url:
+                continue
         rendered.append(BADGE_URL_TEMPLATE.format(url=url, alt=badge))
 
     return rendered
 
-def render_bits(message, bits):
+async def render_bits(message, bits):
+    # Can't async into re method
+    if not CHEERMOTES:
+        await load_cheermotes()
+
     def render_cheer(match):
-        ammount = match.group(3)
-        bits_indecies = [ v for v, c in BITS_COLORS]
-        _, color = BITS_COLORS[bisect.bisect_right(bits_indecies, int(ammount)) - 1]
-        return CHEERMOTE_URL_TEMPLATE.format(color=color, alt=f"Cheer{ammount}") + \
-               CHEERMOTE_TEXT_TEMPLATE.format(text=ammount, color=color)
+        real_value = match.group(3)
+        emote_name = match.group('emotename')
+        if emote_name == "cheer":
+            emote_name = "Cheer"
+
+        bits_value, color = BITS_COLORS[bisect.bisect_right(BITS_INDICIES, int(real_value)) - 1]
+        cheermote = get_cheermotes(emote_name, bits_value)
+        if cheermote == None:
+            logger.info("Channel specific emote not found: %s", emote_name)
+            cheermote = get_cheermotes("Cheer", bits_value)
+
+        res = CHEERMOTE_URL_TEMPLATE.format(alt=emote_name, url=cheermote["url"]) + \
+              CHEERMOTE_TEXT_TEMPLATE.format(color=color, text=real_value)
+        return res
 
     # TODO: compile
     cheer_regex = r"(^|\s)(?P<emotename>[a-zA-Z]+)(\d+)(\s|$)"
     match = re.search(cheer_regex, message)
     if not match:
         logger.warn("Cannot find bits in message")
-    elif match.group('emotename').lower().startswith('cheer'):
-        message = re.sub(cheer_regex, render_cheer, message, flags=re.IGNORECASE)
-    else:
-        logger.warn("Non cheer bits message used")
-    return message
+        return message
 
+    return re.sub(cheer_regex, render_cheer, message, flags=re.IGNORECASE)
+    
 def handle_command(event):
     etags = event.tags
     raw_msg = event.message
@@ -193,8 +256,7 @@ def handle_other_commands(event):
     except:
         return
 
-
-def handle_message(event):
+async def handle_message(event):
     etags = event.tags
     raw_msg = ""
     try:
@@ -232,16 +294,16 @@ def handle_message(event):
         nickname = etags['display-name']
 
     badges = []
-    if etags['badges']:
-        badges = render_badges(etags['badges'])
+    if "badges" in etags and etags["badges"]:
+        badges = await render_badges(event.channel, etags['badges'])
 
-    if etags['emotes']:
+    if 'emotes' in etags and etags["emotes"]:
         message = render_emotes(raw_msg, etags['emotes'])
     else:
         message = html.escape(raw_msg)
 
     if "bits" in etags:
-        message = render_bits(message, etags["bits"])
+        message = await render_bits(message, etags["bits"])
 
     return {
             'badges': badges,
@@ -256,7 +318,6 @@ def handle_message(event):
             }
 
 COMMANDS = {
-    # '!hey': lambda *args: av.play_random_sound('OOT_Navi_')
     '!no': commands.no_cmd,
     '!so': commands.so_cmd,
     '!praise': commands.praise_cmd,

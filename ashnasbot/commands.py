@@ -58,7 +58,6 @@ def death_cmd(event, *args):
     table = db["channel"]
     try:
         data = table.find_one(channel=event["channel"])
-        print(data)
         if data == None:
             data = {"channel": event["channel"], "deaths":0}
         DEATHS = data["deaths"]
@@ -84,7 +83,7 @@ def death_cmd(event, *args):
                 return event
         if update:
             data["deaths"] = DEATHS
-            print("saving:", data)
+            # TODO: logger
             table.upsert(data, ["channel"], ensure=True)
 
     times = "times"

@@ -30,7 +30,6 @@ Then you just need the 'username' of the token and the username of the channel y
 
 navigate to `http://localhost/static/simple/chat.html` and enter a username to get chat!
 
-TODO: Document alerts
 TODO: Example config.json
 
 ## Known Issues
@@ -50,8 +49,9 @@ Includes the excellent Reactor7 font by Cava
 
 ## TODO
 - Fix credentials to only need oauth
-- more cheeremotes (ShowLove etc)
-- redo ff7 css
 - use CDN for all fonts
 - multi-room
-- Subscriber badges
+- Subscriber badges (other than first)
+- config on page
+- Channel cheermotes
+- Delete/Ban

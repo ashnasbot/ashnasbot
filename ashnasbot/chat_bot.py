@@ -126,6 +126,7 @@ class ChatBot():
         elif evt.type == "TWITCHCHATCOMMAND" or \
              evt.type == "TWITCHCHATCLEARCHAT":
             if evt._command in self.handled_commands:
+                logger.debug(evt._command)
                 self.add_task(self.chat_queue.put(evt))
 
 

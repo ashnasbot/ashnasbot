@@ -3,6 +3,8 @@ import logging
 
 import aiohttp
 
+from . import config
+
 API_BASE = "https://api.twitch.tv"
 logger = logging.getLogger(__name__)
 
@@ -10,9 +12,15 @@ logger = logging.getLogger(__name__)
 class TwitchClient():
 
     # TODO: Refactor to be a generic client
-    def __init__(self, client_id, target_user):
-        self.client_id = client_id
+    def __init__(self, client_id=None, target_user=None):
+        self.config = config.Config()
+        if client_id:
+            self.client_id = client_id
+        else:
+            self.client_id = self.config["client_id"]
+
         self.target_user = target_user
+
         logger.info(f"starting twitch client for {client_id}/{target_user}")
 
         self._apis = {
@@ -44,6 +52,16 @@ class TwitchClient():
             "params": {'limit': 10}
         }
 
+    async def get_other_channel_id(self, channel):
+        logger.debug("Getting id for %s", channel)
+        api_req = {
+            "url": f"/helix/users?login={channel}",
+            "params": {}
+        }
+
+        resp = await self.make_api_request_2(api_req, params=None)
+        return resp["data"][0]["id"]
+
     async def get_user_info(self, user):
         resp = await self.make_api_request('users', params={'id': user})
         try:
@@ -60,6 +78,22 @@ class TwitchClient():
 
     async def make_api_request(self, api, params=None):
         api_req = self.get_api(api)
+        headers = {
+            "Client-ID": f"{self.client_id}",
+            "Accept": "application/vnd.twitchtv.v5+json"
+        }
+        if params:
+            req_params = {**api_req['params'], **params}
+        else:
+            req_params = api_req['params']
+
+        async with aiohttp.ClientSession() as session:
+            async with session.get(API_BASE + api_req["url"],
+                         params=req_params,
+                         headers=headers) as resp:
+                return await resp.json()
+
+    async def make_api_request_2(self, api_req, params=None):
         headers = {
             "Client-ID": f"{self.client_id}",
             "Accept": "application/vnd.twitchtv.v5+json"
@@ -96,4 +130,44 @@ class TwitchClient():
             json.dump(follow_file, f)
 
         return new_follows
+
+    async def get_badges_for_channel(self, channel):
+        logger.debug("Getting badges for %s", channel)
+        channel_id = await self.get_other_channel_id(channel)
+        logger.debug("Getting badges for %s", channel_id)
+        api_req = {
+            "url": f"/kraken/chat/{channel_id}/badges",
+            "params": {}
+        }
+        resp = await self.make_api_request_2(api_req)
+
+        badges = {}
+
+        for name, urls in resp.items():
+            if urls:
+                try:
+                    badges[name] = urls["alpha"]
+                except:
+                    badges[name] = urls["image"]
+
+        return badges
+
+    async def get_cheermotes(self):
+        resp = json.load(open("bits.json"))
+
+        cheermotes = {}
+
+        for cheer in resp["actions"]:
+            prefix = cheer["prefix"]
+            tiers = {}
+            for teir in cheer["tiers"]:
+                img = teir["images"]["dark"]["animated"]["2"]
+                value = teir["id"]
+                tiers[value] = img
+            cheermotes[prefix] = tiers
+        return cheermotes
+
+
+
+
 

@@ -11,7 +11,7 @@ import websockets
 from .av import get_sound
 from .async_http import WebServer
 from .chat_bot import ChatBot
-from .config import ConfigLoader, ReloadException
+from .config import Config, ReloadException
 from .twitch import handle_message
 from .twitch_client import TwitchClient
 from .users import Users
@@ -53,9 +53,9 @@ class SocketServer(Thread):
                     logger.error(f"Message for channel '{channel}' but no socket")
                     self.chatbot.unsubscribe(channel)
                 if event: 
-                    content = handle_message(event)
+                    content = await handle_message(event)
                     if content:
-                        if SCRAPE_AVATARS:
+                        if "tags" in content and SCRAPE_AVATARS:
                             content['logo'] = await self.users.get_picture(content['tags']['user-id'])
                         self.websockets[channel] = [s for s in self.websockets[channel] if not s.closed]
                         for s in self.websockets[channel]:
@@ -90,7 +90,7 @@ class SocketServer(Thread):
             queue = self.chatbot.alerts()
             event = await queue.get()
             if event: 
-                content = handle_message(event)
+                content = await handle_message(event)
                 if content:
                     await self._event_queue.put(content)
             queue.task_done()
@@ -213,7 +213,7 @@ class SocketServer(Thread):
         self.loop.stop()
 
     def load_clients(self):
-        config = ConfigLoader().load()
+        config = Config()
         try:
             self.config = config
         except KeyError as e:

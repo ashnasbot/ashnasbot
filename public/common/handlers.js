@@ -138,6 +138,13 @@ new Vue({
                         this.alertLog.push(msg)
                         console.log(msg.message);
                         break;
+                    case "HOST":
+                        console.log(msg.message);
+                        if ('URLSearchParams' in window) {
+                            var searchParams = new URLSearchParams(window.location.search);
+                            searchParams.set("channel", msg.message);
+                            window.location.search = searchParams.toString();
+                        }
                     default: 
                         console.log(msg);
                 };

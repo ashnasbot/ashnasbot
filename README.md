@@ -35,6 +35,7 @@ TODO: Example config.json
 ## Known Issues
 - No way to enable/disable alerts
 - some substitutions not supported e.g. "<3"
+- Delete/Ban throws an error
 
 ### Observer
 - non-UTF-8 messages break the transport
@@ -48,10 +49,14 @@ Includes the excellent Reactor7 font by Cava
 (CC-by-nc-sa) http://caveras.net
 
 ## TODO
+- Make Commands addon-able via config
 - Fix credentials to only need oauth
 - use CDN for all fonts
 - multi-room
 - Subscriber badges (other than first)
 - config on page
 - Channel cheermotes
-- Delete/Ban
+- metrics
+- clips embedding
+- render urls
+- show some NOTICEs

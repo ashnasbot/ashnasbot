@@ -19,6 +19,8 @@ from .users import Users
 logger = logging.getLogger(__name__)
 SCRAPE_AVATARS = True
 
+logging.getLogger("websockets").setLevel(logging.INFO)
+
 
 class SocketServer(Thread):
 
@@ -49,7 +51,7 @@ class SocketServer(Thread):
                 event = await queue.get()
                 processing = True
                 channel = event.channel
-                if channel not in self.websockets:
+                if channel and channel not in self.websockets:
                     logger.error(f"Message for channel '{channel}' but no socket")
                     self.chatbot.unsubscribe(channel)
                 if event: 
@@ -58,8 +60,14 @@ class SocketServer(Thread):
                         if "tags" in content and SCRAPE_AVATARS:
                             content['logo'] = await self.users.get_picture(content['tags']['user-id'])
                         self.websockets[channel] = [s for s in self.websockets[channel] if not s.closed]
-                        for s in self.websockets[channel]:
-                            await s.send(json.dumps(content))
+                        if channel:
+                            for s in self.websockets[channel]:
+                                await s.send(json.dumps(content))
+                        else:
+                            for c in self.websockets:
+                                for s in c:
+                                    await s.send(json.dumps(content))
+
                 processing = False
                 queue.task_done()
 

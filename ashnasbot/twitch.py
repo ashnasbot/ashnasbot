@@ -88,6 +88,11 @@ class ResponseEvent(dict):
 
 
 def render_emotes(message, emotes):
+    """Render emotes into message
+
+    As a side effect, html-escapes the message
+    This is unavoidable.
+    """
     try:
         replacements = {}
 
@@ -118,7 +123,7 @@ async def get_channel_badges(channel):
                             primary_type=db.types.text)
     if table:
         # TODO: Check timestamp and re-pull
-        logger.debug("Found badge cache for %s", channel)
+        pass
     else:
         logger.info("No badge cache for %s", channel)
         client = TwitchClient(None, None)
@@ -224,13 +229,11 @@ def handle_command(event):
 def handle_other_commands(event):
     try:
         if event._command == "CLEARMSG":
-            channel = re.search(r"^#(\w+)\s", event._params).group(1)
             return {
                     'nickname': etags['login'],
                     'orig_message': event._params,
                     'id' : etags['target-msg-id'],
                     'type' : event._command,
-                    'channel' : channel
                     }
         elif event._command == "CLEARCHAT":
             channel, nick = re.search(r"^#(\w+)\s:(\w+)$", event._params).groups()
@@ -239,59 +242,58 @@ def handle_other_commands(event):
                     'type' : event._command,
                     'channel' : channel
                     }
-        elif evt._command == "RECONNECT":
+        elif event._command == "RECONNECT":
             ret_event = ResponseEvent()
             logger.warn("Twitch chat is going down")
             ret_event.message = "Twitch chat is going down"
-        elif evt._command == "HOSTTARGET":
+            return ret_event
+        elif event._command == "HOSTTARGET":
             ret_event = ResponseEvent()
-            if re.search(r"HOSTTARGET\s#\w+\s:-", evt.message):
+            if event.message == "-":
                 # TODO: Store channels hosting
                 ret_event['message'] = "Stopped hosting"
             else:
-                channel = re.search(r"HOSTTARGET\s#\w+\s(\w+)\s", evt.message).group(1)
-                ret_event['message'] = f"Hosting {channel}"
-            logger.info(ret_evt['message'])
+                channel = re.search(r"(\w+)\s[\d-]+", event.message).group(1)
+                ret_event['message'] = channel
+                ret_event['type'] = "HOST"
+            logger.info(ret_event['message'])
+            return ret_event
 
     except:
         return
 
 async def handle_message(event):
-    etags = event.tags
-    raw_msg = ""
-    try:
-        raw_msg = event.message
-    except:
-        event.message = ""
-    if event.type == "RAID":
+    etags = event.tags if hasattr(event, "tags") else {}
+    raw_msg = event.message if hasattr(event, "message") else ""
+    orig_message = raw_msg
+    msg_type = event.type
+
+
+    if msg_type == "RAID":
         raw_msg = f"{etags['msg-param-displayName']} is raiding with a party of " \
                   f"{etags['msg-param-viewerCount']}"
-    if event.type == "HOST":
+    if msg_type == "HOST":
         raw_msg = f"{etags['msg-param-displayName']} is hosting for " \
                   f"{etags['msg-param-viewerCount']} viewers"
 
+    # system-messages are escaped, lets fix that
     if not raw_msg and 'system-msg' in etags:
         raw_msg = html.unescape(etags['system-msg'].replace("\\s", " "))
 
-    other = handle_other_commands(event)
-    if other:
-        return other
-
-    msg_tags = []
-    msg_type = event.type
+    if hasattr(event, "_command"):
+        other = handle_other_commands(event)
+        if other:
+            return other
 
     if raw_msg.startswith('\u0001'):
         # Strip "\001ACTION"
         raw_msg = raw_msg.replace('\u0001', "")[7:]
-        msg_tags.append(ACTION)
 
     if raw_msg.startswith('!'):
         # Don't render commands
         return {}
 
-    nickname = ''
-    if 'display-name' in etags:
-        nickname = etags['display-name']
+    nickname = etags['display-name'] if 'display-name' in etags else ''
 
     badges = []
     if "badges" in etags and etags["badges"]:
@@ -300,6 +302,7 @@ async def handle_message(event):
     if 'emotes' in etags and etags["emotes"]:
         message = render_emotes(raw_msg, etags['emotes'])
     else:
+        # Render emotes escapes it's output already
         message = html.escape(raw_msg)
 
     if "bits" in etags:
@@ -309,10 +312,9 @@ async def handle_message(event):
             'badges': badges,
             'nickname': nickname,
             'message' : message,
-            'orig_message': event.message,
+            'orig_message': orig_message,
             'id' : etags['id'],
             'tags' : etags,
-            'extra' : msg_tags,
             'type' : msg_type,
             'channel' : event.channel
             }

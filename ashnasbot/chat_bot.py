@@ -124,7 +124,8 @@ class ChatBot():
                 logger.error("Alerts queue full, discarding alert")
 
         elif evt.type == "TWITCHCHATCOMMAND" or \
-             evt.type == "TWITCHCHATCLEARCHAT":
+             evt.type == "TWITCHCHATCLEARCHAT" or \
+             evt.type == "TWITCHCHATHOSTTARGET":
             if evt._command in self.handled_commands:
                 logger.debug(evt._command)
                 self.add_task(self.chat_queue.put(evt))

@@ -120,6 +120,7 @@ new Vue({
             for (const event of events) {
                 msg = JSON.parse(event.data);
                 switch(msg.type) {
+                    case "SUB":
                     case "TWITCHCHATMESSAGE":
                         chat = this.chat.concat(msg);
                         this.chat = chat.slice(Math.max(
@@ -131,7 +132,7 @@ new Vue({
                     case "CLEARCHAT":
                         this.chat = this.chat.filter(m => m.nickname.toLowerCase() != msg.nickname.toLowerCase());
                     case "FOLLOW":
-                    case "SUB":
+                        break;
                         //Disable alerts for now
                         continue;
                         do_alert(msg, this);

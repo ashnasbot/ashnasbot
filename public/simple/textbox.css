@@ -84,22 +84,36 @@ div.msg .img-frame {
   height: 100%;
 }
 
-div.msg q {
+.quoted {
   quotes: "“" "”" "‘" "’";
 }
-div.msg q:before {
+.quoted:before {
     content: open-quote;
 }
-div.msg q:after {
+.quoted:after {
     content: close-quote;
 }
 
+/* Remove quotes from q's unless 'quoted' */
 div.msg q.action:before, div.msg q.action:after {
-    content: "";
+  content: "";
 }
 
 ol li {
 list-style-type: none;
+}
+
+.stripe {
+  width: 0.5ex;
+  background-color: #6441a4;
+  height: 90%;
+  margin-right: 0.5ex !important;
+  vertical-align: middle;
+  display: inline-block;
+}
+
+.faded {
+  opacity: 0.6;
 }
 
 .slide-fade-enter-active, .slide-fade-leave-active {

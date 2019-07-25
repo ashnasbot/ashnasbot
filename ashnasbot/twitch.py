@@ -277,8 +277,8 @@ async def handle_message(event):
                   f"{etags['msg-param-viewerCount']} viewers"
 
     # system-messages are escaped, lets fix that
-    if not raw_msg and 'system-msg' in etags:
-        raw_msg = html.unescape(etags['system-msg'].replace("\\s", " "))
+    if 'system-msg' in etags:
+        etags['system-msg'] = html.unescape(etags['system-msg'].replace("\\s", " "))
 
     if hasattr(event, "_command"):
         other = handle_other_commands(event)

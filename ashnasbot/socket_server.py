@@ -59,8 +59,8 @@ class SocketServer(Thread):
                     if content:
                         if "tags" in content and SCRAPE_AVATARS:
                             content['logo'] = await self.users.get_picture(content['tags']['user-id'])
-                        self.websockets[channel] = [s for s in self.websockets[channel] if not s.closed]
                         if channel:
+                            self.websockets[channel] = [s for s in self.websockets[channel] if not s.closed]
                             for s in self.websockets[channel]:
                                 await s.send(json.dumps(content))
                         else:

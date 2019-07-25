@@ -20,7 +20,7 @@
 	<div v-cloak>
 		<transition-group name="slide-fade" tag="ol">
 		<li v-for="msg in chat" v-bind:key="msg.id" v-bind:id="msg.id">
-			<div class="msg msg-msg msg-frame msg-bg">
+			<div v-if="msg.type === 'TWITCHCHATMESSAGE'" class="msg msg-msg msg-frame msg-bg">
 				<div class="img-frame column">
 					<img class="logo" :src="msg.logo"/>
 				</div>
@@ -29,7 +29,16 @@
 					<span v-for="badge in msg.badges" v-html="badge"></span>
 				</span>
 				<span class="nick" v-html="msg.nickname">:</span>
-				<p><q v-bind:class="msg.extra" v-html="msg.message"></p>
+				<p><q class="quoted" v-bind:class="msg.extra" v-html="msg.message"></p>
+				</div>
+			</div>
+			<div v-else class="msg msg-msg msg-frame msg-bg">
+				<div class="column">
+					<div class="stripe"></div>
+				</div>
+				<div class="column">
+					<p class="faded" v-bind:class="msg.extra" v-html="msg.tags['system-msg']"></p>
+					<p class="quoted faded" v-bind:class="msg.extra" v-html="msg.message"></p>
 				</div>
 			</div>
 		</li>

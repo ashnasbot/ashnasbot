@@ -119,7 +119,7 @@ class ChatBot():
             else:
                 logger.info(evt.type)
             try:
-                self.add_task(self.alert_queue.put(evt))
+                self.add_task(self.chat_queue.put(evt))
             except asyncio.QueueFull:
                 logger.error("Alerts queue full, discarding alert")
 

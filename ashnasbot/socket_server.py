@@ -65,7 +65,7 @@ class SocketServer(Thread):
                                 await s.send(json.dumps(content))
                         else:
                             for c in self.websockets:
-                                for s in c:
+                                for s in self.websockets[c]:
                                     await s.send(json.dumps(content))
 
                 processing = False

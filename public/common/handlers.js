@@ -122,6 +122,7 @@ new Vue({
                 switch(msg.type) {
                     case "SUB":
                     case "TWITCHCHATMESSAGE":
+                    case "TWITCHCHATUSERNOTICE":
                         chat = this.chat.concat(msg);
                         this.chat = chat.slice(Math.max(
                             chat.length - max_messages, 0)

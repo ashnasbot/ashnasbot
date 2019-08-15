@@ -5,11 +5,8 @@ import re
 from threading import Thread, current_thread, Event
 from concurrent.futures import Future
 
-#Remove me
 import traceback
-
 import asyncio
-
 from twitchobserver import Observer
 
 from . import twitch
@@ -118,10 +115,11 @@ class ChatBot():
                 logger.info(f"HOST {evt}")
             else:
                 logger.info(evt.type)
+                logger.debug(evt)
             try:
                 self.add_task(self.chat_queue.put(evt))
             except asyncio.QueueFull:
-                logger.error("Alerts queue full, discarding alert")
+                logger.error("Queue full, discarding alert")
 
         elif evt.type == "TWITCHCHATCOMMAND" or \
              evt.type == "TWITCHCHATCLEARCHAT" or \
@@ -129,9 +127,6 @@ class ChatBot():
             if evt._command in self.handled_commands:
                 logger.debug(evt._command)
                 self.add_task(self.chat_queue.put(evt))
-
-
-            
 
     def send_message(self, message, channel):
         if not message:
@@ -144,7 +139,6 @@ class ChatBot():
 
         if channel not in self.channels:
             self.observer.leave_channel(channel)
-
 
     def close(self):
         for c in self.channels:

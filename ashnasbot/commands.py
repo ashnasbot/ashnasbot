@@ -9,6 +9,10 @@ def no_cmd(event, who, *args):
     event["message"] = f"No {who} {remainder}"
     return event
 
+def bs_cmd(event, *args):
+    event["message"] = f"No backseating please, we like to watch them suffer"
+    return event
+
 def so_cmd(event, who, *args):
     if event.tags['caller'] != 'Ashnas':
         return
@@ -23,6 +27,22 @@ PRAISE_ENDINGS = [
     "saviour of ages!",
     "beware of false prophets",
     "P R A I S E",
+    "GDPR compliant",
+    "Euclidian",
+    "Tubular",
+    "Uninflammable",
+    "Hydrate",
+    "Mostly hyperbole",
+    "has pictures of Spiderman",
+    "turing complete",
+    "undefeated",
+    "gud at speeling",
+    "this isn't even their final form",
+    "pet friendly",
+    "& Knuckles",
+    "HTTP Error 418 (Teapot Error)",
+    "follows the train, CJ",
+    "May contain nuts",
     "Wololo.",
     "lord and saviour",
     "and also CUBE",
@@ -51,7 +71,7 @@ PRAISE_ENDINGS = [
 def praise_cmd(event, praise, *args):
     ending = random.sample(PRAISE_ENDINGS, 1)[0]
     message = " ".join([praise, *args])
-    event["message"] = f"praise {praise} - {ending.format(praise=message)}"
+    event["message"] = f"praise {message} - {ending.format(praise=message)}"
     return event
 
 def death_cmd(event, *args):

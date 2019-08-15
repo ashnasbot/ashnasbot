@@ -38,7 +38,7 @@ BADGES = {
 }
 
 EMOTE_URL_TEMPLATE = "<img src=\"" + STATIC_CDN + \
-"""emoticons/v1/{eid}/1.5" class="emote" 
+"""emoticons/v1/{eid}/2.0" class="emote" 
 alt="{alt}"
 title="{alt}"
 />"""
@@ -169,7 +169,6 @@ async def render_badges(channel, badges):
         else:
             badge = badgever
         if badge == 'bits':
-            logger.info(f"Bits badge: {val}")
             url = BADGES.get(badge + val, None)
         else:
             url = channel_badges.get(badge, None)
@@ -216,7 +215,7 @@ def handle_command(event):
     raw_msg = event.message
     logger.info(f"{etags['display-name']} COMMAND: {raw_msg}")
     args = raw_msg.split(" ")
-    command = args.pop(0)
+    command = args.pop(0).lower()
     cmd = COMMANDS.get(command, None)
 
     ret_event = ResponseEvent()
@@ -228,6 +227,10 @@ def handle_command(event):
 
 def handle_other_commands(event):
     try:
+        if event._command == "PRIVMSG":
+            return
+
+        logger.debug("_command: %s", event._command)
         if event._command == "CLEARMSG":
             return {
                     'nickname': etags['login'],
@@ -256,7 +259,7 @@ def handle_other_commands(event):
                 channel = re.search(r"(\w+)\s[\d-]+", event.message).group(1)
                 ret_event['message'] = channel
                 ret_event['type'] = "HOST"
-            logger.info(ret_event['message'])
+            logger.info("Hosting: %s", ret_event['message'])
             return ret_event
 
     except:
@@ -293,6 +296,12 @@ async def handle_message(event):
         # Don't render commands
         return {}
 
+    if "@ashnasbot" in raw_msg.lower():
+        if "LUL" in raw_msg or "lol" in raw_msg.lower():
+            ret_event = ResponseEvent()
+            ret_event["message"] = "LUL"
+
+
     nickname = etags['display-name'] if 'display-name' in etags else ''
 
     badges = []
@@ -322,6 +331,8 @@ async def handle_message(event):
 COMMANDS = {
     '!no': commands.no_cmd,
     '!so': commands.so_cmd,
+    '!bs': commands.bs_cmd,
+    '!backseat': commands.bs_cmd,
     '!praise': commands.praise_cmd,
     '!deaths': commands.death_cmd
 }

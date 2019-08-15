@@ -87,6 +87,9 @@ div.msg .img-frame {
 .quoted {
   quotes: "“" "”" "‘" "’";
 }
+.quoted:empty {
+  display: none;
+}
 .quoted:before {
     content: open-quote;
 }

@@ -32,7 +32,7 @@ PRAISE_ENDINGS = [
     "Tubular",
     "Uninflammable",
     "Hydrate",
-    "Mostly hyperbole",
+    "mostly hyperbole",
     "has pictures of Spiderman",
     "turing complete",
     "undefeated",
@@ -42,7 +42,7 @@ PRAISE_ENDINGS = [
     "& Knuckles",
     "HTTP Error 418 (Teapot Error)",
     "follows the train, CJ",
-    "May contain nuts",
+    "may contain nuts",
     "Wololo.",
     "lord and saviour",
     "and also CUBE",
@@ -65,13 +65,13 @@ PRAISE_ENDINGS = [
     "can't be all bad",
     "in stereo!",
     "now for only 19,99",
-    "Better than Baby Shark"
+    "better than Baby Shark"
 ]
 
 def praise_cmd(event, praise, *args):
     ending = random.sample(PRAISE_ENDINGS, 1)[0]
     message = " ".join([praise, *args])
-    event["message"] = f"praise {message} - {ending.format(praise=message)}"
+    event["message"] = f"Praise {message} - {ending.format(praise=message)}"
     return event
 
 def death_cmd(event, *args):

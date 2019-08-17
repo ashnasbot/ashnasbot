@@ -6,14 +6,17 @@ import logging
 import re
 import sys
 
+import bleach
 import dataset
-from .twitch_client import TwitchClient
 
+from .twitch_client import TwitchClient
 from . import av
 from . import commands
 
 db = dataset.connect('sqlite:///twitchdata.db')
 
+# TODO: Move all of this static data into a data common module
+# TODO: Split this into: chat, emotes, badges & commands modules
 STATIC_CDN = "https://static-cdn.jtvnw.net/"
 
 ACTION="action"
@@ -37,17 +40,14 @@ BADGES = {
     'vip': STATIC_CDN + "badges/v1/b817aba4-fad8-49e2-b88a-7cc744dfa6ec/2"
 }
 
+SUB_TIERS = [0, 3, 6, 9, 12, 18, 24, 30]
+
 EMOTE_URL_TEMPLATE = "<img src=\"" + STATIC_CDN + \
 """emoticons/v1/{eid}/2.0" class="emote" 
 alt="{alt}"
 title="{alt}"
 />"""
 
-#CHEERMOTE_URL_TEMPLATE = "<img src=\"" + STATIC_CDN + \
-#"""bits/dark/animated/{color}/1.5" class="emote" 
-#alt="{alt}"
-#title="{alt}"
-#/>"""
 CHEERMOTE_URL_TEMPLATE = "<img src=\"{url}\" class=\"emote\"" + \
 """alt="{alt}"
 title="{alt}"
@@ -168,8 +168,15 @@ async def render_badges(channel, badges):
             badge, val = badgever.split('/')
         else:
             badge = badgever
-        if badge == 'bits':
-            url = BADGES.get(badge + val, None)
+        if badge == 'subscriber':
+            if not val:
+                val = "0"
+            # TODO: refactor to common "get_le" method (and bits)
+            badge = badge + str(SUB_TIERS[bisect.bisect_right(SUB_TIERS, int(val)) - 1])
+            url = channel_badges.get(badge, None)
+        elif badge == 'bits':
+            badge = badge + val
+            url = BADGES.get(badge, None)
         else:
             url = channel_badges.get(badge, None)
         if not url:
@@ -186,8 +193,11 @@ async def render_bits(message, bits):
         await load_cheermotes()
 
     def render_cheer(match):
-        real_value = match.group(3)
         emote_name = match.group('emotename')
+        real_value = match.group(3)
+        if not emote_name or not real_value:
+            logger.warning("Matched broken emote %s %s", emote_name, real_value)
+        print(match.groups())
         if emote_name == "cheer":
             emote_name = "Cheer"
 
@@ -202,7 +212,7 @@ async def render_bits(message, bits):
         return res
 
     # TODO: compile
-    cheer_regex = r"(^|\s)(?P<emotename>[a-zA-Z]+)(\d+)(\s|$)"
+    cheer_regex = r"((?<=^)|(?<=\s))(?P<emotename>[a-zA-Z]+)(\d+)(?=(\s|$))"
     match = re.search(cheer_regex, message)
     if not match:
         logger.warn("Cannot find bits in message")
@@ -313,6 +323,8 @@ async def handle_message(event):
     else:
         # Render emotes escapes it's output already
         message = html.escape(raw_msg)
+
+    message = bleach.linkify(message)
 
     if "bits" in etags:
         message = await render_bits(message, etags["bits"])

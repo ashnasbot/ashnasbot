@@ -49,14 +49,12 @@ Includes the excellent Reactor7 font by Cava
 (CC-by-nc-sa) http://caveras.net
 
 ## TODO
-- Make Commands addon-able via config
-- Fix credentials to only need oauth
-- use CDN for all fonts
-- multi-room
-- Subscriber badges (other than first)
-- config on page
 - Channel cheermotes
+- Make Commands addon-able via config
+- use CDN for all fonts
+- config on page
 - metrics
+- use passed oauth for API calls
+- Fix credentials to only need oauth
 - clips embedding
-- render urls
-- show some NOTICEs
+- multi-room

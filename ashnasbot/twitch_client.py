@@ -150,6 +150,17 @@ class TwitchClient():
                 except:
                     badges[name] = urls["image"]
 
+        if badges:
+            # Get additional sub tiers too
+            sub_badges = {}
+            url = f"https://badges.twitch.tv/v1/badges/channels/{channel_id}/display"
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as resp:
+                    sub_badges = await resp.json()
+            if sub_badges:
+                for months, urls in sub_badges["badge_sets"]["subscriber"]["versions"].items():
+                    badges[f"subscriber{months}"] = urls["image_url_2x"]
+
         return badges
 
     async def get_cheermotes(self):

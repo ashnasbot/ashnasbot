@@ -58,8 +58,10 @@ div.msg img {
     vertical-align: middle;
 }
 
-img.emote {
-  height: 36px;
+div.msg img.emote {
+  margin: -4px;
+  height: min-content;
+  width: min-content;
 }
 
 div.msg img.badge {

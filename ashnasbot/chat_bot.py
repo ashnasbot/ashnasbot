@@ -23,6 +23,7 @@ class ChatBot():
         self.notifications = []
         self.channels = set()
         self.observer = Observer(bot_user, oauth)
+        self.observer._inbound_poll_interval = 0
         self.observer.start()
         self.loop = loop
 

@@ -1,6 +1,79 @@
+import logging
 import random
 
 import dataset
+
+logger = logging.getLogger(__name__)
+
+class ResponseEvent(dict):
+    """Render our own msgs through the bot."""
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.__dict__ = self
+        self.nickname = "Ashnasbot"
+        self.tags = {
+            'display-name': 'Ashnasbot',
+            'badges': [],
+            'emotes': [],
+            'id': 'bot',
+            'user-id': 275857969
+        }
+        self.type = 'TWITCHCHATMESSAGE'
+
+def handle_command(event):
+    etags = event.tags
+    raw_msg = event.message
+    logger.info(f"{etags['display-name']} COMMAND: {raw_msg}")
+    args = raw_msg.split(" ")
+    command = args.pop(0).lower()
+    cmd = COMMANDS.get(command, None)
+
+    ret_event = ResponseEvent()
+    ret_event.channel = event.channel
+    ret_event.tags['caller'] = event.tags['display-name']
+    if callable(cmd):
+        ret_event = cmd(ret_event, *args)
+        return ret_event
+
+def handle_other_commands(event):
+    try:
+        if event._command == "PRIVMSG":
+            return
+
+        logger.debug("_command: %s", event._command)
+        if event._command == "CLEARMSG":
+            return {
+                    'nickname': etags['login'],
+                    'orig_message': event._params,
+                    'id' : etags['target-msg-id'],
+                    'type' : event._command,
+                    }
+        elif event._command == "CLEARCHAT":
+            channel, nick = re.search(r"^#(\w+)\s:(\w+)$", event._params).groups()
+            return {
+                    'nickname': nick,
+                    'type' : event._command,
+                    'channel' : channel
+                    }
+        elif event._command == "RECONNECT":
+            ret_event = ResponseEvent()
+            logger.warn("Twitch chat is going down")
+            ret_event.message = "Twitch chat is going down"
+            return ret_event
+        elif event._command == "HOSTTARGET":
+            ret_event = ResponseEvent()
+            if event.message == "-":
+                # TODO: Store channels hosting
+                ret_event['message'] = "Stopped hosting"
+            else:
+                channel = re.search(r"(\w+)\s[\d-]+", event.message).group(1)
+                ret_event['message'] = channel
+                ret_event['type'] = "HOST"
+            logger.info("Hosting: %s", ret_event['message'])
+            return ret_event
+
+    except:
+        return
 
 db = dataset.connect('sqlite:///ashnasbot.db')
 
@@ -21,6 +94,13 @@ def so_cmd(event, who, *args):
         event["message"] = f"Shoutout to {who} - they are the best egg <3"
     else:
         event["message"] = f"Shoutout to {who} - they are a good egg <3"
+    return event
+    
+def uptime(event, *args):
+    if event.tags['caller'] != 'Darkshoxx':
+        return
+
+    event["message"] = f"You're late, Darkshoxx!"
     return event
 
 PRAISE_ENDINGS = [
@@ -112,3 +192,12 @@ def death_cmd(event, *args):
     event["message"] = f"/me Our illustrious strimmer has died {DEATHS} {times}"
     return event
 
+COMMANDS = {
+    '!no': no_cmd,
+    '!so': so_cmd,
+    '!bs': bs_cmd,
+    '!backseat': bs_cmd,
+    '!praise': praise_cmd,
+    '!deaths': death_cmd,
+    '!uptime': uptime
+}

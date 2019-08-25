@@ -10,6 +10,7 @@ import asyncio
 from twitchobserver import Observer
 
 from . import twitch
+from .twitch import commands
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +85,7 @@ class ChatBot():
         if evt.type == 'TWITCHCHATMESSAGE':
             try:
                 if evt.message.startswith("!"):
-                    res = twitch.handle_command(evt)
+                    res = commands.handle_command(evt)
                     if res:
                         self.send_message(res["message"], res["channel"])
                         self.add_task(self.chat_queue.put(res))

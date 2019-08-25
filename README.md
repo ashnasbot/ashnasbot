@@ -52,7 +52,7 @@ Includes the excellent Reactor7 font by Cava
 - Channel cheermotes
 - Make Commands addon-able via config
 - use CDN for all fonts
-- config on page
+- per channel config on page (SCRAPE_AVATARS)
 - metrics
 - use passed oauth for API calls
 - Fix credentials to only need oauth

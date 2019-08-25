@@ -8,12 +8,12 @@ from concurrent.futures import ThreadPoolExecutor
 
 import websockets
 
-from .av import get_sound
+from .twitch.av import get_sound
 from .async_http import WebServer
 from .chat_bot import ChatBot
 from .config import Config, ReloadException
 from .twitch import handle_message
-from .twitch_client import TwitchClient
+from .twitch.api_client import TwitchClient
 from .users import Users
 
 logger = logging.getLogger(__name__)

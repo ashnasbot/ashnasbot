@@ -16,6 +16,7 @@
 			<input v-model="channel" id="menu_channel" name="channel"/>
 			<input type="submit"/>
 		</form>
+		<config-menu v-on:cfg-update="updateCfg($event)"></config-menu>
 	</div>
 	<div v-cloak>
 		<transition-group name="slide-fade" tag="ol">
@@ -29,7 +30,7 @@
 					<span v-for="badge in msg.badges" v-html="badge"></span>
 				</span>
 				<span class="nick" v-html="msg.nickname">:</span>
-				<p><q class="quoted" v-bind:class="msg.extra" v-html="msg.message"></p>
+				<p v-bind:class="msg.extra" v-html="msg.message"></p>
 				</div>
 			</div>
 			<div v-else class="msg msg-msg msg-frame msg-bg">
@@ -38,7 +39,7 @@
 				</div>
 				<div class="column">
 					<p class="faded" v-bind:class="msg.extra" v-html="msg.tags['system-msg']"></p>
-					<p class="quoted faded" v-bind:class="msg.extra" v-html="msg.message"></p>
+					<p class="faded" v-bind:class="msg.extra" v-html="msg.message"></p>
 				</div>
 			</div>
 		</li>

@@ -4,6 +4,7 @@
 [v-cloak] { display: none; }
 
 body {
+  margin:0;
   height: 100vh;
   overflow: hidden;
 }
@@ -99,11 +100,6 @@ div.msg .img-frame {
     content: close-quote;
 }
 
-/* Remove quotes from q's unless 'quoted' */
-div.msg q.action:before, div.msg q.action:after {
-  content: "";
-}
-
 ol li {
 list-style-type: none;
 }
@@ -160,13 +156,49 @@ div.menu {
   transition-delay: 0.1s;
 
   position: absolute;
-  width: 100vw;
   top: 0;
   left: 0;
+  right:0;
   z-index: 10;
   padding: 0.25ex 0.5ex;
+  box-sizing: border-box;
 }
 
 div.menu:focus-within, div.menu:hover {
   opacity: 1 !important;
+}
+
+div.menu .popout {
+  position: absolute;
+  right: 0;
+  top: 0;
+}
+
+.popout .form {
+  background-color: #444;
+  color: #DDD;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 1em;
+  padding: 1ex;
+  box-sizing: border-box;
+}
+
+.popout::before {
+  content: "☰";
+  background-color: #444;
+  text-align: right;
+  display: block;
+  margin-right: 1em;
+  box-sizing: border-box;
+  width: min-content;
+  right: 0;
+  margin-left: auto;
+  padding: 0 1ex;
+}
+
+
+.form label {
+  display: block;
+  text-align: right;
+  padding-right: 1em;
 }

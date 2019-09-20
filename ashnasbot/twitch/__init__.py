@@ -161,6 +161,8 @@ async def handle_message(event):
     orig_message = raw_msg
     msg_type = event.type
 
+    extra = []
+
 
     if msg_type == "RAID":
         raw_msg = f"{etags['msg-param-displayName']} is raiding with a party of " \
@@ -181,6 +183,8 @@ async def handle_message(event):
     if raw_msg.startswith('\u0001'):
         # Strip "\001ACTION"
         raw_msg = raw_msg.replace('\u0001', "")[7:]
+    else:
+        extra.append("quoted")
 
     if raw_msg.startswith('!'):
         # Don't render commands
@@ -211,7 +215,8 @@ async def handle_message(event):
             'id' : etags['id'],
             'tags' : etags,
             'type' : msg_type,
-            'channel' : event.channel
+            'channel' : event.channel,
+            'extra' : extra
             }
 
 def create_event(from_evt, message):

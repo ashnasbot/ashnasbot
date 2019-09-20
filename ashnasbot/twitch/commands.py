@@ -1,5 +1,7 @@
 import logging
 import random
+import re
+import uuid
 
 import dataset
 
@@ -15,7 +17,7 @@ class ResponseEvent(dict):
             'display-name': 'Ashnasbot',
             'badges': [],
             'emotes': [],
-            'id': 'bot',
+            'id': str(uuid.uuid4()),
             'user-id': 275857969
         }
         self.type = 'TWITCHCHATMESSAGE'
@@ -43,17 +45,16 @@ def handle_other_commands(event):
         logger.debug("_command: %s", event._command)
         if event._command == "CLEARMSG":
             return {
-                    'nickname': etags['login'],
+                    'nickname': event.tags['login'],
                     'orig_message': event._params,
-                    'id' : etags['target-msg-id'],
-                    'type' : event._command,
+                    'id' : event.tags['target-msg-id'],
+                    'type' : event._command
                     }
         elif event._command == "CLEARCHAT":
-            channel, nick = re.search(r"^#(\w+)\s:(\w+)$", event._params).groups()
+            #channel, nick = re.search(r"^#(\w+)\s:(\w+)$", event._params).groups()
             return {
-                    'nickname': nick,
-                    'type' : event._command,
-                    'channel' : channel
+                    'id' : event.tags['target-user-id'],
+                    'type' : event._command
                     }
         elif event._command == "RECONNECT":
             ret_event = ResponseEvent()
@@ -72,7 +73,8 @@ def handle_other_commands(event):
             logger.info("Hosting: %s", ret_event['message'])
             return ret_event
 
-    except:
+    except Exception as e:
+        logger.warn(e)
         return
 
 db = dataset.connect('sqlite:///ashnasbot.db')

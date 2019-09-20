@@ -157,17 +157,26 @@ class TwitchClient():
             async with aiohttp.ClientSession() as session:
                 async with session.get(url) as resp:
                     sub_badges = await resp.json()
-            if sub_badges:
+            if sub_badges and "subscriber" in sub_badges["badge_sets"]:
                 for months, urls in sub_badges["badge_sets"]["subscriber"]["versions"].items():
                     badges[f"subscriber{months}"] = urls["image_url_2x"]
 
         return badges
 
     async def get_cheermotes(self):
-        resp = json.load(open("bits.json"))
+        #resp = json.load(open("bits.json"))
+        url = "https://api.twitch.tv/kraken/bits/actions?include_sponsored=true"
+        headers = {
+            "Client-ID": f"{self.client_id}",
+            "Accept": "application/vnd.twitchtv.v5+json"
+        }
 
+        resp = {}
         cheermotes = {}
-
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, headers=headers) as resp:
+                resp = await resp.json()
+                
         for cheer in resp["actions"]:
             prefix = cheer["prefix"]
             tiers = {}

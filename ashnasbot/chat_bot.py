@@ -87,6 +87,7 @@ class ChatBot():
                 if evt.message.startswith("!"):
                     res = commands.handle_command(evt)
                     if res:
+                        # TODO: Need to pipe this through the eventloop so we can apply config filters
                         self.send_message(res["message"], res["channel"])
                         self.add_task(self.chat_queue.put(res))
             except Exception as e:

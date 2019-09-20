@@ -1,9 +1,11 @@
 import asyncio
+import contextvars
 import json
 import logging
 from queue import Empty
 import time
 from threading import Thread
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 
 import websockets
@@ -20,12 +22,21 @@ logger = logging.getLogger(__name__)
 SCRAPE_AVATARS = True
 
 logging.getLogger("websockets").setLevel(logging.INFO)
+ctx_client_id = contextvars.ContextVar('client_id')
 
-
+def filter_message(message, subs=True, commands=False, **kwargs):
+    if not subs:
+        if "type" in message and message["type"] == "SUB":
+            return False
+    if not commands:
+        if "tags" in message and "user-id" in message["tags"] and message["tags"]["user-id"] == 275857969:
+            return False
+    return True
+    
 class SocketServer(Thread):
 
     def __init__(self):
-        self.websockets = {}
+        self.channels = {}
         self.chatbot = None
         self.users = None
         self.http_clients = {}
@@ -51,7 +62,7 @@ class SocketServer(Thread):
                 event = await queue.get()
                 processing = True
                 channel = event.channel
-                if channel and channel not in self.websockets:
+                if channel and channel not in self.channels:
                     logger.error(f"Message for channel '{channel}' but no socket")
                     self.chatbot.unsubscribe(channel)
                 if event: 
@@ -60,13 +71,14 @@ class SocketServer(Thread):
                         if "tags" in content and SCRAPE_AVATARS:
                             content['logo'] = await self.users.get_picture(content['tags']['user-id'])
                         if channel:
-                            self.websockets[channel] = [s for s in self.websockets[channel] if not s.closed]
-                            for s in self.websockets[channel]:
-                                await s.send(json.dumps(content))
+                            self.channels[channel] = [s for s in self.channels[channel] if not s["socket"].closed]
+                            for s in self.channels[channel]:
+                                if filter_message(content, **s):
+                                    await s["socket"].send(json.dumps(content))
                         else:
-                            for c in self.websockets:
-                                for s in self.websockets[c]:
-                                    await s.send(json.dumps(content))
+                            for c in self.channels:
+                                for s in self.channels[c]:
+                                    await s["socket"].send(json.dumps(content))
 
                 processing = False
                 queue.task_done()
@@ -117,15 +129,15 @@ class SocketServer(Thread):
         logger.info("Shutdown Started")
         self.shutdown()
 
-    async def heartbeat(self, websocket):
+    async def heartbeat(self, ws_in):
         try:
             while True:
                 if self.shutdown_event.is_set():
                     return
                 await asyncio.sleep(20)
-                if websocket.closed:
+                if ws_in.closed:
                     return
-                await websocket.ping()
+                await ws_in.ping()
         except asyncio.CancelledError:
             pass
 
@@ -170,18 +182,18 @@ class SocketServer(Thread):
                 event['audio'] = get_sound("Super_Nintendo_Chalmers")
 
             if channel:
-                self.websockets[channel] = [s for s in self.websockets[channel] if not s.closed]
-                for s in self.websockets[channel]:
-                    await s.send(json.dumps(event))
+                self.channels[channel] = [s for s in self.channels[channel] if not s.socket.closed]
+                for s in self.channels[channel]:
+                    await s.socket.send(json.dumps(event))
             else:
                 logger.error("No channel for alert")
 
             self._event_queue.task_done()
             await asyncio.sleep(30)
 
-    async def handle_connect(self, websocket, path):
+    async def handle_connect(self, ws_in, path):
         try:
-            command = await websocket.recv()
+            command = await ws_in.recv()
         except:
             return
         if self.shutdown_event.is_set():
@@ -194,21 +206,28 @@ class SocketServer(Thread):
         if "chat" in commands:
             channel = commands["chat"]
             self.chatbot.subscribe(channel)
-            if channel in self.websockets:
-                self.websockets[channel].append(websocket)
+            channel_client = {
+                "socket": ws_in,
+                "clientId": ctx_client_id.get(str(uuid.uuid4()))
+            }
+            channel_client.update(commands)
+            if channel in self.channels:
+                self.channels[channel].append(channel_client)
             else:
-                self.websockets[channel] = [websocket]
+                self.channels[channel] = [channel_client]
         if "alert" in commands:
             channel = commands['alert']
             tasks.append(asyncio.create_task(self.followers(channel)))
-        tasks.append(asyncio.create_task(self.heartbeat(websocket)))
+            
+
+        tasks.append(asyncio.create_task(self.heartbeat(ws_in)))
 
         logger.info(f"Socket client Join: {command}")
         await asyncio.gather(*tasks)
         logger.info(f"Socket client Leave: {command}")
-        websocket.close()
-        self.websockets[channel] = [s for s in self.websockets[channel] if s.open]
-        if not self.websockets[channel]:
+        ws_in.close()
+        self.channels[channel] = [s for s in self.channels[channel] if s["socket"].open]
+        if not self.channels[channel]:
             self.chatbot.unsubscribe(channel)
 
     def shutdown(self):

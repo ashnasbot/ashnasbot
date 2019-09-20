@@ -20,6 +20,9 @@ if (document.location.protocol == "https:") {
 
 var channel = "";
 
+var config = {
+}
+
 function getChannel() {
     if (channel != "") {
         return channel;
@@ -29,11 +32,56 @@ function getChannel() {
     return channel;
 }
 
+// Define a new component called button-counter
+Vue.component('config-menu', {
+    mounted: function () {
+        if (localStorage.config) {
+            config = JSON.parse(localStorage.config);
+            this.commands = config.commands;
+            this.follows = config.follows;
+            this.subs = config.subs;
+            this.sound = config.sound;
+        }
+    },
+    methods: {
+        handleInput () {
+            data = Object.fromEntries(Object.entries(this._data));
+            this.$emit("cfg-update", data);
+        }
+    },
+    data: function () {
+      return {
+        commands: true,
+        follows: false,
+        subs: true,
+        sound: true
+      }
+    },
+    watch: {
+        commands(n) { this.handleInput(); },
+        follows(n) { this.handleInput(); },
+        subs(n) { this.handleInput(); },
+        sound(n) { this.handleInput(); },
+    },
+    template: `
+    <div class="popout">
+    <div class="form">
+    <span>Reload page to set config </span>
+    <!--<label>Allow commands<input name="commands" type="checkbox" v-model="commands"> </label>-->
+    <!--<label>Show follows<input name="follows" type="checkbox" v-model="follows"></label>-->
+    <label>Show Subs<input name="subs" type="checkbox" v-model="subs"></label>
+    <label>Sounds<input name="sound" type="checkbox" v-model="sound"></label>
+    </div>
+    </div>
+    `
+  })
+
 new Vue({
     el: '#app',
     props: ['client', 'incoming'],
     data: {
         chat: [],
+        config: {},
         alert: "",
         alertLog: [],
         ping: null,
@@ -41,10 +89,13 @@ new Vue({
         curChannel: ""
     },
     methods: {
+        updateCfg: function(data) {
+            this.config = data;
+        },
         getClientConfig: function() {
             const channel = getChannel();
             const cmds = this.$el.attributes.client.value.split(',');
-            clientConfig = {};
+            clientConfig = this.config;
             for (var i = 0; i < cmds.length; i++) {
                 clientConfig[cmds[i]] = channel;
             }
@@ -110,7 +161,11 @@ new Vue({
         }
     },
     watch: {
-        incoming: function(events) {
+        config(newConfig) {
+            
+            localStorage.config = JSON.stringify(newConfig);
+        },
+        incoming(events) {
             if (events.length == 0) {
                 return;
             }
@@ -121,8 +176,11 @@ new Vue({
                 msg = JSON.parse(event.data);
                 switch(msg.type) {
                     case "SUB":
+                        do_alert(msg, this, this.config["sound"]);
                     case "TWITCHCHATMESSAGE":
                     case "TWITCHCHATUSERNOTICE":
+                        ts = performance.now();
+                        msgtimes.push(ts);
                         chat = this.chat.concat(msg);
                         this.chat = chat.slice(Math.max(
                             chat.length - max_messages, 0)
@@ -131,12 +189,10 @@ new Vue({
                     case "CLEARMSG":
                         this.chat = this.chat.filter(m => m.id != msg.id)
                     case "CLEARCHAT":
-                        this.chat = this.chat.filter(m => m.nickname.toLowerCase() != msg.nickname.toLowerCase());
+                        // this.chat = this.chat.filter(m => m.nickname.toLowerCase() != msg.nickname.toLowerCase());
+                        this.chat = this.chat.filter(m => msg.id != m.tags["user-id"]);
                     case "FOLLOW":
-                        break;
-                        //Disable alerts for now
-                        continue;
-                        do_alert(msg, this);
+                        do_alert(msg, this, tis.config["sound"]);
                         this.alertLog.push(msg)
                         console.log(msg.message);
                         break;
@@ -158,6 +214,9 @@ new Vue({
         window.addEventListener('beforeunload', this.unload)
     },
     mounted: function () {
+        if (localStorage.config) {
+            this.config = JSON.parse(localStorage.config);
+        }
         this.connect();
         var chat = document.getElementById('app');
         setInterval(function() {
@@ -221,10 +280,11 @@ function checkOverflow(el)
     return isOverflowing;
 }
 
-function do_alert(event, app)
+// Alert handling - WIP
+function do_alert(event, app, sounds)
 {
     name = event.nickname
-    if (event.audio) {
+    if (event.audio && sounds) {
         var audio = new Audio(event.audio);
         audio.play().then(function(){
             audio.addEventListener("ended", function(){
@@ -277,3 +337,54 @@ function do_alert(event, app)
 window.onresize = function(event) {
     max_messages = Math.floor(window.innerHeight / 60 );
 }
+
+// Animation speed handling
+// TODO: refactor into component or somesuch
+const msgtimes = [];
+let msgrate;
+let animrate = "0.3s";
+
+function setSlideDelay(rate) {
+    for (const ss of document.styleSheets) {
+        if (!ss.href) {
+            continue;
+        }
+        if (ss.href.endsWith("textbox.css")) {
+            for(const r of ss.cssRules) {
+                if (!r.style) {
+                    continue;
+                }
+                if (r.style["transition-duration"] && r.selectorText.includes("slide-fade")){
+                    r.style["transition-duration"] = rate;
+                }
+            }
+        }
+    }    
+}
+
+function refreshLoop() {
+  window.requestAnimationFrame(() => {
+    const now = performance.now();
+    while (msgtimes.length > 0 && msgtimes[0] <= now - 10000) {
+      msgtimes.shift();
+    }
+    msgrate = msgtimes.length/10;
+    if (msgrate > 4 && animrate == "0.1s") {
+        console.warn("Disable animation to boost rendering");
+        animrate = "0s";
+        setSlideDelay(animrate);
+    } else if (msgrate > 3 && animrate == "0.3s") {
+        console.info("Increasing animation rate");
+        animrate = "0.1s";
+        setSlideDelay(animrate);
+    } else if ( msgrate < 1 && animrate != "0.3s") {
+        console.warn("Reenabling animations");
+        animrate = "0.3s";
+        setSlideDelay(animrate);
+    }
+    refreshLoop();
+  });
+}
+
+refreshLoop();
+

@@ -47,16 +47,3 @@ I'd love to hear where my work ends up if you do use it though.
 
 Includes the excellent Reactor7 font by Cava
 (CC-by-nc-sa) http://caveras.net
-
-## TODO
-- Channel cheermotes
-- Make Commands addon-able via config
-- use CDN for all fonts
-- per channel config on page (SCRAPE_AVATARS)
-- metrics
-- use passed oauth for API calls
-- Fix credentials to only need oauth
-- clips embedding
-- multi-room
-- Process Follows
-- Refactor API (+ratelimiting)

@@ -153,7 +153,23 @@ async def render_bits(message, bits):
 
     return re.sub(cheer_regex, render_cheer, message, flags=re.IGNORECASE)
     
+URL_REGEX = r"(http(s)?://)?(clips.twitch.tv/(\w+)|www.twitch.tv/\w+/clip/(\w+))"
+async def render_clips(message):
+    client = TwitchClient(None, None)
+    match = re.search(URL_REGEX, message)
+    slug = match.group(5)
+    print(match.groups())
+    details = await client.get_clip(slug)
 
+    def render(match):
+        thumbnail = details["thumbnails"]["small"]
+        title = details["title"]
+        clipped_by = f'clipped by {details["curator"]["display_name"]}'
+        return f'''{match.group(0)}
+            <div class="inner_frame"><img src="{thumbnail}"/>
+            <span class="title">{title}</span>
+            <span>{clipped_by}</span></div>'''
+    return re.sub(URL_REGEX, render, message, flags=re.IGNORECASE)
 
 async def handle_message(event):
     etags = event.tags if hasattr(event, "tags") else {}
@@ -201,6 +217,9 @@ async def handle_message(event):
     else:
         # Render emotes escapes it's output already
         message = html.escape(raw_msg)
+
+    if re.match(URL_REGEX,message):
+        message = await render_clips(message)
 
     message = bleach.linkify(message)
 

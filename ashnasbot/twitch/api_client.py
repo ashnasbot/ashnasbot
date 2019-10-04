@@ -187,6 +187,22 @@ class TwitchClient():
             cheermotes[prefix] = tiers
         return cheermotes
 
+    async def get_clip(self, clip):
+        url = f"https://api.twitch.tv/kraken/clips/{clip}"
+        headers = {
+            "Client-ID": f"{self.client_id}",
+            "Accept": "application/vnd.twitchtv.v5+json"
+        }
+
+        resp = {}
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, headers=headers) as resp:
+                resp = await resp.json()
+
+        return resp
+
+
+
 
 
 

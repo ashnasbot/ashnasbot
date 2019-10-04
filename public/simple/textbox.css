@@ -202,3 +202,22 @@ div.menu .popout {
   text-align: right;
   padding-right: 1em;
 }
+
+.inner_frame {
+  float: left;
+  background-color: #444;
+  padding: 0.3em;
+}
+
+.inner_frame img {
+  float: left;
+  padding: 0.3em;
+}
+
+.inner_frame span {
+  display: block;
+}
+
+.inner_frame .title {
+  font-weight: bold;
+}

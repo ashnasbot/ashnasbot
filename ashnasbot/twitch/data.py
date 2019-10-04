@@ -14,6 +14,7 @@ BADGES = {
     'global_mod': STATIC_CDN + "badges/v1/9384c43e-4ce7-4e94-b2a1-b93656896eba/2",
     'moderator': STATIC_CDN + "chat-badges/mod-alpha.png",
     'subscriber': STATIC_CDN + "badges/v1/5d9f2208-5dd8-11e7-8513-2ff4adfae661/2",
+    'sub-gifter': STATIC_CDN + "badges/v1/f1d8486f-eb2e-4553-b44f-4d614617afc1/2",
     'staff': STATIC_CDN + "chat-badges/staff-alpha.png",
     'turbo': STATIC_CDN + "chat-badges/turbo-alpha.png",
     'partner': STATIC_CDN + "badges/v1/d12a2e27-16f6-41d0-ab77-b780518f00a3/2",

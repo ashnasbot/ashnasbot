@@ -225,7 +225,7 @@ class SocketServer(Thread):
         logger.info(f"Socket client Join: {command}")
         await asyncio.gather(*tasks)
         logger.info(f"Socket client Leave: {command}")
-        ws_in.close()
+        await ws_in.close()
         self.channels[channel] = [s for s in self.channels[channel] if s["socket"].open]
         if not self.channels[channel]:
             self.chatbot.unsubscribe(channel)

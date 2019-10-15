@@ -192,7 +192,7 @@ new Vue({
                         // this.chat = this.chat.filter(m => m.nickname.toLowerCase() != msg.nickname.toLowerCase());
                         this.chat = this.chat.filter(m => msg.id != m.tags["user-id"]);
                     case "FOLLOW":
-                        do_alert(msg, this, tis.config["sound"]);
+                        do_alert(msg, this, this.config["sound"]);
                         this.alertLog.push(msg)
                         console.log(msg.message);
                         break;

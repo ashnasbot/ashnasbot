@@ -11,135 +11,120 @@ logger = logging.getLogger(__name__)
 
 class TwitchClient():
 
-    # TODO: Refactor to be a generic client
+    # Use the same session for matching clients, no matter the instance.
+    __sessions = {}
+
     def __init__(self, client_id=None, target_user=None):
-        self.config = config.Config()
         if client_id:
             self.client_id = client_id
         else:
-            self.client_id = self.config["client_id"]
+            cfg = config.Config()
+            self.client_id = cfg["client_id"]
 
         self.target_user = target_user
-
-        logger.info(f"starting twitch client for {client_id}/{target_user}")
-
-        self._apis = {
-            "login": {
-                "url": "/kraken/users",
-                "params": {'login': f'{self.target_user}'}
-                },
-            "users": {
-                "url": "/kraken/users",
-                "params": {'id':None}
-            }
-            }
-
         self.channel_id = None
 
-        self._apis = {
-            **self._apis,
-            "followers": {
-                "url": f"/kraken/channels/{self.channel_id}/follows",
-                "params": {'limit': 10}
-                }
-            }
+        logger.info(f"Creating twitch client for {client_id}/{target_user}")
 
-    async def get_channel_id(self):
-        resp = await self.make_api_request('login')
+
+    async def _make_api_request(self, url, params=None):
+        headers = {
+            "Client-ID": f"{self.client_id}",
+            "Accept": "application/vnd.twitchtv.v5+json"
+        }
+        session = self.__sessions.get(self.client_id, None)
+
+        if not session or session.closed:
+            logger.info("Starting client session")
+            session = aiohttp.ClientSession()
+            self.__sessions[self.client_id] = session
+
+        if not url.startswith("http"):
+            url = API_BASE + url
+
+        async with session.get(url,
+                        params=params,
+                        headers=headers) as resp:
+            # TODO: check status (too many requests? etc)
+            return await resp.json()
+
+    async def get_own_channel_id(self):
+        url = "/kraken/users"
+        params = {'login': f'{self.target_user}'}
+
+        logger.debug("Getting id for self (%s)", self.target_user)
+
+        resp = await self._make_api_request(url, params)
         self.channel_id = resp["users"][0]["_id"]
-        self._apis["followers"] = {
-            "url": f"/kraken/channels/{self.channel_id}/follows",
-            "params": {'limit': 10}
-        }
 
-    async def get_other_channel_id(self, channel):
+    async def get_channel_id(self, channel):
+        url = f"/helix/users?login={channel}"
+
         logger.debug("Getting id for %s", channel)
-        api_req = {
-            "url": f"/helix/users?login={channel}",
-            "params": {}
-        }
 
-        resp = await self.make_api_request_2(api_req, params=None)
-        return resp["data"][0]["id"]
+        resp = await self._make_api_request(url)
+        try:
+            return resp["data"][0]["id"]
+        except:
+            return None
 
     async def get_user_info(self, user):
-        resp = await self.make_api_request('users', params={'id': user})
+        url = "/kraken/users"
+
+        logger.debug("Getting user info for %s", user)
+        resp = await self._make_api_request(url, params={'id': user})
         try:
             return resp["users"][0]
         except:
+            logger.warning("User %s not found", user)
             return {}
-        
 
-    def get_api(self, api_name):
-        if api_name in self._apis:
-            return self._apis[api_name]
-
-        return None
-
-    async def make_api_request(self, api, params=None):
-        api_req = self.get_api(api)
-        headers = {
-            "Client-ID": f"{self.client_id}",
-            "Accept": "application/vnd.twitchtv.v5+json"
-        }
-        if params:
-            req_params = {**api_req['params'], **params}
-        else:
-            req_params = api_req['params']
-
-        async with aiohttp.ClientSession() as session:
-            async with session.get(API_BASE + api_req["url"],
-                         params=req_params,
-                         headers=headers) as resp:
-                return await resp.json()
-
-    async def make_api_request_2(self, api_req, params=None):
-        headers = {
-            "Client-ID": f"{self.client_id}",
-            "Accept": "application/vnd.twitchtv.v5+json"
-        }
-        if params:
-            req_params = {**api_req['params'], **params}
-        else:
-            req_params = api_req['params']
-
-        async with aiohttp.ClientSession() as session:
-            async with session.get(API_BASE + api_req["url"],
-                         params=req_params,
-                         headers=headers) as resp:
-                return await resp.json()
 
     async def get_new_followers(self):
         if self.channel_id == None:
-            await self.get_channel_id()
+            await self.get_own_channel_id()
 
-        recent_followers = await self.make_api_request('followers')
+        url = f"/kraken/channels/{self.channel_id}/follows"
+
+        logger.debug("Retrieving new followers")
+        recent_followers = await self._make_api_request(url, {'limit': 10})
         new_follows = []
+        existing_follows = {}
 
-        with open("data/followers.json", "rt") as f:
-            follow_file = json.load(f)
+        follow_file = "data/followers.json"
+
+        try:
+            with open(follow_file, "rt") as f:
+                existing_follows = json.load(f)
+        except:
+            logger.warn("Cannot read followers cache")
 
         for follower in recent_followers['follows']:
             user = follower['user']
-            if user['_id'] not in follow_file:
+            if user['_id'] not in existing_follows:
                 logger.info(user['display_name'], "is a new follower")
-                follow_file[user['_id']] = user['display_name']
+                existing_follows[user['_id']] = user['display_name']
                 new_follows.append(user['display_name'])
 
-        with open("data/followers.json", "wt") as f:
-            json.dump(follow_file, f)
+        try:
+            with open(follow_file, "wt") as f:
+                json.dump(existing_follows, f)
+        except:
+            logger.error("Cannot write followers cache")
 
         return new_follows
 
+
     async def get_badges_for_channel(self, channel):
         logger.debug("Getting badges for %s", channel)
-        channel_id = await self.get_other_channel_id(channel)
+        channel_id = await self.get_channel_id(channel)
+        if not channel_id:
+            return {}
+
         logger.debug("Getting badges for %s", channel_id)
-        api_req = {
-            "url": f"/kraken/chat/{channel_id}/badges",
-            "params": {}
-        }
-        resp = await self.make_api_request_2(api_req)
+        url = f"/kraken/chat/{channel_id}/badges"
+
+        resp = await self._make_api_request(url)
 
         badges = {}
 
@@ -154,9 +139,8 @@ class TwitchClient():
             # Get additional sub tiers too
             sub_badges = {}
             url = f"https://badges.twitch.tv/v1/badges/channels/{channel_id}/display"
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url) as resp:
-                    sub_badges = await resp.json()
+            sub_badges = await self._make_api_request(url)
+
             if sub_badges and "subscriber" in sub_badges["badge_sets"]:
                 for months, urls in sub_badges["badge_sets"]["subscriber"]["versions"].items():
                     badges[f"subscriber{months}"] = urls["image_url_2x"]
@@ -164,46 +148,28 @@ class TwitchClient():
         return badges
 
     async def get_cheermotes(self):
-        #resp = json.load(open("bits.json"))
-        url = "https://api.twitch.tv/kraken/bits/actions?include_sponsored=true"
-        headers = {
-            "Client-ID": f"{self.client_id}",
-            "Accept": "application/vnd.twitchtv.v5+json"
-        }
+        url = "/kraken/bits/actions"
+        params = {'included_sponsored': 1}
 
-        resp = {}
+        logger.debug("Getting global cheermotes")
         cheermotes = {}
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, headers=headers) as resp:
-                resp = await resp.json()
+        resp = await self._make_api_request(url, params)
                 
-        for cheer in resp["actions"]:
-            prefix = cheer["prefix"]
-            tiers = {}
-            for teir in cheer["tiers"]:
-                img = teir["images"]["dark"]["animated"]["2"]
-                value = teir["id"]
-                tiers[value] = img
-            cheermotes[prefix] = tiers
+        try:
+            for cheer in resp["actions"]:
+                prefix = cheer["prefix"]
+                tiers = {}
+                for teir in cheer["tiers"]:
+                    img = teir["images"]["dark"]["animated"]["2"]
+                    value = teir["id"]
+                    tiers[value] = img
+                cheermotes[prefix] = tiers
+        except:
+            logger.warning("Failed to get cheermotes")
+        
         return cheermotes
 
     async def get_clip(self, clip):
-        url = f"https://api.twitch.tv/kraken/clips/{clip}"
-        headers = {
-            "Client-ID": f"{self.client_id}",
-            "Accept": "application/vnd.twitchtv.v5+json"
-        }
-
-        resp = {}
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, headers=headers) as resp:
-                resp = await resp.json()
-
-        return resp
-
-
-
-
-
-
-
+        url = f"/kraken/clips/{clip}"
+        logger.debug("Getting clip details for slug: %s", clip)
+        return await self._make_api_request(url)

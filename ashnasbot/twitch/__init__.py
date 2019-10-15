@@ -157,8 +157,12 @@ URL_REGEX = r"(http(s)?://)?(clips.twitch.tv/(\w+)|www.twitch.tv/\w+/clip/(\w+))
 async def render_clips(message):
     client = TwitchClient(None, None)
     match = re.search(URL_REGEX, message)
-    slug = match.group(5)
-    print(match.groups())
+    slug = match.group(4)
+    if slug is None:
+        slug = match.group(5)
+    if slug is None:
+        logger.error("Malformed clip url %s", match.groups())
+
     details = await client.get_clip(slug)
 
     def render(match):

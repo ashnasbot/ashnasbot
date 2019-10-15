@@ -2,7 +2,6 @@
 A simple twitch integration project to play with some python, very basic.
 
 ## Install
-(TODO: test these instructions & add windows)  
 Requires python 3.6+ you can get it at https://www.python.org/downloads/
 
 ```
@@ -30,16 +29,23 @@ Then you just need the 'username' of the token and the username of the channel y
 
 navigate to `http://localhost/static/simple/chat.html` and enter a username to get chat!
 
-TODO: Example config.json
+config.json
+```json
+{
+    "channel": "ashnas",
+    "client_id": "abcdef0123456789",
+    "oauth": "oauth:abcdefghijklmnopqrstuvwxyz", 
+    "username": "ashnasbot",
+    "log_level": "DEBUG"
+}
+```
 
 ## Known Issues
-- No way to enable/disable alerts
-- some substitutions not supported e.g. "<3"
-- Delete/Ban throws an error
+- some substitutions not supported e.g. "<3" as this isn't classed as an 'emote'
 
 ### Observer
 - non-UTF-8 messages break the transport
-- subs have no message
+- subs have no message - I should merge the fixes back
 
 ## Licence
 Unless stated here, code and assets are my own and free to use however you like.

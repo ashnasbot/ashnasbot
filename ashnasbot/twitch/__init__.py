@@ -5,6 +5,7 @@ import json
 import logging
 import re
 import sys
+import time
 
 import bleach
 import dataset
@@ -15,10 +16,28 @@ from . import commands
 
 db = dataset.connect('sqlite:///twitchdata.db')
 
-# TODO: Split this into: chat, emotes, badges & commands modules
+
+CHEER_REGEX = re.compile(r"((?<=^)|(?<=\s))(?P<emotename>[a-zA-Z]+)(\d+)(?=(\s|$))", flags=re.IGNORECASE)
+
 
 logger = logging.getLogger(__name__)
 
+# TODO: Move to db shim
+def db_expired(table):
+    stats = db['stats']
+    if not stats:
+        stats = db.create_table("stats", 
+                        primary_id="name",
+                        primary_type=db.types.text)
+        return True
+    
+    stored = stats.find_one(name=table)
+    if not stored:
+        return True
+
+    if stored["val"] < time.time() - 86400:
+        logger.debug("table %s older than %d", table, time.time() - 86400)
+        return True
 
 def render_emotes(message, emotes):
     """Render emotes into message
@@ -51,19 +70,20 @@ def render_emotes(message, emotes):
     return message
 
 async def get_channel_badges(channel):
-    table = db.create_table(channel + "_badges", 
+    tbl_name = channel + "_badges"
+    table = db.create_table(tbl_name, 
                             primary_id="name",
                             primary_type=db.types.text)
-    if table:
-        # TODO: Check timestamp and re-pull
-        pass
-    else:
+    if not table or db_expired(channel + "_badges"):
         logger.info("No badge cache for %s", channel)
         client = TwitchClient(None, None)
         badges = await client.get_badges_for_channel(channel)
         rows = [{"name":k, "url":v} for k,v in badges.items()]
 
-        table.insert_many(rows, ensure=True)
+        for record in rows:
+            table.upsert(record, ["name"], ensure=True)
+        stats = db["stats"]
+        stats.upsert({"name": tbl_name, "val": time.time()}, keys=["name"])
 
     ret = {}
     for badge in table.all():
@@ -88,10 +108,19 @@ def get_cheermotes(cheer, value):
                 "url": u
             })
 
+    # TODO: "update db shim that handles stats"
     table = db["cheermotes"]
-    table.insert_many(data)
+    for record in data:
+        table.upsert(record, ["cheer", "value"])
+
+    stats = db["stats"]
+    stats.upsert({"name": "cheermotes", "val": time.time()}, keys="name")
 
     return table.find_one(cheer=cheer, value=value)
+
+def get_le(collection, val):
+    """Get the item in collection less than or equal to val."""
+    return collection[bisect.bisect_right(collection, int(val)) - 1]
         
 async def render_badges(channel, badges):
     channel_badges = await get_channel_badges(channel)
@@ -104,8 +133,7 @@ async def render_badges(channel, badges):
         if badge == 'subscriber':
             if not val:
                 val = "0"
-            # TODO: refactor to common "get_le" method (and bits)
-            badge = badge + str(SUB_TIERS[bisect.bisect_right(SUB_TIERS, int(val)) - 1])
+            badge = badge + str(get_le(SUB_TIERS, val))
             url = channel_badges.get(badge, None)
         elif badge == 'bits':
             badge = badge + val
@@ -121,8 +149,7 @@ async def render_badges(channel, badges):
     return rendered
 
 async def render_bits(message, bits):
-    # Can't async into re method
-    if not CHEERMOTES:
+    if not CHEERMOTES or db_expired("cheermotes"):
         await load_cheermotes()
 
     def render_cheer(match):
@@ -144,24 +171,23 @@ async def render_bits(message, bits):
               CHEERMOTE_TEXT_TEMPLATE.format(color=color, text=real_value)
         return res
 
-    # TODO: compile
-    cheer_regex = r"((?<=^)|(?<=\s))(?P<emotename>[a-zA-Z]+)(\d+)(?=(\s|$))"
-    match = re.search(cheer_regex, message)
+    match = CHEER_REGEX.search(message)
     if not match:
         logger.warn("Cannot find bits in message")
         return message
 
-    return re.sub(cheer_regex, render_cheer, message, flags=re.IGNORECASE)
+    return CHEER_REGEX.sub(render_cheer, message)
     
-URL_REGEX = r"(http(s)?://)?(clips.twitch.tv/(\w+)|www.twitch.tv/\w+/clip/(\w+))"
+URL_REGEX = re.compile(r"(http(s)?://)?(clips.twitch.tv/(\w+)|www.twitch.tv/\w+/clip/(\w+))", flags=re.IGNORECASE)
 async def render_clips(message):
     client = TwitchClient(None, None)
-    match = re.search(URL_REGEX, message)
+    match = URL_REGEX.search(message)
     slug = match.group(4)
     if slug is None:
         slug = match.group(5)
     if slug is None:
         logger.error("Malformed clip url %s", match.groups())
+        return message
 
     details = await client.get_clip(slug)
 
@@ -173,7 +199,7 @@ async def render_clips(message):
             <div class="inner_frame"><img src="{thumbnail}"/>
             <span class="title">{title}</span>
             <span>{clipped_by}</span></div>'''
-    return re.sub(URL_REGEX, render, message, flags=re.IGNORECASE)
+    return URL_REGEX.sub(render, message)
 
 async def handle_message(event):
     etags = event.tags if hasattr(event, "tags") else {}
@@ -182,7 +208,6 @@ async def handle_message(event):
     msg_type = event.type
 
     extra = []
-
 
     if msg_type == "RAID":
         raw_msg = f"{etags['msg-param-displayName']} is raiding with a party of " \
@@ -201,8 +226,10 @@ async def handle_message(event):
             return other
 
     if raw_msg.startswith('\u0001'):
-        # Strip "\001ACTION"
+        # Strip "\001ACTION" off /me
         raw_msg = raw_msg.replace('\u0001', "")[7:]
+    if raw_msg.startswith('/me'):
+        raw_msg = raw_msg.replace('/me ', "")
     else:
         extra.append("quoted")
 
@@ -219,7 +246,7 @@ async def handle_message(event):
     if 'emotes' in etags and etags["emotes"]:
         message = render_emotes(raw_msg, etags['emotes'])
     else:
-        # Render emotes escapes it's output already
+        # render_emotes escapes its output already
         message = html.escape(raw_msg)
 
     if re.match(URL_REGEX,message):

@@ -158,6 +158,8 @@ def praise_cmd(event, praise, *args):
 
 def death_cmd(event, *args):
     table = db["channel"]
+    if not table:
+        table = db.create_table("channel", primary_id="channel", primary_type=db.types.text)
     try:
         data = table.find_one(channel=event["channel"])
         if data == None:
@@ -167,7 +169,7 @@ def death_cmd(event, *args):
         DEATHS = 0
 
     plus = " ".join(args)
-    if event.tags['caller'] == 'Ashnas' or event.tags['caller'] == 'Darkshoxx' or \
+    if event.tags['caller'] == 'Ashnas' or event.tags['caller'] == 'darkshoxx' or \
         event.tags['caller'] == 'TheADrain':
         update = True
         if plus == "":

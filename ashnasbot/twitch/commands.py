@@ -7,6 +7,8 @@ import dataset
 
 logger = logging.getLogger(__name__)
 
+# TODO: command cooldown (per channel)
+
 class ResponseEvent(dict):
     """Render our own msgs through the bot."""
     def __init__(self, *args, **kwargs):
@@ -17,9 +19,9 @@ class ResponseEvent(dict):
             'display-name': 'Ashnasbot',
             'badges': [],
             'emotes': [],
-            'id': str(uuid.uuid4()),
-            'user-id': 275857969
+            'user-id': 275857969 # TODO: not hardcode these :(
         }
+        self.id = str(uuid.uuid4())
         self.type = 'TWITCHCHATMESSAGE'
 
 def handle_command(event):
@@ -33,6 +35,7 @@ def handle_command(event):
     ret_event = ResponseEvent()
     ret_event.channel = event.channel
     ret_event.tags['caller'] = event.tags['display-name']
+    ret_event.tags['response'] = True
     if callable(cmd):
         ret_event = cmd(ret_event, *args)
         return ret_event
@@ -147,13 +150,28 @@ PRAISE_ENDINGS = [
     "can't be all bad",
     "in stereo!",
     "now for only 19,99",
-    "better than Baby Shark"
+    "better than Baby Shark",
+    "\"The best thign on the internet.\" - Abraham Lincoln"
+]
+
+CALM = [
+    "Add three drops of orange blossom oil to a cup of mineral water, and spray it from an atomiser when you need to feel relaxed.",
+    "Concentrate on silence. when it comes, dwell on what it sounds like. Then strive to carry that quiet with you wherever you go.",
+    "Hard-working people never waste time on frivolous, fun-filled activities. Yet, for hard-working people, any time spent this way is far from wasted.",
+    "As harsh as it may sound, mixing with highly stressed people will make you feel stressed. on the other hand, mixing with calm people - even for the breifest time - will leave you feeling calm.",
+    "When you dwell on the sound of your breathing, when you can really feel it coming and going, peace will not be far behind.",
+    "There's always a temptation to lump all your life changes into one masochistic event. Do your stress levels a favour and take on changes one at a time.",
+    "The more beautiful your fruit bowl, the better stocked it is, the less likely you are to turn to stress-enhancing snack foods. Eat more fruit, you'll feel more relaxed, it's as sweet as that."
 ]
 
 def praise_cmd(event, praise, *args):
     ending = random.sample(PRAISE_ENDINGS, 1)[0]
     message = " ".join([praise, *args])
     event["message"] = f"Praise {message} - {ending.format(praise=message)}"
+    return event
+
+def calm_cmd(event, *args):
+    event["message"] = random.sample(CALM, 1)[0]
     return event
 
 def death_cmd(event, *args):
@@ -196,12 +214,19 @@ def death_cmd(event, *args):
     event["message"] = f"/me Our illustrious strimmer has died {DEATHS} {times}"
     return event
 
+def proffer_cmd(event, *args):
+    proffered =  " ".join(args)
+    event["message"] = f"!add {proffered}"
+    return event
+
 COMMANDS = {
     '!no': no_cmd,
     '!so': so_cmd,
     '!bs': bs_cmd,
     '!backseat': bs_cmd,
     '!praise': praise_cmd,
+    '!calm': calm_cmd,
     '!deaths': death_cmd,
-    '!uptime': uptime
+    '!uptime': uptime,
+    '!proffer': proffer_cmd
 }

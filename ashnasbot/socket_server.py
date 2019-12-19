@@ -24,14 +24,26 @@ SCRAPE_AVATARS = True
 logging.getLogger("websockets").setLevel(logging.INFO)
 ctx_client_id = contextvars.ContextVar('client_id')
 
-def filter_message(message, subs=True, commands=False, **kwargs):
+def filter_output(message, subs=True, commands=False, **kwargs):
     if not subs:
         if "type" in message and message["type"] == "SUB":
             return False
+    return True
+
+def allowed_content(event, subs=True, commands=False, **kwargs):
+    message = event.message if hasattr(event, "message") else ""
+    if not subs:
+        if "type" in event and event["type"] == "SUB":
+            logger.debug("Ignoring sub")
+            return False
     if not commands:
-        if "tags" in message and "user-id" in message["tags"] and message["tags"]["user-id"] == 275857969:
+        if message.startswith('!'):
+            logger.debug("Ignoring command %s", message)
             return False
     return True
+
+def strip_content(content):
+    return content
     
 class SocketServer(Thread):
 
@@ -65,19 +77,22 @@ class SocketServer(Thread):
                 if channel and channel not in self.channels:
                     logger.error(f"Message for channel '{channel}' but no socket")
                     self.chatbot.unsubscribe(channel)
-                if event: 
+                if event and any([allowed_content(event, **s) for s in self.channels[channel]]):
                     content = await handle_message(event)
                     if content:
                         if "tags" in content and SCRAPE_AVATARS:
                             content['logo'] = await self.users.get_picture(content['tags']['user-id'])
                         if channel:
+                            if 'tags' in content and 'response' in content['tags']:
+                                self.chatbot.send_message(content['message'], channel)
                             self.channels[channel] = [s for s in self.channels[channel] if not s["socket"].closed]
                             for s in self.channels[channel]:
-                                if filter_message(content, **s):
+                                if filter_output(content, **s):
                                     await s["socket"].send(json.dumps(content))
                         else:
                             for c in self.channels:
                                 for s in self.channels[c]:
+                                    # TODO: Do we need global resp too?
                                     await s["socket"].send(json.dumps(content))
 
                 processing = False

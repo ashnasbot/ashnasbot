@@ -67,7 +67,7 @@ Vue.component('config-menu', {
     <div class="popout">
     <div class="form">
     <span>Reload page to set config </span>
-    <!--<label>Allow commands<input name="commands" type="checkbox" v-model="commands"> </label>-->
+    <label>Allow commands<input name="commands" type="checkbox" v-model="commands"> </label>
     <!--<label>Show follows<input name="follows" type="checkbox" v-model="follows"></label>-->
     <label>Show Subs<input name="subs" type="checkbox" v-model="subs"></label>
     <label>Sounds<input name="sound" type="checkbox" v-model="sound"></label>

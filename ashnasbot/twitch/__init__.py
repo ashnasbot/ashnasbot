@@ -209,6 +209,9 @@ async def handle_message(event):
 
     extra = []
 
+    if raw_msg.startswith('!'):
+        return commands.handle_command(event)
+
     if msg_type == "RAID":
         raw_msg = f"{etags['msg-param-displayName']} is raiding with a party of " \
                   f"{etags['msg-param-viewerCount']}"
@@ -232,10 +235,6 @@ async def handle_message(event):
         raw_msg = raw_msg.replace('/me ', "")
     else:
         extra.append("quoted")
-
-    if raw_msg.startswith('!'):
-        # Don't render commands
-        return {}
 
     nickname = etags['display-name'] if 'display-name' in etags else ''
 

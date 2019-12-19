@@ -7,6 +7,9 @@ logger = logging.getLogger(__name__)
 class ReloadException(Exception):
     pass
 
+class ConfigError(Exception):
+    pass
+
 class Config():
 
     # Singleton stuff
@@ -32,7 +35,10 @@ class Config():
             return self._config[key]
 
         def _load(self):
-            with open('config.json') as f:
-                self._config = json.load(f)
+            try:
+                with open('config.json') as f:
+                    self._config = json.load(f)
+            except:
+                raise ConfigError("No config.json found")
 
             return self

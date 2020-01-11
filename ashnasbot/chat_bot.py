@@ -86,7 +86,7 @@ class ChatBot():
             try:
                 self.add_task(self.chat_queue.put(evt))
             except asyncio.QueueFull:
-                logger.error("Alerts queue full, discarding alert")
+                logger.error("Queue full, discarding message")
             return
 
         elif evt.type in self.evt_filter:

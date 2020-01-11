@@ -8,36 +8,17 @@ import sys
 import time
 
 import bleach
-import dataset
 
 from .api_client import TwitchClient
 from .data import *
 from . import commands
-
-db = dataset.connect('sqlite:///twitchdata.db')
-
+from . import db
 
 CHEER_REGEX = re.compile(r"((?<=^)|(?<=\s))(?P<emotename>[a-zA-Z]+)(\d+)(?=(\s|$))", flags=re.IGNORECASE)
 
 
 logger = logging.getLogger(__name__)
 
-# TODO: Move to db shim
-def db_expired(table):
-    stats = db['stats']
-    if not stats:
-        stats = db.create_table("stats", 
-                        primary_id="name",
-                        primary_type=db.types.text)
-        return True
-    
-    stored = stats.find_one(name=table)
-    if not stored:
-        return True
-
-    if stored["val"] < time.time() - 86400:
-        logger.debug("table %s older than %d", table, time.time() - 86400)
-        return True
 
 def render_emotes(message, emotes):
     """Render emotes into message
@@ -71,22 +52,21 @@ def render_emotes(message, emotes):
 
 async def get_channel_badges(channel):
     tbl_name = channel + "_badges"
-    table = db.create_table(tbl_name, 
-                            primary_id="name",
-                            primary_type=db.types.text)
-    if not table or db_expired(channel + "_badges"):
+    if not db.exists(tbl_name):
+        db.create(tbl_name, 
+                  primary="name")
+
+    if db.expired(channel + "_badges"):
         logger.info("No badge cache for %s", channel)
         client = TwitchClient(None, None)
         badges = await client.get_badges_for_channel(channel)
         rows = [{"name":k, "url":v} for k,v in badges.items()]
+        keys = ["name"]
 
-        for record in rows:
-            table.upsert(record, ["name"], ensure=True)
-        stats = db["stats"]
-        stats.upsert({"name": tbl_name, "val": time.time()}, keys=["name"])
+        db.update_multi(tbl_name, rows, keys)
 
     ret = {}
-    for badge in table.all():
+    for badge in db.get(tbl_name):
         name = badge.pop('name')
         ret[name] = badge["url"]
     return ret
@@ -108,15 +88,13 @@ def get_cheermotes(cheer, value):
                 "url": u
             })
 
-    # TODO: "update db shim that handles stats"
-    table = db["cheermotes"]
+    if not db.exists("cheermotes"):
+        db.create("cheermotes", ["cheer", "value"])
+    table = db.get("cheermotes")
     for record in data:
-        table.upsert(record, ["cheer", "value"])
+        table.update(record, ["cheer", "value"])
 
-    stats = db["stats"]
-    stats.upsert({"name": "cheermotes", "val": time.time()}, keys="name")
-
-    return table.find_one(cheer=cheer, value=value)
+    return table.find("cheermotes", cheer=cheer, value=value)
 
 def get_le(collection, val):
     """Get the item in collection less than or equal to val."""
@@ -149,7 +127,7 @@ async def render_badges(channel, badges):
     return rendered
 
 async def render_bits(message, bits):
-    if not CHEERMOTES or db_expired("cheermotes"):
+    if not CHEERMOTES or db.expired("cheermotes"):
         await load_cheermotes()
 
     def render_cheer(match):
@@ -195,7 +173,7 @@ async def render_clips(message):
         thumbnail = details["thumbnails"]["small"]
         title = details["title"]
         clipped_by = f'clipped by {details["curator"]["display_name"]}'
-        return f'''{match.group(0)}
+        return f'''</br>{match.group(0)}
             <div class="inner_frame"><img src="{thumbnail}"/>
             <span class="title">{title}</span>
             <span>{clipped_by}</span></div>'''
@@ -206,6 +184,7 @@ async def handle_message(event):
     raw_msg = event.message if hasattr(event, "message") else ""
     orig_message = raw_msg
     msg_type = event.type
+    quoted = True
 
     extra = []
 
@@ -219,9 +198,6 @@ async def handle_message(event):
         raw_msg = f"{etags['msg-param-displayName']} is hosting for " \
                   f"{etags['msg-param-viewerCount']} viewers"
 
-    # system-messages are escaped, lets fix that
-    if 'system-msg' in etags:
-        etags['system-msg'] = html.unescape(etags['system-msg'].replace("\\s", " "))
 
     if hasattr(event, "_command"):
         other = commands.handle_other_commands(event)
@@ -231,9 +207,14 @@ async def handle_message(event):
     if raw_msg.startswith('\u0001'):
         # Strip "\001ACTION" off /me
         raw_msg = raw_msg.replace('\u0001', "")[7:]
-    if raw_msg.startswith('/me'):
-        raw_msg = raw_msg.replace('/me ', "")
-    else:
+        quoted = False
+
+    if 'system-msg' in etags:
+        # system-messages are escaped, lets fix that
+        etags['system-msg'] = html.unescape(etags['system-msg'].replace("\\s", " "))
+        quoted = False
+
+    if quoted:
         extra.append("quoted")
 
     nickname = etags['display-name'] if 'display-name' in etags else ''

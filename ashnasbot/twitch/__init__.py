@@ -113,7 +113,7 @@ async def render_badges(channel, badges):
                 val = "0"
             badge = badge + str(get_le(SUB_TIERS, val))
             url = channel_badges.get(badge, None)
-        elif badge == 'bits':
+        elif badge in ['bits', 'bits-leader', 'sub-gift-leader']:
             badge = badge + val
             url = BADGES.get(badge, None)
         else:
@@ -173,7 +173,7 @@ async def render_clips(message):
         thumbnail = details["thumbnails"]["small"]
         title = details["title"]
         clipped_by = f'clipped by {details["curator"]["display_name"]}'
-        return f'''</br>{match.group(0)}
+        return f'''{match.group(0)}</br>
             <div class="inner_frame"><img src="{thumbnail}"/>
             <span class="title">{title}</span>
             <span>{clipped_by}</span></div>'''

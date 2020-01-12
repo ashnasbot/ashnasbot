@@ -32,7 +32,6 @@ function getChannel() {
     return channel;
 }
 
-// Define a new component called button-counter
 Vue.component('config-menu', {
     mounted: function () {
         if (localStorage.config) {
@@ -42,6 +41,7 @@ Vue.component('config-menu', {
             this.subs = config.subs;
             this.sound = config.sound;
             this.hosts = config.hosts;
+            this.menu = config.menu;
         }
     },
     methods: {
@@ -56,7 +56,8 @@ Vue.component('config-menu', {
         follows: false,
         subs: true,
         sound: true,
-        hosts: false
+        hosts: false,
+        menu: true
       }
     },
     watch: {
@@ -65,6 +66,7 @@ Vue.component('config-menu', {
         subs(n) { this.handleInput(); },
         sound(n) { this.handleInput(); },
         hosts(n) { this.handleInput(); },
+        menu(n) { this.handleInput(); },
     },
     template: `
     <div class="popout">
@@ -75,6 +77,7 @@ Vue.component('config-menu', {
     <label>Show Subs<input name="subs" type="checkbox" v-model="subs"></label>
     <label>Sounds<input name="sound" type="checkbox" v-model="sound"></label>
     <label>Follow Hosts<input name="hosts" type="checkbox" v-model="hosts"></label>
+    <label>Show menu on load<input name="menu" type="checkbox" v-model="menu"></label>
     </div>
     </div>
     `
@@ -221,9 +224,14 @@ new Vue({
         window.addEventListener('beforeunload', this.unload)
     },
     mounted: function () {
+        var show_menu;
         if (localStorage.config) {
             this.config = JSON.parse(localStorage.config);
+            show_menu = this.config["menu"];
+        } else {
+            show_menu = this.$children[0].menu;
         }
+
         this.connect();
         var chat = document.getElementById('app');
         setInterval(function() {
@@ -232,9 +240,13 @@ new Vue({
             }
         }.bind(this), 300);
 
-        this.menu_timeout = setTimeout(function() {
-            document.getElementsByClassName("menu")[0].style.opacity = "0";
-        }, 10000);
+        if(show_menu) {
+            document.getElementsByClassName("menu")[0].style.opacity = "1";
+
+            this.menu_timeout = setTimeout(function() {
+                document.getElementsByClassName("menu")[0].style.opacity = "0";
+            }, 10000);
+        }
 
         window.addEventListener("keypress", function(e) {
             document.getElementsByClassName("menu")[0].style.opacity = "1";

@@ -1,6 +1,10 @@
 ﻿@import url('https://fonts.googleapis.com/css?family=Montserrat:300');
 @charset "utf-8";
 
+html {
+  zoom: 75%;
+}
+
 [v-cloak] { display: none; }
 
 body {
@@ -147,7 +151,8 @@ span.cheertext-blue { color: #0099fe}
 span.cheertext-red { color: #f43021}
 
 div.menu {
-  height: 1.5em;
+  zoom: 150%;
+  height: 3em;
   background-color: #333;
   color: #DDD;
   font-family: 'Montserrat', sans-serif;

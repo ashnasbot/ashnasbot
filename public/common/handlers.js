@@ -193,7 +193,6 @@ new Vue({
                     case "CLEARMSG":
                         this.chat = this.chat.filter(m => m.id != msg.id)
                     case "CLEARCHAT":
-                        // this.chat = this.chat.filter(m => m.nickname.toLowerCase() != msg.nickname.toLowerCase());
                         this.chat = this.chat.filter(m => msg.id != m.tags["user-id"]);
                     case "FOLLOW":
                         do_alert(msg, this, this.config["sound"]);

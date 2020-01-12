@@ -41,6 +41,7 @@ Vue.component('config-menu', {
             this.follows = config.follows;
             this.subs = config.subs;
             this.sound = config.sound;
+            this.hosts = config.hosts;
         }
     },
     methods: {
@@ -54,7 +55,8 @@ Vue.component('config-menu', {
         commands: true,
         follows: false,
         subs: true,
-        sound: true
+        sound: true,
+        hosts: false
       }
     },
     watch: {
@@ -62,6 +64,7 @@ Vue.component('config-menu', {
         follows(n) { this.handleInput(); },
         subs(n) { this.handleInput(); },
         sound(n) { this.handleInput(); },
+        hosts(n) { this.handleInput(); },
     },
     template: `
     <div class="popout">
@@ -71,6 +74,7 @@ Vue.component('config-menu', {
     <!--<label>Show follows<input name="follows" type="checkbox" v-model="follows"></label>-->
     <label>Show Subs<input name="subs" type="checkbox" v-model="subs"></label>
     <label>Sounds<input name="sound" type="checkbox" v-model="sound"></label>
+    <label>Follow Hosts<input name="hosts" type="checkbox" v-model="hosts"></label>
     </div>
     </div>
     `
@@ -197,7 +201,11 @@ new Vue({
                         console.log(msg.message);
                         break;
                     case "HOST":
-                        console.log(msg.message);
+                        follow = !this.config["hosts"];
+                        console.log("Hosting: " + msg.message + " follow: " + follow);
+                        if (!follow) {
+                            break;
+                        }
                         if ('URLSearchParams' in window) {
                             var searchParams = new URLSearchParams(window.location.search);
                             searchParams.set("channel", msg.message);

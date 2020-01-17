@@ -90,11 +90,11 @@ def get_cheermotes(cheer, value):
 
     if not db.exists("cheermotes"):
         db.create("cheermotes", ["cheer", "value"])
-    table = db.get("cheermotes")
-    for record in data:
-        table.update(record, ["cheer", "value"])
 
-    return table.find("cheermotes", cheer=cheer, value=value)
+    for record in data:
+        db.update("cheermotes", record, ["cheer", "value"])
+
+    return db.find("cheermotes", cheer=cheer, value=value)
 
 def get_le(collection, val):
     """Get the item in collection less than or equal to val."""

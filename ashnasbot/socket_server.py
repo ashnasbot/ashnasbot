@@ -239,7 +239,7 @@ class SocketServer(Thread):
         tasks = []
         if "chat" in commands:
             channel = commands["chat"]
-            if db.find("banned", name=channel):
+            if db.exists("banned")and db.find("banned", name=channel):
                 logger.error(f"We are banned from {channel}")
                 resp = {"type": "BANNED", "channel": channel}
                 await ws_in.send(json.dumps(resp))

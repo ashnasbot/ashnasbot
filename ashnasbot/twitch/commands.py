@@ -5,6 +5,8 @@ import uuid
 
 import dataset
 
+from .. import config
+
 logger = logging.getLogger(__name__)
 
 # TODO: command cooldown (per channel)
@@ -19,14 +21,47 @@ class ResponseEvent(dict):
         super().__init__(*args, **kwargs)
         self.__dict__ = self
         self.nickname = "Ashnasbot"
+        cfg = config.Config()
+        print(cfg)
+        name = cfg['displayname'] if 'displayname' in cfg else cfg['username']
         self.tags = {
-            'display-name': 'Ashnasbot',
+            'display-name': name,
             'badges': [],
             'emotes': [],
-            'user-id': 275857969 # TODO: not hardcode these :(
+            'user-id': cfg["user_id"]
         }
         self.id = str(uuid.uuid4())
         self.type = 'TWITCHCHATMESSAGE'
+        self.priv = PRIV.COMMON
+    
+
+from enum import Enum, auto
+class OrderedEnum(Enum):
+    def __ge__(self, other):
+        if self.__class__ is other.__class__:
+            return self.value >= other.value
+        return NotImplemented
+    def __gt__(self, other):
+        if self.__class__ is other.__class__:
+            return self.value > other.value
+        return NotImplemented
+    def __le__(self, other):
+        if self.__class__ is other.__class__:
+            return self.value <= other.value
+        return NotImplemented
+    def __lt__(self, other):
+        if self.__class__ is other.__class__:
+            return self.value < other.value
+        return NotImplemented
+
+class PRIV(OrderedEnum):
+    COMMON = auto()
+    SUB = auto()
+    VIP = auto()
+    MOD = auto()
+    OWNER = auto()
+    STAFF = auto()
+
 
 def handle_command(event):
     etags = event.tags
@@ -40,7 +75,20 @@ def handle_command(event):
     ret_event.channel = event.channel
     ret_event.tags['caller'] = event.tags['display-name']
     ret_event.tags['user-type'] = event.tags['user-type']
-    ret_event.tags['subscriber'] = event.tags['subscriber']
+
+    priv_level = PRIV.COMMON
+    if 'staff' in event.tags['badges']:
+        priv_level = PRIV.STAFF
+    elif 'broadcaster' in event.tags['badges']:
+        priv_level = PRIV.OWNER
+    elif 'moderator' in event.tags['badges']:
+        priv_level = PRIV.MOD
+    elif 'vip' in event.tags['badges']:
+        priv_level = PRIV.VIP
+    elif 'subscriber' in event.tags['badges']:
+        priv_level = PRIV.SUB
+
+    ret_event.priv = priv_level
     ret_event.tags['response'] = True
     if callable(cmd):
         ret_event = cmd(ret_event, *args)
@@ -89,6 +137,9 @@ def handle_other_commands(event):
 db = dataset.connect('sqlite:///ashnasbot.db')
 
 def goaway_cmd(event, *args):
+    if event.priv < PRIV.MOD:
+        event["message"] = f"Only a mod or the broadcaster can remove me"
+        return event
     raise BannedException(event["channel"])
 
 def no_cmd(event, who, *args):
@@ -112,7 +163,7 @@ def bs_cmd(event, *args):
     return event
 
 def so_cmd(event, who, *args):
-    if event.tags['user-type'] != 'mod':
+    if event.priv < PRIV.VIP:
         return
 
     if who.lower() == "theadrain":
@@ -122,10 +173,10 @@ def so_cmd(event, who, *args):
     return event
     
 def uptime(event, *args):
-    if event.tags['caller'] != 'Darkshoxx':
+    if event.tags['caller'] != 'darkshoxx':
         return
 
-    event["message"] = f"You're late, Darkshoxx!"
+    event["message"] = f"You're late, darkshoxx!"
     return event
 
 PRAISE_ENDINGS = [

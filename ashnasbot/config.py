@@ -28,6 +28,9 @@ class Config():
             self._config = {}
             self._load()
 
+        def __contains__(self, key):
+            return key in self._config.keys()
+
         def __getitem__(self, key):
             if key not in self._config.keys():
                 logger.info(self._config.keys())

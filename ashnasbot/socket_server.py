@@ -39,6 +39,13 @@ def allowed_content(event, commands=False, **kwargs):
 
 def strip_content(content):
     return content
+
+# TODO: make this serialisation useful in the client
+class MsgEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if obj.__class__.__name__ in ["PRIV"]:
+            return {"__enum__": str(obj)}
+        return json.JSONEncoder.default(self, obj)
     
 class SocketServer(Thread):
 
@@ -83,7 +90,7 @@ class SocketServer(Thread):
                         self.channels[channel] = [s for s in self.channels[channel] if not s["socket"].closed]
                         for s in self.channels[channel]:
                             if filter_output(content, **s):
-                                await s["socket"].send(json.dumps(content))
+                                await s["socket"].send(json.dumps(content, cls=MsgEncoder))
                 elif not channel:
                     content = await handle_message(event)
                     for c in self.channels:

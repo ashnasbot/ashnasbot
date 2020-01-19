@@ -36,6 +36,7 @@ config.json
     "client_id": "abcdef0123456789",
     "oauth": "oauth:abcdefghijklmnopqrstuvwxyz", 
     "username": "ashnasbot",
+    "user_id": 275857969,
     "log_level": "INFO"
 }
 ```

@@ -224,6 +224,7 @@ div.menu .popout {
 
 .inner_frame span {
   float: right;
+  clear: right;
   display: block;
 }
 

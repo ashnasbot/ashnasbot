@@ -116,7 +116,9 @@ async def render_badges(channel, badges):
             url = channel_badges.get(badge, None)
         elif badge in TEIRED_BADGES:
             badge = badge + val
-            url = BADGES.get(badge, None)
+            url = channel_badges.get(badge, None)
+            if not url:
+                url = BADGES.get(badge, None)
         else:
             url = channel_badges.get(badge, None)
         if not url:

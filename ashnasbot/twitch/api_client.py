@@ -136,14 +136,14 @@ class TwitchClient():
                     badges[name] = urls["image"]
 
         if badges:
-            # Get additional sub tiers too
             sub_badges = {}
             url = f"https://badges.twitch.tv/v1/badges/channels/{channel_id}/display"
             sub_badges = await self._make_api_request(url)
 
-            if sub_badges and "subscriber" in sub_badges["badge_sets"]:
-                for months, urls in sub_badges["badge_sets"]["subscriber"]["versions"].items():
-                    badges[f"subscriber{months}"] = urls["image_url_2x"]
+            if sub_badges and "badge_sets" in sub_badges:
+                for badge_set in sub_badges["badge_sets"]:
+                    for val, urls in sub_badges["badge_sets"][badge_set]["versions"].items():
+                        badges[f"{badge_set}{val}"] = urls["image_url_2x"]
 
         return badges
 

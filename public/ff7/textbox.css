@@ -135,6 +135,7 @@ div.menu {
   height: max-content;
   transition: opacity .3s ease;
   transition-delay: 0.1s;
+  opacity: 0;
 
   position: absolute;
   width: 99vw;

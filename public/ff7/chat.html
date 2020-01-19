@@ -10,20 +10,29 @@
 <div id="app" client="chat">
 	<div class="menu ff7 ff7-bg ff7-frame">
 		<form method="GET">
-			<label for="menu_channel">Channel</label>
 			<input v-model="channel" id="menu_channel" name="channel"/>
 			<input type="submit"/>
 		</form>
+		<config-menu v-on:cfg-update="updateCfg($event)"></config-menu>
 	</div>
 	<div v-cloak>
 		<transition-group name="slide-fade" tag="ol">
 		<li v-for="msg in chat" v-bind:key="msg.id">
-			<div class="ff7 ff7-msg ff7-frame ff7-bg">
+			<div v-if="msg.type === 'TWITCHCHATMESSAGE'" class="ff7 ff7-msg ff7-frame ff7-bg">
 				<span class="badges">
 					<span v-for="badge in msg.badges" v-html="badge"></span>
 				</span>
 				<span class="nick" v-html="msg.nickname">:</span>
 				<p><q v-bind:class="msg.extra" v-html="msg.message"></p>
+			</div>
+			<div v-else class="ff7 ff7-msg ff7-frame ff7-bg">
+				<div class="column">
+					<div class="stripe"></div>
+				</div>
+				<div class="column">
+					<p class="faded" v-bind:class="msg.extra" v-html="msg.tags['system-msg']"></p>
+					<p class="faded" v-bind:class="msg.extra" v-html="msg.message"></p>
+				</div>
 			</div>
 		</li>
 		</transition-group>
@@ -32,4 +41,3 @@
 <script src="../common/handlers.js"></script>
 </body>
 </html>
-

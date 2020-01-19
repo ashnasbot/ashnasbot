@@ -38,7 +38,8 @@ Vue.component('config-menu', {
             config = JSON.parse(localStorage.config);
             this.commands = config.commands;
             this.follows = config.follows;
-            this.subs = config.subs;
+            this.images = config.images;
+            this.alerts = config.alerts;
             this.sound = config.sound;
             this.hosts = config.hosts;
             this.menu = config.menu;
@@ -54,7 +55,8 @@ Vue.component('config-menu', {
       return {
         commands: true,
         follows: false,
-        subs: true,
+        images: true,
+        alerts: true,
         sound: true,
         hosts: false,
         menu: true
@@ -63,7 +65,8 @@ Vue.component('config-menu', {
     watch: {
         commands(n) { this.handleInput(); },
         follows(n) { this.handleInput(); },
-        subs(n) { this.handleInput(); },
+        images(n) { this.handleInput(); },
+        alerts(n) { this.handleInput(); },
         sound(n) { this.handleInput(); },
         hosts(n) { this.handleInput(); },
         menu(n) { this.handleInput(); },
@@ -74,7 +77,8 @@ Vue.component('config-menu', {
     <span>Reload page to set config </span>
     <label>Allow commands<input name="commands" type="checkbox" v-model="commands"> </label>
     <!--<label>Show follows<input name="follows" type="checkbox" v-model="follows"></label>-->
-    <label>Show Subs<input name="subs" type="checkbox" v-model="subs"></label>
+    <label>Pull Avatars<input name="images" type="checkbox" v-model="images"></label>
+    <label>Show Chat Notifications<input name="alerts" type="checkbox" v-model="alerts"></label>
     <label>Sounds<input name="sound" type="checkbox" v-model="sound"></label>
     <label>Follow Hosts<input name="hosts" type="checkbox" v-model="hosts"></label>
     <label>Show menu on load<input name="menu" type="checkbox" v-model="menu"></label>
@@ -182,10 +186,23 @@ new Vue({
             for (const event of events) {
                 msg = JSON.parse(event.data);
                 switch(msg.type) {
+                    case "BANNED":
+                        alert("Banned from " + msg.channel)
+                        this.chatsocket.onclose = null;
+                        this.chatsocket.close();
+                        break;
                     case "SUB":
-                        do_alert(msg, this, this.config["sound"]);
-                    case "TWITCHCHATMESSAGE":
+                        if (self.config["alerts"]) {
+                            do_alert(msg, this, this.config["sound"]);
+                        }
+                        // No Break: flow through
                     case "TWITCHCHATUSERNOTICE":
+                        if (!self.config["alerts"]) {
+                            console.log(msg);
+                            break;
+                        }
+                        // No Break: flow through
+                    case "TWITCHCHATMESSAGE":
                         ts = performance.now();
                         msgtimes.push(ts);
                         chat = this.chat.concat(msg);
@@ -195,15 +212,17 @@ new Vue({
                         break;
                     case "CLEARMSG":
                         this.chat = this.chat.filter(m => m.id != msg.id)
+                        break;
                     case "CLEARCHAT":
                         this.chat = this.chat.filter(m => msg.id != m.tags["user-id"]);
+                        break;
                     case "FOLLOW":
                         do_alert(msg, this, this.config["sound"]);
                         this.alertLog.push(msg)
                         console.log(msg.message);
                         break;
                     case "HOST":
-                        follow = !this.config["hosts"];
+                        follow = this.config["hosts"];
                         console.log("Hosting: " + msg.message + " follow: " + follow);
                         if (!follow) {
                             break;
@@ -213,6 +232,7 @@ new Vue({
                             searchParams.set("channel", msg.message);
                             window.location.search = searchParams.toString();
                         }
+                        break;
                     default: 
                         console.log(msg);
                 };
@@ -345,7 +365,7 @@ function do_alert(event, app, sounds)
         return
     }
     if (event.type == "SUB") {
-        console.log(event)
+        console.log("Sub alert")
     }
 
     setTimeout(function(){

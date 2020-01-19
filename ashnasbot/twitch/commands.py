@@ -9,6 +9,10 @@ logger = logging.getLogger(__name__)
 
 # TODO: command cooldown (per channel)
 
+class BannedException(Exception):
+    def __init__(self, channel):
+        self.channel = channel
+
 class ResponseEvent(dict):
     """Render our own msgs through the bot."""
     def __init__(self, *args, **kwargs):
@@ -35,6 +39,8 @@ def handle_command(event):
     ret_event = ResponseEvent()
     ret_event.channel = event.channel
     ret_event.tags['caller'] = event.tags['display-name']
+    ret_event.tags['user-type'] = event.tags['user-type']
+    ret_event.tags['subscriber'] = event.tags['subscriber']
     ret_event.tags['response'] = True
     if callable(cmd):
         ret_event = cmd(ret_event, *args)
@@ -82,9 +88,23 @@ def handle_other_commands(event):
 
 db = dataset.connect('sqlite:///ashnasbot.db')
 
+def goaway_cmd(event, *args):
+    raise BannedException(event["channel"])
+
 def no_cmd(event, who, *args):
     remainder = " ".join(args)
     event["message"] = f"No {who} {remainder}"
+    return event
+
+def pringles_cmd(event, *args):
+    resps = ["Am I from a f**king Cartoon?", "Sour cream & onion!"]
+    event["message"] = random.choice(resps)
+    return event
+
+def win_cmd(event, *args):
+    val = random.randint(30, 2000)
+    caller =  event.tags['caller']
+    event["message"] = f"{caller} wins {val} points"
     return event
 
 def bs_cmd(event, *args):
@@ -92,7 +112,7 @@ def bs_cmd(event, *args):
     return event
 
 def so_cmd(event, who, *args):
-    if event.tags['caller'] != 'Ashnas':
+    if event.tags['user-type'] != 'mod':
         return
 
     if who.lower() == "theadrain":
@@ -176,6 +196,7 @@ def calm_cmd(event, *args):
 
 def death_cmd(event, *args):
     table = db["channel"]
+    # TODO: use shim
     if not table:
         table = db.create_table("channel", primary_id="channel", primary_type=db.types.text)
     try:
@@ -220,6 +241,7 @@ def proffer_cmd(event, *args):
     return event
 
 COMMANDS = {
+    '!goawayashnasbot': goaway_cmd,
     '!no': no_cmd,
     '!so': so_cmd,
     '!bs': bs_cmd,
@@ -228,5 +250,8 @@ COMMANDS = {
     '!calm': calm_cmd,
     '!deaths': death_cmd,
     '!uptime': uptime,
-    '!proffer': proffer_cmd
+    '!proffer': proffer_cmd,
+    #meme
+    '!pringles': pringles_cmd,
+    '!win': win_cmd,
 }

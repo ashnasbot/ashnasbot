@@ -10,12 +10,14 @@ from concurrent.futures import ThreadPoolExecutor
 
 import websockets
 
-from .twitch.av import get_sound
 from .async_http import WebServer
 from .chat_bot import ChatBot
 from .config import Config, ReloadException
+from .twitch import db
 from .twitch import handle_message
 from .twitch.api_client import TwitchClient
+from .twitch.av import get_sound
+from .twitch.commands import BannedException
 from .users import Users
 
 logger = logging.getLogger(__name__)
@@ -24,18 +26,11 @@ SCRAPE_AVATARS = True
 logging.getLogger("websockets").setLevel(logging.INFO)
 ctx_client_id = contextvars.ContextVar('client_id')
 
-def filter_output(message, subs=True, commands=False, **kwargs):
-    if not subs:
-        if "type" in message and message["type"] == "SUB":
-            return False
+def filter_output(message, commands=False, **kwargs):
     return True
 
-def allowed_content(event, subs=True, commands=False, **kwargs):
+def allowed_content(event, commands=False, **kwargs):
     message = event.message if hasattr(event, "message") else ""
-    if not subs:
-        if "type" in event and event["type"] == "SUB":
-            logger.debug("Ignoring sub")
-            return False
     if not commands:
         if message.startswith('!'):
             logger.debug("Ignoring command %s", message)
@@ -77,23 +72,24 @@ class SocketServer(Thread):
                 if channel and channel not in self.channels:
                     logger.error(f"Message for channel '{channel}' but no socket")
                     self.chatbot.unsubscribe(channel)
-                if event and any([allowed_content(event, **s) for s in self.channels[channel]]):
+                # TODO: refactor - this breaks broadcasts (DELETE)
+                if event and channel and any([allowed_content(event, **s) for s in self.channels[channel]]):
                     content = await handle_message(event)
                     if content:
-                        if "tags" in content and SCRAPE_AVATARS:
+                        if "tags" in content and any([s["images"] for s in self.channels[channel]]):
                             content['logo'] = await self.users.get_picture(content['tags']['user-id'])
-                        if channel:
-                            if 'tags' in content and 'response' in content['tags']:
-                                self.chatbot.send_message(content['message'], channel)
-                            self.channels[channel] = [s for s in self.channels[channel] if not s["socket"].closed]
-                            for s in self.channels[channel]:
-                                if filter_output(content, **s):
-                                    await s["socket"].send(json.dumps(content))
-                        else:
-                            for c in self.channels:
-                                for s in self.channels[c]:
-                                    # TODO: Do we need global resp too?
-                                    await s["socket"].send(json.dumps(content))
+                        if 'tags' in content and 'response' in content['tags']:
+                            self.chatbot.send_message(content['message'], channel)
+                        self.channels[channel] = [s for s in self.channels[channel] if not s["socket"].closed]
+                        for s in self.channels[channel]:
+                            if filter_output(content, **s):
+                                await s["socket"].send(json.dumps(content))
+                elif not channel:
+                    content = await handle_message(event)
+                    for c in self.channels:
+                        for s in self.channels[c]:
+                            # TODO: Do we need global resp too?
+                            await s["socket"].send(json.dumps(content))
 
                 processing = False
                 queue.task_done()
@@ -103,6 +99,13 @@ class SocketServer(Thread):
                 logger.info(f"Connection closed {e.code}")
                 if processing:
                     queue.task_done()
+
+            except BannedException as e:
+                logger.warning("We have been banned from this channel")
+                if not db.exists("banned"):
+                    db.create("banned", primary=["name"])
+                db.update("banned", {"name": e.channel}, ["name"])
+                self.chatbot.unsubscribe(channel)
 
             except Exception as e:
                 import traceback
@@ -179,6 +182,22 @@ class SocketServer(Thread):
             # Don't spam api
             await asyncio.sleep(80)
 
+    async def events(self):
+        while True:
+            try:
+                queue = self.webserver.events()
+                event = await queue.get()
+                channel = event['channel']
+                if channel:
+                    self.channels[channel] = [s for s in self.channels[channel] if not s.socket.closed]
+                    for s in self.channels[channel]:
+                        await s.socket.send(json.dumps(event))
+                else:
+                    logger.error("No channel for alert")
+                self.queue.task_done()
+            except:
+                await asyncio.sleep(80)
+
     async def alerts(self):
         while True:
             if self.shutdown_event.is_set():
@@ -220,12 +239,18 @@ class SocketServer(Thread):
         tasks = []
         if "chat" in commands:
             channel = commands["chat"]
+            if db.find("banned", name=channel):
+                logger.error(f"We are banned from {channel}")
+                resp = {"type": "BANNED", "channel": channel}
+                await ws_in.send(json.dumps(resp))
+                return
             self.chatbot.subscribe(channel)
             channel_client = {
                 "socket": ws_in,
                 "clientId": ctx_client_id.get(str(uuid.uuid4()))
             }
             channel_client.update(commands)
+            # TODO: self.webserver.register_callback()
             if channel in self.channels:
                 self.channels[channel].append(channel_client)
             else:
@@ -284,7 +309,10 @@ class SocketServer(Thread):
         self.loop.create_task(self.config_listener())
         self.loop.create_task(self.shutdown_listener())
 
-        WebServer(reload_evt=self.reload_event, loop=self.loop, shutdown_evt=self.shutdown_event)
+        self.loop.create_task(self.events())
+
+
+        self.webserver = WebServer(reload_evt=self.reload_event, loop=self.loop, shutdown_evt=self.shutdown_event)
         try:
             self.loop.run_forever()
         except KeyboardInterrupt:

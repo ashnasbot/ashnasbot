@@ -79,6 +79,11 @@ div.msg img.logo {
   margin-bottom:auto;
 }
 
+/* Hide avatars when empty */
+img.logo:not([src]) {
+    display: none;
+}
+
 div.msg .column {
   display: inline-block;
 }
@@ -218,6 +223,7 @@ div.menu .popout {
 }
 
 .inner_frame span {
+  float: right;
   display: block;
 }
 

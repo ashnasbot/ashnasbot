@@ -99,7 +99,8 @@ def get_cheermotes(cheer, value):
 def get_le(collection, val):
     """Get the item in collection less than or equal to val."""
     return collection[bisect.bisect_right(collection, int(val)) - 1]
-        
+
+TEIRED_BADGES = ['bits', 'bits-leader', 'sub-gifter', 'sub-gift-leader']
 async def render_badges(channel, badges):
     channel_badges = await get_channel_badges(channel)
     rendered = []
@@ -113,7 +114,7 @@ async def render_badges(channel, badges):
                 val = "0"
             badge = badge + str(get_le(SUB_TIERS, val))
             url = channel_badges.get(badge, None)
-        elif badge in ['bits', 'bits-leader', 'sub-gift-leader']:
+        elif badge in TEIRED_BADGES:
             badge = badge + val
             url = BADGES.get(badge, None)
         else:
@@ -172,11 +173,11 @@ async def render_clips(message):
     def render(match):
         thumbnail = details["thumbnails"]["small"]
         title = details["title"]
-        clipped_by = f'clipped by {details["curator"]["display_name"]}'
+        clipped_by = f'Clipped by {details["curator"]["display_name"]}'
         return f'''{match.group(0)}</br>
             <div class="inner_frame"><img src="{thumbnail}"/>
             <span class="title">{title}</span>
-            <span>{clipped_by}</span></div>'''
+            <span class="clipper">{clipped_by}</span></div>'''
     return URL_REGEX.sub(render, message)
 
 async def handle_message(event):

@@ -83,7 +83,7 @@ class SocketServer(Thread):
                 if event and channel and any([allowed_content(event, **s) for s in self.channels[channel]]):
                     content = await handle_message(event)
                     if content:
-                        if "tags" in content and any([s["images"] for s in self.channels[channel]]):
+                        if "tags" in content and any([s.get("images", None) for s in self.channels[channel]]):
                             content['logo'] = await self.users.get_picture(content['tags']['user-id'])
                         if 'tags' in content and 'response' in content['tags']:
                             self.chatbot.send_message(content['message'], channel)

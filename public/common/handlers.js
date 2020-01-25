@@ -281,8 +281,8 @@ new Vue({
             try {
               save = JSON.parse(localStorage.getItem('chat-' + this.curChannel));
               console.log(save.ts)
-              console.log(Date.now() - 600)
-              if (save.ts > (Date.now() - 600)){
+              console.log(Date.now() - 600000)
+              if (save.ts > (Date.now() - 600000)){
                   this.chat = save.chat;
               } else {
                   console.log("Cache exists but is over 10 minutes old")

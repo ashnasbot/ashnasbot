@@ -99,8 +99,8 @@ def handle_other_commands(event):
         if event._command == "PRIVMSG":
             return
 
-        logger.debug("_command: %s", event._command)
         if event._command == "CLEARMSG":
+            logger.debug("CLEAR: %s", event.tags['target-msg-id'])
             return {
                     'nickname': event.tags['login'],
                     'orig_message': event._params,
@@ -108,7 +108,7 @@ def handle_other_commands(event):
                     'type' : event._command
                     }
         elif event._command == "CLEARCHAT":
-            #channel, nick = re.search(r"^#(\w+)\s:(\w+)$", event._params).groups()
+            logger.debug("CLEAR: %s", event.tags['target-user-id'])
             return {
                     'id' : event.tags['target-user-id'],
                     'type' : event._command
@@ -116,18 +116,17 @@ def handle_other_commands(event):
         elif event._command == "RECONNECT":
             ret_event = ResponseEvent()
             logger.warn("Twitch chat is going down")
-            ret_event.message = "Twitch chat is going down"
+            ret_event['message'] = "Twitch chat is going down"
             return ret_event
         elif event._command == "HOSTTARGET":
             ret_event = ResponseEvent()
             if event.message == "-":
-                # TODO: Store channels hosting
                 ret_event['message'] = "Stopped hosting"
             else:
                 channel = re.search(r"(\w+)\s[\d-]+", event.message).group(1)
                 ret_event['message'] = channel
                 ret_event['type'] = "HOST"
-            logger.info("Hosting: %s", ret_event['message'])
+            logger.info("HOST %s", ret_event['message'])
             return ret_event
 
     except Exception as e:
@@ -232,7 +231,12 @@ CALM = [
     "As harsh as it may sound, mixing with highly stressed people will make you feel stressed. on the other hand, mixing with calm people - even for the breifest time - will leave you feeling calm.",
     "When you dwell on the sound of your breathing, when you can really feel it coming and going, peace will not be far behind.",
     "There's always a temptation to lump all your life changes into one masochistic event. Do your stress levels a favour and take on changes one at a time.",
-    "The more beautiful your fruit bowl, the better stocked it is, the less likely you are to turn to stress-enhancing snack foods. Eat more fruit, you'll feel more relaxed, it's as sweet as that."
+    "The more beautiful your fruit bowl, the better stocked it is, the less likely you are to turn to stress-enhancing snack foods. Eat more fruit, you'll feel more relaxed, it's as sweet as that.",
+    "The most important skill in staying calm is not to lose sleep over small issues. The second most important skill is to be able to view ALL issues as small issues.",
+    "Start every journey ten minutes early. Not only will you avoid the stress of haste, but if all goes well you'll have ten minutes to relax before your next engagement.",
+    "Most worries are future-based. They revolve around things that, in most cases, will never happen. Concentrate on the present and the future will take care of itself.",
+    "If you substitute a herbal tea such as peppermint for more stimulating drinks such as coffee and tea, your ability to be calm will be enhanced many times.",
+    "If you want to trick your subconscious into helping you feel calm, simply repeat: 'Every moment I feel calmer and calmer.'"
 ]
 
 def praise_cmd(event, praise, *args):

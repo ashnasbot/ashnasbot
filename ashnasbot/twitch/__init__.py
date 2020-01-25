@@ -133,7 +133,11 @@ async def render_bits(message, bits):
     if not CHEERMOTES or db.expired("cheermotes"):
         await load_cheermotes()
 
+    total = 0
+
     def render_cheer(match):
+        nonlocal total
+
         emote_name = match.group('emotename')
         real_value = match.group(3)
         if not emote_name or not real_value:
@@ -143,6 +147,7 @@ async def render_bits(message, bits):
             emote_name = "Cheer"
 
         bits_value, color = BITS_COLORS[bisect.bisect_right(BITS_INDICIES, int(real_value)) - 1]
+        total += int(real_value)
         cheermote = get_cheermotes(emote_name, bits_value)
         if cheermote == None:
             logger.info("Channel specific emote not found: %s", emote_name)
@@ -157,7 +162,8 @@ async def render_bits(message, bits):
         logger.warn("Cannot find bits in message")
         return message
 
-    return CHEER_REGEX.sub(render_cheer, message)
+    res = CHEER_REGEX.sub(render_cheer, message)
+    return res, total
     
 URL_REGEX = re.compile(r"(http(s)?://)?(clips.twitch.tv/(\w+)|www.twitch.tv/\w+/clip/(\w+))", flags=re.IGNORECASE)
 async def render_clips(message):
@@ -238,7 +244,8 @@ async def handle_message(event):
     message = bleach.linkify(message)
 
     if "bits" in etags:
-        message = await render_bits(message, etags["bits"])
+        message, bits = await render_bits(message, etags["bits"])
+        logger.info("BITS %s cheered %d", etags['display-name'], bits)
 
     return {
             'badges': badges,

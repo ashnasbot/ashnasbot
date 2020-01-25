@@ -17,14 +17,14 @@ class TwitchClient():
     def __init__(self, client_id=None, target_user=None):
         if client_id:
             self.client_id = client_id
+            logger.info(f"Creating twitch API client for {self.client_id} {target_user}")
         else:
             cfg = config.Config()
             self.client_id = cfg["client_id"]
+            logger.debug(f"Creating twitch API client for {self.client_id} {target_user}")
 
         self.target_user = target_user
         self.channel_id = None
-
-        logger.info(f"Creating twitch client for {client_id}/{target_user}")
 
 
     async def _make_api_request(self, url, params=None):
@@ -35,7 +35,7 @@ class TwitchClient():
         session = self.__sessions.get(self.client_id, None)
 
         if not session or session.closed:
-            logger.info("Starting client session")
+            logger.info("Starting new client API session")
             session = aiohttp.ClientSession()
             self.__sessions[self.client_id] = session
 

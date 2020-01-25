@@ -6,10 +6,8 @@ db = dataset.connect('sqlite:///twitchdata.db')
 logger = logging.getLogger(__name__)
 
 def exists(tbl_name):
-    logger.debug("Checking for table %s", tbl_name)
     try:
         db[tbl_name]
-        logger.debug("Table %s found", tbl_name)
         return True
     except:
         logger.info("Table %s not found", tbl_name)
@@ -57,5 +55,4 @@ def expired(tbl_name):
         logger.debug("Table %s older than %d", tbl_name, time.time() - 86400)
         return True
     
-    logger.debug("Table %s valid", tbl_name)
     return False

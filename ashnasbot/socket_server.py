@@ -33,7 +33,7 @@ def allowed_content(event, commands=False, **kwargs):
     message = event.message if hasattr(event, "message") else ""
     if not commands:
         if message.startswith('!'):
-            logger.debug("Ignoring command %s", message)
+            logger.debug("COMMAND %s (Ignored)", message)
             return False
     return True
 
@@ -42,7 +42,7 @@ def strip_content(content):
 
 # TODO: make this serialisation useful in the client
 class MsgEncoder(json.JSONEncoder):
-    def default(self, obj):
+    def default(self, obj): # pylint: disable=method-hidden
         if obj.__class__.__name__ in ["PRIV"]:
             return {"__enum__": str(obj)}
         return json.JSONEncoder.default(self, obj)
@@ -116,9 +116,15 @@ class SocketServer(Thread):
 
             except Exception as e:
                 import traceback
+                import os.path
                 err = traceback.format_exc()
-                logger.error(f"Failed to get chat: {e}")
                 logger.debug(err)
+
+                exc_tb = tb = e.__traceback__
+                while tb.tb_next:
+                    tb = exc_tb.tb_next
+                    fname = os.path.split(tb.tb_frame.f_code.co_filename)[1]
+                logger.error(f"chat {type(e).__name__}: {fname}:{tb.tb_lineno}, ({e})")
                 if processing:
                     queue.task_done()
 

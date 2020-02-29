@@ -146,6 +146,10 @@ def no_cmd(event, who, *args):
     event["message"] = f"No {who} {remainder}"
     return event
 
+def beta_cmd(event, *args):
+    event["message"] = "*Ralph Wiggum voice* I'm in Beta"
+    return event
+
 def pringles_cmd(event, *args):
     resps = ["Am I from a f**king Cartoon?", "Sour cream & onion!"]
     event["message"] = random.choice(resps)
@@ -155,6 +159,11 @@ def win_cmd(event, *args):
     val = random.randint(30, 2000)
     caller =  event.tags['caller']
     event["message"] = f"{caller} wins {val} points"
+    return event
+
+def hello_cmd(event, *args):
+    who = event.tags['caller']
+    event["message"] = who
     return event
 
 def bs_cmd(event, *args):
@@ -300,6 +309,7 @@ COMMANDS = {
     '!no': no_cmd,
     '!so': so_cmd,
     '!bs': bs_cmd,
+    '!ashnasbot': hello_cmd,
     '!backseat': bs_cmd,
     '!praise': praise_cmd,
     '!calm': calm_cmd,
@@ -308,5 +318,6 @@ COMMANDS = {
     '!proffer': proffer_cmd,
     #meme
     '!pringles': pringles_cmd,
+    '!beta': beta_cmd,
     '!win': win_cmd,
 }

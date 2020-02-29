@@ -2,7 +2,7 @@
  * Max messages before several will be deleted per batch
  * Helps with high loads
  */
-var max_messages = Math.floor(window.innerHeight / 60 );
+var max_messages = Math.floor(window.innerHeight / 30 );
 
 // Load at startup, this is done async (we should use window.speechSynthesis.onvoiceschanged)
 var synth = window.speechSynthesis;
@@ -74,7 +74,7 @@ Vue.component('config-menu', {
     template: `
     <div class="popout">
     <div class="form">
-    <span>Reload page to set config </span>
+    <span>Press 'Submit' to set config </span>
     <label>Allow commands<input name="commands" type="checkbox" v-model="commands"> </label>
     <!--<label>Show follows<input name="follows" type="checkbox" v-model="follows"></label>-->
     <label>Pull Avatars<input name="images" type="checkbox" v-model="images"></label>
@@ -206,6 +206,13 @@ new Vue({
                         ts = performance.now();
                         msgtimes.push(ts);
                         chat = this.chat.concat(msg);
+                        var container = document.getElementById('chat');
+                        if (container == null){
+                            container = document.getElementById('app');
+                        }
+                        if (checkOverflow(container)) {
+                            this.chat.shift();
+                        }
                         this.chat = chat.slice(Math.max(
                             chat.length - max_messages, 0)
                         );
@@ -253,7 +260,10 @@ new Vue({
         }
 
         this.connect();
-        var chat = document.getElementById('app');
+        var chat = document.getElementById('chat');
+        if (chat == null){
+            var chat = document.getElementById('app');
+        }
         setInterval(function() {
             if (checkOverflow(chat)) {
                 this.chat.shift();
@@ -374,7 +384,7 @@ function do_alert(event, app, sounds)
 }
 
 window.onresize = function(event) {
-    max_messages = Math.floor(window.innerHeight / 60 );
+    max_messages = Math.floor(window.innerHeight / 30 );
 }
 
 // Animation speed handling

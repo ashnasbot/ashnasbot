@@ -32,7 +32,7 @@ div.msg-frame{
 }
 
 div.msg-msg {
-  max-height: 600px;
+  max-height: 900px;
   
   display: flex;
   flex-direction: row;

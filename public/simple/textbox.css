@@ -12,6 +12,7 @@ body {
 #app {
 	height: 133.3vh;
   zoom: 75%;
+  font-size: 32px;
 }
 
 #app ol {
@@ -45,7 +46,6 @@ div.msg-bg {
 
 div.msg *{
   color: #eff1ff;
-  font-size: 32px;
   font-weight: normal;
   margin: 5px 0;
   word-break: break-word;

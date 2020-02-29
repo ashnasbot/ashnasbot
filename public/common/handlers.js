@@ -2,7 +2,10 @@
  * Max messages before several will be deleted per batch
  * Helps with high loads
  */
-var max_messages = Math.floor(window.innerHeight / 30 );
+var app = document.getElementById('app');
+var appstyle = window.getComputedStyle(app, null).getPropertyValue('font-size');
+var fontSize = parseFloat(appstyle); 
+var max_messages = Math.floor(window.innerHeight / fontSize );
 
 // Load at startup, this is done async (we should use window.speechSynthesis.onvoiceschanged)
 var synth = window.speechSynthesis;
@@ -384,7 +387,7 @@ function do_alert(event, app, sounds)
 }
 
 window.onresize = function(event) {
-    max_messages = Math.floor(window.innerHeight / 30 );
+    max_messages = Math.floor(window.innerHeight / this.fontSize );
 }
 
 // Animation speed handling

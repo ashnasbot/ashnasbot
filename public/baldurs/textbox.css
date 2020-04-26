@@ -8,6 +8,10 @@
   font-size: 16px;
 }
 
+a {
+  color: #9146FF;
+}
+
 .frame {
   border-style: solid;
   border-image-source: url(border2.png);

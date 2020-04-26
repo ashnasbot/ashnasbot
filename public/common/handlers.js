@@ -5,7 +5,7 @@
 var app = document.getElementById('app');
 var appstyle = window.getComputedStyle(app, null).getPropertyValue('font-size');
 var fontSize = parseFloat(appstyle); 
-var max_messages = Math.floor(window.innerHeight / fontSize );
+var max_messages = Math.floor(window.innerHeight / fontSize ) + 1;
 
 // Load at startup, this is done async (we should use window.speechSynthesis.onvoiceschanged)
 var synth = window.speechSynthesis;

@@ -110,7 +110,7 @@ def handle_other_commands(event):
         elif event._command == "CLEARCHAT":
             logger.debug("CLEAR: %s", event.tags['target-user-id'])
             return {
-                    'id' : event.tags['target-user-id'],
+                    'id' : "CLEARCHAT",
                     'type' : event._command
                     }
         elif event._command == "RECONNECT":

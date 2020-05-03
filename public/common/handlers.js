@@ -224,7 +224,7 @@ new Vue({
                         this.chat = this.chat.filter(m => m.id != msg.id)
                         break;
                     case "CLEARCHAT":
-                        this.chat = this.chat.filter(m => msg.id != m.tags["user-id"]);
+                        this.chat = [];
                         break;
                     case "FOLLOW":
                         do_alert(msg, this, this.config["sound"]);

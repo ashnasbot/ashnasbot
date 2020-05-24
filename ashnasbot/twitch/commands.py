@@ -108,7 +108,6 @@ def handle_other_commands(event):
                     'type' : event._command
                     }
         elif event._command == "CLEARCHAT":
-            logger.debug("CLEAR: %s", event.tags['target-user-id'])
             return {
                     'id' : "CLEARCHAT",
                     'type' : event._command

@@ -1,0 +1,117 @@
+﻿@font-face {
+  font-family: 'MysticQuest';
+  src: url('MysticQuest.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+
+}
+
+[v-cloak] { display: none; }
+
+#app {
+  height: 50vh;
+  width: 50vw;
+  font-size: 14px;
+  zoom: 200%;
+  image-rendering: pixelated;
+  /*text-rendering: geometricPrecision;*/
+  text-rendering: optimizeSpeed;
+
+}
+
+a {
+  color: #9146FF;
+}
+
+div.chat_window {
+  padding-top: 0px;
+  overflow: hidden;
+  box-sizing: border-box;
+  height: 100%;
+
+  /*height: calc(100% - 1em);
+  max-height: calc(100% - 1em);*/
+
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+}
+
+.chat_window ol {
+  max-height: 100%;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+}
+
+.chat_window li div {
+  display: block;
+  padding: 0.2em 0.3em;
+  overflow: hidden;
+  background-color: #04a;
+  background-size: 8px;
+}
+
+.chat_window div {
+  font-weight: normal;
+  margin: 0;
+}
+
+.nickname::after {
+  content: ":";
+  margin-right: 1ex;
+}
+
+.chat_window span {
+  display: inline;
+}
+
+body {
+  background-color: rgba(0, 0, 0, 0);
+  background-color: rgba(0, 0, 0);
+  margin: 0;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.menu {
+  position: absolute;
+  background-color: #04a;
+  opacity: 0;
+}
+
+div.menu:focus-within, div.menu:hover {
+  opacity: 1 !important;
+}
+
+.menu .popout span {
+  display: block;
+}
+
+.chat_window li > div {
+  display: table;
+  box-sizing: border-box;
+  width: 100%;
+  /*width: calc(100vw - 32px);*/
+  box-shadow: 1px #000;
+  border-radius: 2px;
+  border: 1px solid #fff;
+  margin: 1ex auto;
+}
+
+.chat_window li *{
+  color: #fff;
+  
+  font-family: MysticQuest, Consolas;
+  font-weight: normal;
+  margin: 1ex 0;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+img.emote {
+  display: inline-block;
+  vertical-align: bottom;
+  height: 1.12em;
+  margin: -.1em;
+}

@@ -1,9 +1,12 @@
+import json
 import logging
+import os
 import random
 import re
+import time
 import uuid
 
-import dataset
+from . import db
 
 from .. import config
 
@@ -22,7 +25,6 @@ class ResponseEvent(dict):
         self.__dict__ = self
         self.nickname = "Ashnasbot"
         cfg = config.Config()
-        print(cfg)
         name = cfg['displayname'] if 'displayname' in cfg else cfg['username']
         self.tags = {
             'display-name': name,
@@ -132,8 +134,6 @@ def handle_other_commands(event):
         logger.warn(e)
         return
 
-db = dataset.connect('sqlite:///ashnasbot.db')
-
 def goaway_cmd(event, *args):
     if event.priv < PRIV.MOD:
         event["message"] = f"Only a mod or the broadcaster can remove me"
@@ -174,9 +174,9 @@ def so_cmd(event, who, *args):
         return
 
     if who.lower() == "theadrain":
-        event["message"] = f"Shoutout to {who} - they are the best egg <3"
+        event["message"] = f"Shoutout to {who} at twitch.tv/{who} - they are the best egg <3"
     else:
-        event["message"] = f"Shoutout to {who} - they are a good egg <3"
+        event["message"] = f"Shoutout to {who} at twitch.tv/{who} - they are a good egg <3"
     return event
     
 def uptime(event, *args):
@@ -186,15 +186,83 @@ def uptime(event, *args):
     event["message"] = f"You're late, darkshoxx!"
     return event
 
+def get_pokemon(num_or_name):
+    tbl_name = "pokedex"
+    try:
+        if not db.exists(tbl_name):
+            db.create(tbl_name, primary="name")
+            dir_path = os.path.dirname(os.path.realpath(__file__))
+            pokedex_path = os.path.join(dir_path, "data", "pokedex.json")
+            with open(pokedex_path, 'r', encoding="utf8") as f:
+                pokedata = json.load(f)
+                pokedex = []
+
+                for entry in pokedata:
+                    pokedex.append({
+                        "id": entry["id"],
+                        "name": entry["name"]["english"],
+                        "caughtby": "{}"
+                    })
+
+                db.update_multi(tbl_name, pokedex, primary="name", keys=["id", "name", "caughtby"])
+    except Exception as e:
+        print("Err", e)
+
+    tbl = db.get(tbl_name)
+    try: 
+        num = int(num_or_name)
+        return next((p for p in tbl if p["id"] == num), None)
+    except ValueError:
+        return next((p for p in tbl if p["name"].lower() == num_or_name.lower()), None)
+    except Exception as e:
+        print(e)
+
+    return None
+
+
+def pokedex_cmd(event, num_or_name, *args):
+    pokemon = get_pokemon(num_or_name)
+    if pokemon:
+        caughtby = json.loads(pokemon["caughtby"])
+        caught_text = ""
+        if caughtby:
+            caught_text = f" - caught by {list(caughtby.keys())}"
+
+        event["message"] = f'Pokemon {pokemon["id"]} is {pokemon["name"]}{caught_text}'
+    else:
+        event["message"] = f"Pokemon '{num_or_name}' not found"
+
+    return event
+
+def catch_pokemon_cmd(event, num_or_name, *args):
+    pokemon = get_pokemon(num_or_name)
+
+    try:
+        if pokemon:
+            caughtby = json.loads(pokemon["caughtby"])
+            caughtby[event["channel"]] = f"{time.time()}"
+            pokemon["caughtby"] = json.dumps(caughtby)
+            db.update("pokedex", pokemon, ["name"])
+            event["message"] = f"{pokemon['name']} was caught by {event['channel']}"
+        else:
+            event["message"] = f"Pokemon '{num_or_name}' not found"
+    except Exception as e:
+        print(e)
+        event["message"] = f""
+
+    return event
+
 PRAISE_ENDINGS = [
     "saviour of ages!",
     "beware of false prophets",
     "P R A I S E",
     "GDPR compliant",
     "Euclidian",
+    "Non-Euclidian",
     "Tubular",
     "Uninflammable",
     "Hydrate",
+    "Lost but not forgotten"
     "mostly hyperbole",
     "has pictures of Spiderman",
     "turing complete",
@@ -211,6 +279,7 @@ PRAISE_ENDINGS = [
     "and also CUBE",
     "healer of leopards",
     "a good egg",
+    "like and subscribe",
     "'cause why not?",
     "{praise} {praise} {praise}",
     "marginally above average",
@@ -220,6 +289,8 @@ PRAISE_ENDINGS = [
     "great at a barbecue",
     "tell your friends",
     "easy to clean",
+    "ＤＥＬＵＸＥ",
+    "™",
     "jack of all trades",
     "'IwlIj jachjaj",
     "all transactions are final",
@@ -229,7 +300,7 @@ PRAISE_ENDINGS = [
     "in stereo!",
     "now for only 19,99",
     "better than Baby Shark",
-    "\"The best thign on the internet.\" - Abraham Lincoln"
+    "\"The best thing on the internet.\" - Abraham Lincoln"
 ]
 
 CALM = [
@@ -258,12 +329,10 @@ def calm_cmd(event, *args):
     return event
 
 def death_cmd(event, *args):
-    table = db["channel"]
-    # TODO: use shim
-    if not table:
-        table = db.create_table("channel", primary_id="channel", primary_type=db.types.text)
+    if not db.exists("channel"):
+        db.create("channel", primary="channel")
     try:
-        data = table.find_one(channel=event["channel"])
+        data = db.find_one("channel", channel=event["channel"])
         if data == None:
             data = {"channel": event["channel"], "deaths":0}
         DEATHS = data["deaths"]
@@ -290,7 +359,7 @@ def death_cmd(event, *args):
         if update:
             data["deaths"] = DEATHS
             # TODO: logger
-            table.upsert(data, ["channel"], ensure=True)
+            db.update("channel", data, ["channel"])
 
     times = "times"
     if DEATHS == 1:
@@ -315,6 +384,8 @@ COMMANDS = {
     '!deaths': death_cmd,
     '!uptime': uptime,
     '!proffer': proffer_cmd,
+    '!pokedex': pokedex_cmd,
+    '!catch': catch_pokemon_cmd,
     #meme
     '!pringles': pringles_cmd,
     '!beta': beta_cmd,

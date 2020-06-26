@@ -5,7 +5,7 @@
 var app = document.getElementById('app');
 var appstyle = window.getComputedStyle(app, null).getPropertyValue('font-size');
 var fontSize = parseFloat(appstyle); 
-var max_messages = Math.floor(window.innerHeight / fontSize ) + 1;
+var max_messages = Math.floor(app.clientHeight / (fontSize * 2) ) + 1;
 
 // Load at startup, this is done async (we should use window.speechSynthesis.onvoiceschanged)
 var synth = window.speechSynthesis;
@@ -13,6 +13,7 @@ var voices = synth.getVoices();
 
 // This serves only to stop random things knocking the websocket
 // can filter though proxy
+var cookies = document.cookie;
 document.cookie = 'secretvalue=true;path=/';
 if (document.location.protocol == "https:") {
     websocketLocation = "wss://" + location.hostname + ":443/wsapp"
@@ -24,6 +25,34 @@ if (document.location.protocol == "https:") {
 var channel = "";
 
 var config = {
+}
+
+function getAuth() {
+    const oauth = cookies
+        .split('; ')
+        .find(row => row.startsWith('token'))
+        .split('=')[1];
+
+    fetch('https://id.twitch.tv/oauth2/validate', {headers: {'Authorization': 'OAuth ' + oauth}})
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('oauth validation failed');
+            }
+            return response.json();
+        })
+        .then(authStatus => {
+            token_channel = authStatus["login"];
+            channel = self.getChannel();
+            if (channel == token_channel) {
+                console.log("OAuth Token valid for " + channel);
+                clientConfig['oauth'] = oauth;
+                return
+            }
+            console.warn("OAuth Token invalid for " + channel);
+        })
+        .catch(error => {
+            console.error('Failed to authorize token:', error);
+        });
 }
 
 function getChannel() {
@@ -94,6 +123,7 @@ new Vue({
     el: '#app',
     props: ['client', 'incoming'],
     data: {
+        auth: getAuth(),
         chat: [],
         config: {},
         alert: "",
@@ -261,6 +291,10 @@ new Vue({
         } else {
             show_menu = this.$children[0].menu;
         }
+        if (!self.channel) {
+            console.warn("No channel specified");
+            return;
+        }
 
         this.connect();
         var chat = document.getElementById('chat');
@@ -387,7 +421,7 @@ function do_alert(event, app, sounds)
 }
 
 window.onresize = function(event) {
-    max_messages = Math.floor(window.innerHeight / this.fontSize );
+    max_messages = Math.floor(app.clientHeight / (fontSize * 2) ) + 1;
 }
 
 // Animation speed handling

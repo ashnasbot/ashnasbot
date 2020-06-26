@@ -14,6 +14,7 @@ from .async_http import WebServer
 from .chat_bot import ChatBot
 from .config import Config, ReloadException
 from .twitch import db
+from .twitch.pubsub import PubSubClient
 from .twitch import handle_message
 from .twitch.api_client import TwitchClient
 from .twitch.av import get_sound
@@ -120,11 +121,6 @@ class SocketServer(Thread):
                 err = traceback.format_exc()
                 logger.debug(err)
 
-                exc_tb = tb = e.__traceback__
-                while tb.tb_next:
-                    tb = exc_tb.tb_next
-                    fname = os.path.split(tb.tb_frame.f_code.co_filename)[1]
-                logger.error(f"chat {type(e).__name__}: {fname}:{tb.tb_lineno}, ({e})")
                 if processing:
                     queue.task_done()
 
@@ -271,6 +267,15 @@ class SocketServer(Thread):
         if "alert" in commands:
             channel = commands['alert']
             tasks.append(asyncio.create_task(self.followers(channel)))
+        if "oauth" in commands:
+            channel = commands["chat"]
+            channel_id = await TwitchClient(self.config["client_id"], '').get_channel_id(channel)
+            print(channel_id)
+            token = commands["oauth"]
+            self.pubsub = PubSubClient(channel_id, token, self._event_queue)
+            ps_conn = await self.pubsub.connect()
+            self.loop.create_task(self.pubsub.heartbeat(ps_conn))
+            self.loop.create_task(self.pubsub.receiveMessage(ps_conn))
             
 
         tasks.append(asyncio.create_task(self.heartbeat(ws_in)))
@@ -310,9 +315,9 @@ class SocketServer(Thread):
         start_server = websockets.serve(self.handle_connect, '0.0.0.0', 8765)
         self.websocket_server = self.loop.run_until_complete(start_server)
 
-
         self.load_clients()
-        self.chatbot = ChatBot(self.loop, self.config["username"], self.config["oauth"])
+        if self.config["oauth"]:
+            self.chatbot = ChatBot(self.loop, self.config["username"], self.config["oauth"])
         self.users = Users(TwitchClient(self.config["client_id"], ''))
         self.reload_event = asyncio.Event()
         self.shutdown_event = asyncio.Event()
@@ -325,7 +330,9 @@ class SocketServer(Thread):
         self.loop.create_task(self.events())
 
 
-        self.webserver = WebServer(reload_evt=self.reload_event, loop=self.loop, shutdown_evt=self.shutdown_event)
+        self.webserver = WebServer(reload_evt=self.reload_event, loop=self.loop, shutdown_evt=self.shutdown_event,
+                                   client_id=self.config["client_id"], secret=self.config["secret"])
+
         try:
             self.loop.run_forever()
         except KeyboardInterrupt:

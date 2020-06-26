@@ -3,24 +3,33 @@ import time
 import logging
 
 db = dataset.connect('sqlite:///twitchdata.db')
+tables = {}
 logger = logging.getLogger(__name__)
 
 def exists(tbl_name):
+    table = tables.get(tbl_name, None)
+    if not table:
+        table = db[tbl_name]
+        tables[tbl_name] = table
     try:
-        db[tbl_name]
-        return True
+        return table.exists
     except:
         logger.info("Table %s not found", tbl_name)
         return False
 
 def create(tbl_name, primary):
     logger.info("Create table %s", tbl_name)
-    db.create_table(tbl_name,
-              primary_id=primary,
-              primary_type=db.types.text)
+    tbl = db.create_table(tbl_name,
+                            primary_id=primary,
+                            primary_type=db.types.text)
+    tables[tbl_name] = tbl
 
-def get(table):
-    return db[table].all()
+def get(tbl_name):
+    table = tables.get(tbl_name, None)
+    if not table:
+        table = db[tbl_name]
+        tables[tbl_name] = table
+    return table.all()
 
 def find(tbl_name, **kwargs):
     table = db[tbl_name]
@@ -30,12 +39,38 @@ def update(tbl_name, record, keys):
     table = db[tbl_name]
     table.upsert(record, keys, ensure=True)
 
-def update_multi(tbl_name, rows, keys):
-    table = db[tbl_name]
-    for record in rows:
-        table.upsert(record, ["name"], ensure=True)
-    stats = db["stats"]
-    stats.upsert({"name": tbl_name, "val": time.time()}, keys=keys)
+def update_multi(tbl_name, rows, primary, keys):
+    table = tables.get(tbl_name, None)
+    if not table:
+        table = db[tbl_name]
+        tables[tbl_name] = table
+    try:
+        for record in rows:
+            table.upsert(record, ["name"], ensure=True)
+    except Exception as e:
+        logger.error(e)
+    else:
+        stats = tables.get("stats", None)
+        if not stats:
+            stats = db["stats"]
+        stats.upsert({"name": tbl_name, "val": time.time()}, keys=keys)
+
+def insert_multi(tbl_name, rows, primary, keys):
+    table = tables.get(tbl_name, None)
+    if not table:
+        table = db[tbl_name]
+        tables[tbl_name] = table
+
+    try:
+        for record in rows:
+            table.insert(record)
+    except Exception as e:
+        logger.warning(e)
+    else:
+        stats = tables.get("stats", None)
+        if not stats:
+            stats = db["stats"]
+        stats.upsert({"name": tbl_name, "val": time.time()}, keys=keys)
 
 def expired(tbl_name):
     stats = db['stats']

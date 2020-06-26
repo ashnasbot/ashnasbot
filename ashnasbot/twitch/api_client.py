@@ -1,13 +1,17 @@
 import json
 import logging
+import urllib.parse
 
 import aiohttp
+from oauthlib.oauth2 import BackendApplicationClient
+from requests_oauthlib import OAuth2Session
 
 from .. import config
 
 API_BASE = "https://api.twitch.tv"
 logger = logging.getLogger(__name__)
 
+token = None
 
 class TwitchClient():
 
@@ -15,23 +19,33 @@ class TwitchClient():
     __sessions = {}
 
     def __init__(self, client_id=None, target_user=None):
-        if client_id:
-            self.client_id = client_id
-            logger.info(f"Creating twitch API client for {self.client_id} {target_user}")
-        else:
-            cfg = config.Config()
-            self.client_id = cfg["client_id"]
-            logger.debug(f"Creating twitch API client for {self.client_id} {target_user}")
+        global token
+        cfg = config.Config()
+        self.client_id = cfg["client_id"]
+        logger.debug(f"Creating twitch API client for {self.client_id} {target_user}")
 
         self.target_user = target_user
         self.channel_id = None
 
 
+        if not token:
+            logger.warning("No token - retriving new token")
+            body = urllib.parse.urlencode({'client_id': self.client_id, 'client_secret': cfg["secret"]})
+            client = BackendApplicationClient(client_id=cfg["client_id"])
+            oauth = OAuth2Session(client=client)
+            token = oauth.fetch_token(token_url='https://id.twitch.tv/oauth2/token', body=body)
+
+        self.oauth = token["access_token"]
+
     async def _make_api_request(self, url, params=None):
         headers = {
             "Client-ID": f"{self.client_id}",
-            "Accept": "application/vnd.twitchtv.v5+json"
+            "Accept": "application/vnd.twitchtv.v5+json",
         }
+
+        if "helix" in url:
+            headers["Authorization"] = f"Bearer {self.oauth}"
+
         session = self.__sessions.get(self.client_id, None)
 
         if not session or session.closed:
@@ -64,8 +78,10 @@ class TwitchClient():
 
         resp = await self._make_api_request(url)
         try:
+            logger.debug(resp)
             return resp["data"][0]["id"]
-        except:
+        except Exception as e:
+            logger.warning(f"Get Channel ID failed {e}")
             return None
 
     async def get_user_info(self, user):

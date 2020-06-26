@@ -6,6 +6,7 @@ import logging
 import re
 import sys
 import time
+import uuid
 
 import bleach
 
@@ -63,7 +64,10 @@ async def get_channel_badges(channel):
         rows = [{"name":k, "url":v} for k,v in badges.items()]
         keys = ["name"]
 
-        db.update_multi(tbl_name, rows, keys)
+        if db.exists(tbl_name):
+            db.update_multi(tbl_name, rows, primary="name", keys=keys)
+        else:
+            db.insert_multi(tbl_name, rows, primary="name", keys=keys)
 
     ret = {}
     for badge in db.get(tbl_name):
@@ -112,8 +116,12 @@ async def render_badges(channel, badges):
         if badge == 'subscriber':
             if not val:
                 val = "0"
-            badge = badge + str(get_le(SUB_TIERS, val))
-            url = channel_badges.get(badge, None)
+            # Try and grab the exact badge
+            url = channel_badges.get(badge + val, None)
+            if not url:
+                # Otherwise grab the highest achieved sub badge
+                badge = badge + str(get_le(SUB_TIERS, val))
+                url = channel_badges.get(badge, None)
         elif badge in TEIRED_BADGES:
             badge = badge + val
             url = channel_badges.get(badge, None)
@@ -258,6 +266,47 @@ async def handle_message(event):
             'channel' : event.channel,
             'extra' : extra
             }
+
+def handle_redemption(message):
+    event = json.loads(message)
+    evt_type = event["type"]
+    if evt_type == "reward-redeemed":
+        title = event["data"]["redemption"]["reward"]["title"]
+        data = {
+            'badges': [],
+            'nickname': event["data"]["redemption"]["user"]["display_name"],
+            'orig_message' : event["data"]["redemption"]["user_input"],
+            'message': "",
+            'id' :  uuid.uuid4(),
+            'tags' : {
+                "cost": event["data"]["redemption"]["reawrd"]["cost"],
+                "color": event["data"]["redemption"]["reawrd"]["background_color"]
+            },
+            'type' : "REDEMPTION",
+            'channel' : event["data"]["redemption"]["reawrd"]["channel"],
+            'extra' : []
+            }
+
+        data["tags"]["system-msg"] = f"{data['nickname']} redeemed {title} for {data['tags']['cost']}"
+        logging.info(f"PUBSUB: {data}")
+        return data
+    if evt_type == "RESPONSE":
+        message = "Connected to websocket"
+        if event["error"]:
+            message = event["error"]
+        logging.info(f"PUBSUB: {message}")
+        data = {
+            'badges': [],
+            'nickname': "System",
+            'message': message,
+            'orig_message': "",
+            'id' :  uuid.uuid4(),
+            'tags': {},
+            'type': "SYSTEM",
+            'channel': None,
+            'extra': []
+        }
+        return data
 
 def create_event(from_evt, message):
     new_evt = copy.copy(from_evt)

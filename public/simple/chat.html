@@ -18,7 +18,7 @@
 		</form>
 		<config-menu v-on:cfg-update="updateCfg($event)"></config-menu>
 	</div>
-	<div v-cloak>
+	<div v-cloak class="chat_window">
 		<transition-group name="slide-fade" tag="ol">
 		<li v-for="msg in chat" v-bind:key="msg.id" v-bind:id="msg.id">
 			<div v-if="msg.type === 'TWITCHCHATMESSAGE'" class="msg msg-msg msg-frame msg-bg">
@@ -39,7 +39,11 @@
 				</div>
 				<div class="column">
 					<p class="faded" v-bind:class="msg.extra" v-html="msg.tags['system-msg']"></p>
-					<p class="faded" v-bind:class="msg.extra" v-html="msg.message"></p>
+					<span v-if="msg.message" class="badges">
+						<span v-for="badge in msg.badges" v-html="badge"></span>
+					</span>
+					<span v-if="msg.message" class="nick" v-html="msg.nickname"></span><span v-if="msg.message">:</span>
+					<span v-bind:class="msg.extra" v-html="msg.message"></span>
 				</div>
 			</div>
 		</li>

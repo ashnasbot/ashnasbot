@@ -10,14 +10,32 @@ body {
 }
 
 #app {
-	height: 133.3vh;
-  zoom: 75%;
-  font-size: 32px;
+	height: 100vh;
+  font-size: 24px;
+  display: block;
+}
+
+div.chat_window {
+  padding-top: 0px;
+  overflow: hidden;
+  box-sizing: border-box;
+  height: 100%;
+
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
 }
 
 #app ol {
-	padding:0;
-	margin: 0.5em;
+  padding:0;
+  margin:0;
+  width: 100%;
 }
 
 #app li {
@@ -26,28 +44,27 @@ body {
 
 div.msg-frame{
   border: solid 1px #424542;
-  padding: 5px 10px;
+  padding: 0.2em;
   -webkit-border-radius: 1px;
   -moz-border-radius: 1px;
   border-radius: 1px;
 }
 
 div.msg-msg {
-  max-height: 900px;
-  
+  max-height: 24em;
   display: flex;
   flex-direction: row;
 }
 
 div.msg-bg { 
-  margin: 0.3em 2px;
+  margin: 0.3em 0.1em;
   background: #222;
 }
 
 div.msg *{
   color: #eff1ff;
   font-weight: normal;
-  margin: 5px 0;
+  margin: 0;
   word-break: break-word;
   font-family: 'Montserrat', sans-serif;
 }
@@ -55,28 +72,29 @@ div.msg *{
 div.msg img {
     border: 0;
     display:inline-block;
-    margin: 2px;
+    margin: 0.1em;
     box-shadow: none;
     vertical-align: middle;
 }
 
 div.msg img.emote {
-  margin: -4px;
-  height: min-content;
-  width: min-content;
+  display: inline-block;
+  vertical-align: bottom;
+  height: 1em;
 }
 
 div.msg img.badge {
-  margin: 0 2px;
-  height: 36px;
+  margin: 0 0.1em;
+  height: 1em;
 }
 
 div.msg img.logo {
-  width: 88px;
-  padding-right: 8px;
+  width: calc(2.4em + 10px);
+  padding-right: 0.2em;
 
   margin-top:auto;
   margin-bottom:auto;
+  margin-left: auto;
 }
 
 /* Hide avatars when empty */
@@ -111,16 +129,17 @@ list-style-type: none;
 }
 
 .stripe {
-  width: 0.5ex;
+  width: 0.25ex;
   background-color: #6441a4;
-  height: 90%;
-  margin-right: 0.5ex !important;
+  height: 100%;
   vertical-align: middle;
   display: inline-block;
+  position: relative;
+  left: 0.1em;
 }
 
 .faded {
-  opacity: 0.6;
+  opacity: 0.7;
 }
 
 .slide-fade-enter-active, .slide-fade-leave-active {
@@ -139,7 +158,7 @@ list-style-type: none;
 .slide-fade-leave-to {
   max-height: 0;
   position: relative;
-  top: -200px;
+  top: -10em;
 }
 
 .slide-fade-move {
@@ -153,7 +172,6 @@ span.cheertext-blue { color: #0099fe}
 span.cheertext-red { color: #f43021}
 
 div.menu {
-  zoom: 150%;
   height: 1.5em;
   background-color: #333;
   color: #DDD;

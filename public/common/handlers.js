@@ -251,10 +251,15 @@ new Vue({
                         );
                         break;
                     case "CLEARMSG":
-                        this.chat = this.chat.filter(m => m.id != msg.id)
+                        this.chat = this.chat.filter(m => m.id != msg.id);
                         break;
                     case "CLEARCHAT":
-                        this.chat = [];
+                        if (msg["user"]) {
+                            this.chat = this.chat.filter(m => m["tags"]["user-id"] != msg["user"] || m["tags"]["room-id"] != msg["room"]);
+                        } else {
+                            /* If no user, clear all */
+                            this.chat = [];
+                        }
                         break;
                     case "FOLLOW":
                         do_alert(msg, this, this.config["sound"]);
@@ -421,6 +426,7 @@ function do_alert(event, app, sounds)
 }
 
 window.onresize = function(event) {
+    app = document.getElementById('app');
     max_messages = Math.floor(app.clientHeight / (fontSize * 2) ) + 1;
 }
 

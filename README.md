@@ -14,32 +14,39 @@ git clone https://github.com/ashnasbot/ashnasbot.git
 cd ashnasbot
 
 python3 -m virtualenv env
-source env/bin/activate
+# Windows
+env\Scripts\activate.bat
+# Linux
+env\Scripts\activate
 pip install -r requirements.txt
 ```
 
-## Running
-```python3 ./__main__.py```
-navigate to `localhost:8080/dashboard` to configure!
 
 ## config
 You must [register your application on the Twitch dev portal](https://dev.twitch.tv/dashboard/apps/create) and a [User authentication token](https://dev.twitch.tv/docs/authentication/getting-tokens-oauth/#oauth-client-credentials-flow)
-currently the bot requires both.
+The bot requires both client_id/secret AND a user oauth token for accessing APIs and interacting with chat respectively.
 
-Then you just need the 'username' of the bot you got the auth token for.
-
-navigate to `http://localhost:8080/static/simple/chat.html` and enter a username to get chat!
+[TMI](https://twitchapps.com/tmi/) is a 3rd party service that offers an easy way to get a token.
+Then you just need the 'username' of the bot account you got the auth token for.
 
 config.json
 ```json
 {
     "client_id": "abcdef0123456789",
     "oauth": "oauth:abcdefghijklmnopqrstuvwxyz", 
-    "username": "ashnasbot",
+    "secret": "abcdef0123456789",
+    "username": "my_bot_user",
     "user_id": 275857969,
     "log_level": "INFO"
 }
 ```
+
+## Running
+```python3 ./__main__.py```
+
+Navigate to `http://localhost:8080/static/simple/chat.html` and enter a username to get chat!
+(Hover over the top of the window to show the menu)
+
 
 ### Session Config
 The browser provides its own per-client config, hit submit or reload to set these values.
@@ -52,9 +59,8 @@ The browser provides its own per-client config, hit submit or reload to set thes
 
 ## Known Issues
 - some substitutions not supported e.g. "<3" as this isn't classed as an 'emote'
+- no channel cheermotes
 
-### Observer
-- non-UTF-8 messages break the transport
 
 ## Licence
 Unless stated here, code and assets are my own and free to use however you like.

@@ -191,7 +191,7 @@ async def render_clips(message):
         title = details["title"]
         clipped_by = f'Clipped by {details["curator"]["display_name"]}'
         return f'''{match.group(0)}</br>
-            <div class="inner_frame"><img src="{thumbnail}"/>
+            <div class="inner_frame clip"><img src="{thumbnail}"/>
             <span class="title">{title}</span>
             <span class="clipper">{clipped_by}</span></div>'''
     return URL_REGEX.sub(render, message)

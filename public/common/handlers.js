@@ -28,10 +28,14 @@ var config = {
 }
 
 function getAuth() {
-    const oauth = cookies
-        .split('; ')
-        .find(row => row.startsWith('token'))
-        .split('=')[1];
+    try {
+        const oauth = cookies
+            .split('; ')
+            .find(row => row.startsWith('token'))
+            .split('=')[1];
+    } catch(err) {
+        return;
+    }
 
     fetch('https://id.twitch.tv/oauth2/validate', {headers: {'Authorization': 'OAuth ' + oauth}})
         .then(response => {

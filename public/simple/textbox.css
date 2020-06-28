@@ -135,7 +135,7 @@ list-style-type: none;
   vertical-align: middle;
   display: inline-block;
   position: relative;
-  left: 0.1em;
+  left: -0.1em;
 }
 
 .faded {

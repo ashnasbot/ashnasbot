@@ -89,11 +89,10 @@ div.menu:focus-within, div.menu:hover {
 }
 
 .chat_window li > div {
-  display: table;
+  display: block;
   box-sizing: border-box;
   width: 100%;
-  /*width: calc(100vw - 32px);*/
-  box-shadow: 1px #000;
+  box-shadow: inset 1px 0 0 #000, inset -1px 0 0 #000, inset 0 1px 0 #000, inset 0 -1px 0 #000; 
   border-radius: 2px;
   border: 1px solid #fff;
   margin: 1ex auto;
@@ -114,4 +113,27 @@ img.emote {
   vertical-align: bottom;
   height: 1.12em;
   margin: -.1em;
+}
+
+/* CLIPS */
+.clip {
+  background-color: #999;
+  height: 4em;
+}
+
+.clip * {
+  float: left;
+  margin-right: 1ex;
+}
+
+.clip img {
+  height: 3em;
+  margin: 0 !important;
+}
+
+.clip span:first-of-type {
+  clear: both;
+}
+.clip span:last-of-type {
+  margin-left: 1ex;
 }

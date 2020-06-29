@@ -27,8 +27,8 @@ var channel = "";
 var config = {
 }
 
-function getAuth(cfg) {
-    var valid = null;
+function getAuth() {
+    var auth = null;
     var oauth;
     try {
         oauth = cookies
@@ -36,10 +36,10 @@ function getAuth(cfg) {
             .find(row => row.startsWith('token'))
             .split('=')[1];
     } catch(err) {
-        return valid;
+        return auth;
     }
 
-    valid = false;
+    auth = false;
 
     return fetch('https://id.twitch.tv/oauth2/validate', {headers: {'Authorization': 'OAuth ' + oauth}})
         .then(response => {
@@ -53,15 +53,15 @@ function getAuth(cfg) {
             channel = self.getChannel();
             if (channel == token_channel) {
                 console.log("OAuth Token valid for " + channel);
-                cfg['oauth'] = oauth;
-                valid = true;
+                auth = oauth;
+            } else {
+                console.warn("OAuth Token invalid for " + channel);
             }
-            console.warn("OAuth Token invalid for " + channel);
         })
         .catch(error => {
             console.error('Failed to authorize token:', error);
         })
-        .then((response) => valid);
+        .then((response) => auth);
 }
 
 function getTheme() {
@@ -142,7 +142,8 @@ new Vue({
     el: '#app',
     props: ['client', 'incoming'],
     data: {
-        auth_valid: getAuth(self.config),
+        auth: getAuth(),
+        token: null,
         chat: [],
         config: {},
         alert: "",
@@ -162,6 +163,9 @@ new Vue({
             clientConfig = this.config;
             for (var i = 0; i < cmds.length; i++) {
                 clientConfig[cmds[i]] = channel;
+            }
+            if (this.token) {
+                clientConfig["auth"] = this.token;
             }
             return JSON.stringify(clientConfig);
         },
@@ -325,12 +329,14 @@ new Vue({
             return;
         }
         if (this.config["channel_points"]) {
-            this.auth_valid.then( valid => {
+            this.auth.then( auth => {
 
-                if (valid) {
+                if (auth) {
+                    this.token = auth;
                     this.connect();
                 } else {
-                    if (valid != null) {
+                    // TODO: Display feedback that auth failed
+                    if (auth != null) {
                         this.config["channel_points"] = false;
                     }
                     document.location = "/user_auth?channel=" + self.channel + "&theme=" + self.theme;

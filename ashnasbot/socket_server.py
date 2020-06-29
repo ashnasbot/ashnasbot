@@ -267,15 +267,14 @@ class SocketServer(Thread):
         if "alert" in commands:
             channel = commands['alert']
             tasks.append(asyncio.create_task(self.followers(channel)))
-        if "oauth" in commands:
+        if "auth" in commands:
             channel = commands["chat"]
             channel_id = await TwitchClient(self.config["client_id"], '').get_channel_id(channel)
-            print(channel_id)
-            token = commands["oauth"]
+            token = commands["auth"]
             self.pubsub = PubSubClient(channel_id, token, self._event_queue)
             ps_conn = await self.pubsub.connect()
             self.loop.create_task(self.pubsub.heartbeat(ps_conn))
-            self.loop.create_task(self.pubsub.receiveMessage(ps_conn))
+            self.loop.create_task(self.pubsub.receive_message(ps_conn))
             
 
         tasks.append(asyncio.create_task(self.heartbeat(ws_in)))

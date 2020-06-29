@@ -27,17 +27,21 @@ var channel = "";
 var config = {
 }
 
-function getAuth() {
+function getAuth(cfg) {
+    var valid = null;
+    var oauth;
     try {
-        const oauth = cookies
+        oauth = cookies
             .split('; ')
             .find(row => row.startsWith('token'))
             .split('=')[1];
     } catch(err) {
-        return;
+        return valid;
     }
 
-    fetch('https://id.twitch.tv/oauth2/validate', {headers: {'Authorization': 'OAuth ' + oauth}})
+    valid = false;
+
+    return fetch('https://id.twitch.tv/oauth2/validate', {headers: {'Authorization': 'OAuth ' + oauth}})
         .then(response => {
             if (!response.ok) {
                 throw new Error('oauth validation failed');
@@ -49,14 +53,21 @@ function getAuth() {
             channel = self.getChannel();
             if (channel == token_channel) {
                 console.log("OAuth Token valid for " + channel);
-                clientConfig['oauth'] = oauth;
-                return
+                cfg['oauth'] = oauth;
+                valid = true;
             }
             console.warn("OAuth Token invalid for " + channel);
         })
         .catch(error => {
             console.error('Failed to authorize token:', error);
-        });
+        })
+        .then((response) => valid);
+}
+
+function getTheme() {
+    const url = window.location.pathname;
+    var theme = url.split('/')[2]
+    return theme;
 }
 
 function getChannel() {
@@ -79,6 +90,7 @@ Vue.component('config-menu', {
             this.sound = config.sound;
             this.hosts = config.hosts;
             this.menu = config.menu;
+            this.channel_points = config.channel_points;
         }
     },
     methods: {
@@ -95,7 +107,8 @@ Vue.component('config-menu', {
         alerts: true,
         sound: true,
         hosts: false,
-        menu: true
+        menu: true,
+        channel_points: false
       }
     },
     watch: {
@@ -106,6 +119,7 @@ Vue.component('config-menu', {
         sound(n) { this.handleInput(); },
         hosts(n) { this.handleInput(); },
         menu(n) { this.handleInput(); },
+        channel_points(n) { this.handleInput(); },
     },
     template: `
     <div class="popout">
@@ -118,6 +132,7 @@ Vue.component('config-menu', {
     <label>Sounds<input name="sound" type="checkbox" v-model="sound"></label>
     <label>Follow Hosts<input name="hosts" type="checkbox" v-model="hosts"></label>
     <label>Show menu on load<input name="menu" type="checkbox" v-model="menu"></label>
+    <label>Show Channel point redemptions (requires auth)<input name="menu" type="checkbox" v-model="channel_points"></label>
     </div>
     </div>
     `
@@ -127,13 +142,14 @@ new Vue({
     el: '#app',
     props: ['client', 'incoming'],
     data: {
-        auth: getAuth(),
+        auth_valid: getAuth(self.config),
         chat: [],
         config: {},
         alert: "",
         alertLog: [],
         ping: null,
         channel: getChannel(),
+        theme: getTheme(),
         curChannel: ""
     },
     methods: {
@@ -166,8 +182,10 @@ new Vue({
             }
             const parsed = JSON.stringify(save);
             localStorage.setItem('chat-' + this.curChannel, parsed);
-            this.chatsocket.onclose = null;
-            this.chatsocket.close();
+            if ("chatsocket" in this) {
+                this.chatsocket.onclose = null;
+                this.chatsocket.close();
+            }
         },
         socket_open: function () {
             console.log("Connected")
@@ -209,9 +227,11 @@ new Vue({
         }
     },
     watch: {
-        config(newConfig) {
-            
-            localStorage.config = JSON.stringify(newConfig);
+        'config': {
+            handler: function (newConfig) {
+                localStorage.config = JSON.stringify(newConfig);
+            },
+            deep: true
         },
         incoming(events) {
             if (events.length == 0) {
@@ -304,8 +324,22 @@ new Vue({
             console.warn("No channel specified");
             return;
         }
+        if (this.config["channel_points"]) {
+            this.auth_valid.then( valid => {
 
-        this.connect();
+                if (valid) {
+                    this.connect();
+                } else {
+                    if (valid != null) {
+                        this.config["channel_points"] = false;
+                    }
+                    document.location = "/user_auth?channel=" + self.channel + "&theme=" + self.theme;
+                }
+            })
+        } else {
+            this.connect();
+        }
+
         var chat = document.getElementById('chat');
         if (chat == null){
             var chat = document.getElementById('app');

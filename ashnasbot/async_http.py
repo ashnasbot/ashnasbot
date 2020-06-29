@@ -122,8 +122,9 @@ class WebServer(object):
                             scope=scope)
         authorization_url, state = oauth.authorization_url(auth_base_url)
         return_channel = request.query.get("channel", None)
+        return_theme = request.query.get("theme", "simple")
 
-        state = f"{state};{return_channel}"
+        state = f"{state};{return_channel};{return_theme}"
 
         session = await new_session(request)
         session['state'] = state
@@ -152,8 +153,9 @@ class WebServer(object):
         session['token'] = token
         state = session['state']
         return_channel = state.split(";")[1]
+        return_theme = state.split(";")[2]
 
-        resp = aiohttp.web.HTTPFound(f'/static/simple/chat.html?channel={return_channel}')
+        resp = aiohttp.web.HTTPFound(f'/static/{return_theme}/chat.html?channel={return_channel}')
         resp.cookies['token'] = token["access_token"]
         return resp
 

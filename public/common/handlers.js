@@ -252,6 +252,7 @@ new Vue({
                         this.chatsocket.onclose = null;
                         this.chatsocket.close();
                         break;
+                    case "RAID":
                     case "SUB":
                         if (self.config["alerts"]) {
                             do_alert(msg, this, this.config["sound"]);

@@ -209,11 +209,11 @@ async def handle_message(event):
         return commands.handle_command(event)
 
     if msg_type == "RAID":
-        raw_msg = f"{etags['msg-param-displayName']} is raiding with a party of " \
-                  f"{etags['msg-param-viewerCount']}"
+        etags['system-msg'] = f"{etags['msg-param-displayName']} is raiding with a party of " \
+                              f"{etags['msg-param-viewerCount']}"
     if msg_type == "HOST":
-        raw_msg = f"{etags['msg-param-displayName']} is hosting for " \
-                  f"{etags['msg-param-viewerCount']} viewers"
+        etags["system-msg"] = f"{etags['msg-param-displayName']} is hosting for " \
+                              f"{etags['msg-param-viewerCount']} viewers"
 
 
     if hasattr(event, "_command"):

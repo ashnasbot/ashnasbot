@@ -80,7 +80,10 @@ div.msg img {
 div.msg img.emote {
   display: inline-block;
   vertical-align: bottom;
-  height: 1em;
+  height: 1.3em;
+  margin-top: -0.4ex;
+  position: relative;
+  top: 0.3ex;
 }
 
 div.msg img.badge {

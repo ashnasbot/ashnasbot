@@ -29,7 +29,6 @@ class ChatBot():
         self.loop = loop
 
         self.chat_queue = asyncio.Queue(maxsize=100, loop=loop)
-        self.alert_queue = asyncio.Queue(maxsize=100, loop=loop)
         self.observer.subscribe(self.handle_event)
 
     def subscribe(self, channel):
@@ -55,9 +54,6 @@ class ChatBot():
         else:
             logger.info(f"Leaving channel: {channel}")
             self.channels.remove(channel)
-
-    def alerts(self):
-        return self.alert_queue
 
     def chat(self):
         return self.chat_queue

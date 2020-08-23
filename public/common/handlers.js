@@ -5,7 +5,7 @@
 var app = document.getElementById('app');
 var appstyle = window.getComputedStyle(app, null).getPropertyValue('font-size');
 var fontSize = parseFloat(appstyle); 
-var max_messages = Math.floor(app.clientHeight / (fontSize * 2) ) + 1;
+var max_messages = Math.floor(window.innerHeight / (fontSize * 2) ) + 1;
 
 // Load at startup, this is done async (we should use window.speechSynthesis.onvoiceschanged)
 var synth = window.speechSynthesis;
@@ -147,7 +147,6 @@ new Vue({
         chat: [],
         config: {},
         alert: "",
-        alertLog: [],
         ping: null,
         channel: getChannel(),
         theme: getTheme(),
@@ -252,6 +251,7 @@ new Vue({
                         this.chatsocket.onclose = null;
                         this.chatsocket.close();
                         break;
+                    case "FOLLOW":
                     case "RAID":
                     case "SUB":
                         if (self.config["alerts"]) {
@@ -289,11 +289,6 @@ new Vue({
                             /* If no user, clear all */
                             this.chat = [];
                         }
-                        break;
-                    case "FOLLOW":
-                        do_alert(msg, this, this.config["sound"]);
-                        this.alertLog.push(msg)
-                        console.log(msg.message);
                         break;
                     case "HOST":
                         follow = this.config["hosts"];

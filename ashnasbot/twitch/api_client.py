@@ -1,5 +1,6 @@
 import json
 import logging
+from pathlib import Path
 import urllib.parse
 
 import aiohttp
@@ -107,28 +108,36 @@ class TwitchClient():
         new_follows = []
         existing_follows = {}
 
-        follow_file = "data/followers.json"
+        # TODO: use db
+        follow_file = ".cache/followers.json"
+        emit = True
 
         try:
             with open(follow_file, "rt") as f:
                 existing_follows = json.load(f)
         except:
             logger.warn("Cannot read followers cache")
+            emit = False
 
         for follower in recent_followers['follows']:
             user = follower['user']
             if user['_id'] not in existing_follows:
-                logger.info(user['display_name'], "is a new follower")
+                if emit:
+                    logger.info("%s is a new follower", user['display_name'], )
                 existing_follows[user['_id']] = user['display_name']
                 new_follows.append(user['display_name'])
 
         try:
+            Path(follow_file).parent.mkdir(parents=True, exist_ok=True)
             with open(follow_file, "wt") as f:
                 json.dump(existing_follows, f)
         except:
             logger.error("Cannot write followers cache")
 
-        return new_follows
+        if emit:
+            return new_follows
+        else:
+            return []
 
 
     async def get_badges_for_channel(self, channel):

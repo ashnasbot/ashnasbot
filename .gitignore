@@ -10,3 +10,4 @@ ashnasbot.db
 twitchdata.db
 debug.log
 SECRET.txt
+.cache

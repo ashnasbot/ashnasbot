@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+from threading import Event
 import uuid
 import websockets
 
@@ -18,6 +19,7 @@ class PubSubClient():
         self.queue = event_queue
         self.topics = [f"channel-points-channel-v1.{channel_id}"]
         self.auth_token = token
+        self.stop_event = Event()
 
     async def connect(self):
         """Connect to webSocket server.
@@ -32,6 +34,9 @@ class PubSubClient():
             await self.send_message(json_message)
             return self.connection
 
+    async def disconnect(self):
+        self.stop_event.set()
+
     def generate_nonce(self):
         """Generate nonce from seconds since epoch (UTC)."""
         nonce = uuid.uuid1()
@@ -44,7 +49,7 @@ class PubSubClient():
 
     async def receive_message(self, connection):
         """Receive & process server messages."""
-        while True:
+        while not self.stop_event.is_set():
             try:
                 message = await connection.recv()
                 evt = handle_redemption(message)
@@ -56,7 +61,7 @@ class PubSubClient():
 
     async def heartbeat(self, connection):
         """Send heartbeat to server every minute."""
-        while True:
+        while not self.stop_event.is_set():
             try:
                 data_set = {"type": "PING"}
                 json_request = json.dumps(data_set)

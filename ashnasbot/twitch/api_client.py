@@ -7,6 +7,7 @@ import aiohttp
 from oauthlib.oauth2 import BackendApplicationClient
 from requests_oauthlib import OAuth2Session
 
+from . import db
 from .. import config
 
 API_BASE = "https://api.twitch.tv"
@@ -106,36 +107,29 @@ class TwitchClient():
         logger.debug("Retrieving new followers")
         recent_followers = await self._make_api_request(url, {'limit': 10})
         new_follows = []
-        existing_follows = {}
 
-        # TODO: use db
-        follow_file = ".cache/followers.json"
+        tbl_name = self.target_user + "_follows"
         emit = True
 
-        try:
-            with open(follow_file, "rt") as f:
-                existing_follows = json.load(f)
-        except:
-            logger.warn("Cannot read followers cache")
+        if not db.exists(tbl_name):
+            db.create(tbl_name, primary="name")
             emit = False
+        
+        tbl = db.get(tbl_name)
+        existing_follows = [e["id"] for e in tbl]
 
         for follower in recent_followers['follows']:
             user = follower['user']
-            if user['_id'] not in existing_follows:
+            if int(user["_id"]) not in existing_follows:
+                new_follows.append({"username": user['display_name'], "id": user["_id"]})
                 if emit:
                     logger.info("%s is a new follower", user['display_name'], )
-                existing_follows[user['_id']] = user['display_name']
-                new_follows.append(user['display_name'])
 
-        try:
-            Path(follow_file).parent.mkdir(parents=True, exist_ok=True)
-            with open(follow_file, "wt") as f:
-                json.dump(existing_follows, f)
-        except:
-            logger.error("Cannot write followers cache")
+        if new_follows:
+            db.update_multi(tbl_name, new_follows, primary="username", keys=["username"])
 
         if emit:
-            return new_follows
+            return [u["username"] for u in new_follows]
         else:
             return []
 

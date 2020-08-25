@@ -3,6 +3,7 @@ import contextvars
 import json
 import logging
 from queue import Empty
+from random import randrange
 import time
 from threading import Thread
 import uuid
@@ -144,13 +145,13 @@ class SocketServer(Thread):
 
         channel = channel_client["channel"]
         self.channels[channel] = [s for s in self.channels[channel] if s["socket"].open]
-        # We're the last client, disconnect chat too
+        # We're the last client, disconnect chat and clear caches
         if not self.channels[channel]:
             self.chatbot.unsubscribe(channel)
             if channel in self.http_clients:
                 del self.http_clients[channel]
         logger.debug("WS client disconnect cleanup complete")
-
+        logger.debug("Remaining Tasks: %d", len([task for task in asyncio.Task.all_tasks() if not task.done()]))
 
     async def heartbeat(self, ws_in):
         try:
@@ -163,13 +164,13 @@ class SocketServer(Thread):
             pass
 
     async def followers(self, channel):
-        await asyncio.sleep(60)
+        await asyncio.sleep(10)
         while not self.shutdown_event.is_set():
             if not channel in self.http_clients:
                 self.http_clients[channel] = TwitchClient(self.config["client_id"], channel)
             recent_followers = await self.http_clients[channel].get_new_followers()
             if not recent_followers: 
-                await asyncio.sleep(80)
+                await asyncio.sleep(80 + randrange(20))
                 continue
 
             for nickname in recent_followers:
@@ -184,7 +185,7 @@ class SocketServer(Thread):
                 await self._event_queue.put(evt_msg)
 
             # Don't spam api
-            await asyncio.sleep(80)
+            await asyncio.sleep(80 + randrange(20))
 
     async def alerts(self):
         while not self.shutdown_event.is_set():

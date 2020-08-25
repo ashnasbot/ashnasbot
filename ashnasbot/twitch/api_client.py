@@ -99,8 +99,10 @@ class TwitchClient():
 
 
     async def get_new_followers(self):
+        emit = True
         if self.channel_id == None:
             await self.get_own_channel_id()
+            emit = False
 
         url = f"/kraken/channels/{self.channel_id}/follows"
 
@@ -109,7 +111,6 @@ class TwitchClient():
         new_follows = []
 
         tbl_name = self.target_user + "_follows"
-        emit = True
 
         if not db.exists(tbl_name):
             db.create(tbl_name, primary="name")

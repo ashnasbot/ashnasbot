@@ -467,7 +467,7 @@ function do_alert(event, app, sounds)
 
 window.onresize = function(event) {
     app = document.getElementById('app');
-    max_messages = Math.floor(app.clientHeight / (fontSize * 2) ) + 1;
+    max_messages = Math.floor(window.innerHeight / (fontSize * 2) ) + 1;
 }
 
 // Animation speed handling

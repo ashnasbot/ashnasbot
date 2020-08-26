@@ -4,8 +4,9 @@
  */
 var app = document.getElementById('app');
 var appstyle = window.getComputedStyle(app, null).getPropertyValue('font-size');
-var fontSize = parseFloat(appstyle); 
-var max_messages = Math.floor(window.innerHeight / (fontSize * 2) ) + 1;
+var msg_size = parseFloat(appstyle); 
+if (typeof scale_factor === 'undefined') { var scale_factor = 1.0;}
+var max_messages = Math.floor(window.innerHeight / (msg_size * scale_factor) ) + 1;
 
 // Load at startup, this is done async (we should use window.speechSynthesis.onvoiceschanged)
 var synth = window.speechSynthesis;
@@ -466,8 +467,7 @@ function do_alert(event, app, sounds)
 }
 
 window.onresize = function(event) {
-    app = document.getElementById('app');
-    max_messages = Math.floor(window.innerHeight / (fontSize * 2) ) + 1;
+    max_messages = Math.floor(window.innerHeight / (msg_size * scale_factor) ) + 1;
 }
 
 // Animation speed handling

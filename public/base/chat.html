@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <link rel="stylesheet" type="text/css" href="../common/base.css">
+    <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+</head>
+<body>
+<div id="app" client="chat,alert">
+	<div class="menu frame">
+		<form method="GET">
+			<label for="menu_channel">Channel</label>
+			<input v-model="channel" id="menu_channel" name="channel"/>
+			<input type="submit"/>
+		</form>
+		<config-menu v-on:cfg-update="updateCfg($event)"></config-menu>
+	</div>
+	<div v-cloak class="chat_window frame">
+		<ol id="chat">
+		<li v-for="msg in chat" v-bind:key="msg.id" v-bind:id="msg.id">
+			<div v-bind:class="msg.type" >
+				<div v-if="msg.type != 'TWITCHCHATMESSAGE'" class="alert" v-html="msg.tags['system-msg']"></div>
+				<template v-if="msg.message">
+					<span class="nickname" v-bind:class="msg.extra" v-bind:style="{ color: msg.tags[&quot;color&quot;] }"
+						  v-html="msg.nickname">:</span>
+					<span v-if="msg.extra && msg.extra.includes(&quot;quoted&quot;)" class="message" 
+						  v-html="msg.message"></span>
+					<span v-else v-bind:style="{ color: msg.tags[&quot;color&quot;] }" class="message"
+					      v-html="msg.message"></p>
+				</template>
+			</div>
+		</li>
+		</ol>
+	</div>
+</div>
+<script src="../common/handlers.js"></script>
+</body>
+</html>
+

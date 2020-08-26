@@ -229,7 +229,6 @@ async def handle_message(event):
     if 'system-msg' in etags:
         # system-messages are escaped, lets fix that
         etags['system-msg'] = html.unescape(etags['system-msg'].replace("\\s", " "))
-        quoted = False
 
     if quoted:
         extra.append("quoted")

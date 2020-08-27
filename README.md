@@ -21,7 +21,6 @@ env\Scripts\activate
 pip install -r requirements.txt
 ```
 
-
 ## config
 You must [register your application on the Twitch dev portal](https://dev.twitch.tv/dashboard/apps/create) and a [User authentication token](https://dev.twitch.tv/docs/authentication/getting-tokens-oauth/#oauth-client-credentials-flow)
 The bot requires both client_id/secret AND a user oauth token for accessing APIs and interacting with chat respectively.
@@ -44,12 +43,11 @@ config.json
 ## Running
 ```python3 ./__main__.py```
 
-Navigate to `http://localhost:8080/static/simple/chat.html` and enter a username to get chat!
+Navigate to `http://localhost:8080/chat` select a style and enter a username to get chat!
 (Hover over the top of the window to show the menu)
 
-
 ### Session Config
-The browser provides its own per-client config, hit submit or reload to set these values.
+Each session then keeps its own config, configured in the browser menu (hit submit or reload to commit these values).
  -  **Allow commands**: Allow the bot to process and respond to !commands
  -  **Pull Avatars**: Hide avatars (Twitch rate-limites API requests so this must be disabled on really busy channels)
  -  **Show Chat Notifications**: Show Sub and other messages in chat
@@ -61,10 +59,6 @@ The browser provides its own per-client config, hit submit or reload to set thes
 - some substitutions not supported e.g. "<3" as this isn't classed as an 'emote'
 - no channel cheermotes
 
-
 ## Licence
 Unless stated here, code and assets are my own and free to use however you like.
 I'd love to hear where my work ends up if you do use it though.
-
-Includes the excellent Reactor7 font by Cava
-(CC-by-nc-sa) http://caveras.net

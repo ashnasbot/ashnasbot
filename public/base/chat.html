@@ -3,6 +3,8 @@
 <head>
     <link rel="stylesheet" type="text/css" href="../common/base.css">
     <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+	<script src="/static/common/views.js"></script>
+	<script src="/static/common/config.js"></script>
 </head>
 <body>
 <div id="app" client="chat,alert">
@@ -12,6 +14,7 @@
 			<input v-model="channel" id="menu_channel" name="channel"/>
 			<input type="submit"/>
 		</form>
+		<view-select></view-select>
 		<config-menu v-on:cfg-update="updateCfg($event)"></config-menu>
 	</div>
 	<div v-cloak class="chat_window frame">
@@ -32,7 +35,7 @@
 		</ol>
 	</div>
 </div>
-<script src="../common/handlers.js"></script>
+<script src="/static/common/handlers.js"></script>
 </body>
 </html>
 

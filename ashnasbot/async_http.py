@@ -62,7 +62,7 @@ class WebServer(object):
 
     @staticmethod
     async def get_chat(request):
-        return web.HTTPFound('/static/ff7/chat.html')
+        return web.HTTPFound('/static/base/chat.html')
 
     @staticmethod
     async def get_favicon(request):
@@ -70,9 +70,11 @@ class WebServer(object):
 
     def setup_routes(self):
         self.app.router.add_get('/api/config', self.get_config)
+        self.app.router.add_get('/api/views', self.get_views)
         self.app.router.add_post('/api/config', self.post_config)
         self.app.router.add_post('/api/shutdown', self.post_shutdown)
         self.app.router.add_static('/static', path="public/")
+        self.app.router.add_static('/views', path="views/")
 
         # This is very important
         self.app.router.add_get('/favicon.ico', self.get_favicon)
@@ -91,6 +93,15 @@ class WebServer(object):
             del config["secret"]
             return web.json_response(config)
         return web.FileResponse('config.json')
+
+    @staticmethod
+    async def get_views(request):
+        resp = []
+        for path in os.scandir("views"):
+            if path.is_dir():
+                if any([f.is_file() and f.name == "chat.html" for f in os.scandir(path.path)]):
+                    resp.append(path.name)
+        return web.json_response(resp)
 
     async def post_shutdown(self, request):
         if self.shutdown_evt:

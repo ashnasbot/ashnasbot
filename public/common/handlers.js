@@ -195,6 +195,7 @@ new Vue({
                         break;
                     case "FOLLOW":
                     case "RAID":
+                    case "SUBGIFT":
                     case "SUB":
                         if (self.config["alerts"]) {
                             do_alert(msg, this, this.config["sound"]);

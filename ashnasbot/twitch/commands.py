@@ -33,6 +33,7 @@ class ResponseEvent(dict):
             'user-id': cfg["user_id"]
         }
         self.id = str(uuid.uuid4())
+        self.extra = ['quoted']
         self.type = 'TWITCHCHATMESSAGE'
         self.priv = PRIV.COMMON
     
@@ -161,6 +162,9 @@ def pringles_cmd(event, *args):
 def win_cmd(event, *args):
     val = random.randint(30, 2000)
     caller =  event.tags['caller']
+    if random.randint(1, 10) == 1:
+        event["message"] = f"{caller} looses"
+    else:
     event["message"] = f"{caller} wins {val} points"
     return event
 
@@ -178,9 +182,9 @@ def so_cmd(event, who, *args):
         return
 
     if who.lower() == "theadrain":
-        event["message"] = f"Shoutout to {who} at twitch.tv/{who} - they are the best egg <3"
+        event["message"] = f"Shoutout to {who} at https://twitch.tv/{who.lower()} - they are the best egg <3"
     else:
-        event["message"] = f"Shoutout to {who} at twitch.tv/{who} - they are a good egg <3"
+        event["message"] = f"Shoutout to {who} at https://twitch.tv/{who.lower()} - they are a good egg <3"
     return event
     
 def uptime(event, *args):
@@ -304,7 +308,8 @@ PRAISE_ENDINGS = [
     "in stereo!",
     "now for only 19,99",
     "better than Baby Shark",
-    "\"The best thing on the internet.\" - Abraham Lincoln"
+    "\"The best thing on the internet.\" - Abraham Lincoln",
+    "omnishambles!"
 ]
 
 CALM = [

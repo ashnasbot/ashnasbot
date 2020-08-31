@@ -67,7 +67,7 @@ class ChatBot():
             except Exception as e:
                 fut.set_exception(e)
 
-        f = functools.partial(asyncio.ensure_future, coro, loop=self.loop)
+        f = functools.partial(self.loop.create_task, coro, name="c")
         # We're in a non-event loop thread so we use a Future
         # to get the task from the event loop thread once
         # it's ready.
@@ -104,7 +104,7 @@ class ChatBot():
             elif msg_id == "raid":
                 logger.info(f"RAID {evt.tags['display-name']} raiding with a party of {evt.tags['msg-param-viewerCount']}")
                 evt.type = "RAID"
-            elif msg_id == "host":
+            elif msg_id in ["host", "host_success", "host_success_viewers"]:
                 evt.type = "HOST"
                 logger.info(f"HOST {evt}")
 

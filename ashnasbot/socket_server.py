@@ -1,4 +1,5 @@
 import asyncio
+from asyncio import CancelledError as CancelledError
 import contextvars
 import json
 import logging
@@ -151,7 +152,10 @@ class SocketServer(Thread):
             if channel in self.http_clients:
                 del self.http_clients[channel]
         logger.debug("WS client disconnect cleanup complete")
-        logger.debug("Remaining Tasks: %d", len([task for task in asyncio.Task.all_tasks() if not task.done()]))
+        remaining_tasks = [task for task in asyncio.Task.all_tasks() if not task.done()]
+        logger.debug("Remaining Tasks: %d", len(remaining_tasks))
+        for t in remaining_tasks:
+            logger.debug("               : %s", t)
 
     async def heartbeat(self, ws_in):
         try:
@@ -160,7 +164,7 @@ class SocketServer(Thread):
                 if ws_in.closed:
                     return
                 await ws_in.ping()
-        except asyncio.CancelledError:
+        except CancelledError:
             pass
 
     async def followers(self, channel):
@@ -243,7 +247,7 @@ class SocketServer(Thread):
             self.chatbot.subscribe(channel)
         if "alert" in commands:
             channel = commands['alert']
-            alert_task = asyncio.create_task(self.followers(channel))
+            alert_task = asyncio.create_task(self.followers(channel), name=f"{channel}_followers")
             channel_client["alert"] = alert_task
             tasks.append(alert_task)
         if "auth" in commands:
@@ -256,10 +260,10 @@ class SocketServer(Thread):
             pubsub = PubSubClient(channel_id, token, self._event_queue)
             channel_client["pubsub"] = pubsub
             ps_conn = await pubsub.connect()
-            tasks.append(asyncio.create_task(pubsub.heartbeat(ps_conn)))
-            tasks.append(asyncio.create_task(pubsub.receive_message(ps_conn)))
+            tasks.append(asyncio.create_task(pubsub.heartbeat(ps_conn), name=f"{channel}_ps_hb"))
+            tasks.append(asyncio.create_task(pubsub.receive_message(ps_conn), name=f"{channel}_ps_receive"))
 
-        heartbeat_task = asyncio.create_task(self.heartbeat(ws_in))
+        heartbeat_task = asyncio.create_task(self.heartbeat(ws_in), name=f"{channel}_hb")
         tasks.append(heartbeat_task)
         channel_client["heartbeat"] = heartbeat_task
         channel_client["channel"] = channel
@@ -268,7 +272,7 @@ class SocketServer(Thread):
         else:
             self.channels[channel] = [channel_client]
 
-        self.loop.create_task(self.disconnect_listener(ws_in, channel_client))
+        self.loop.create_task(self.disconnect_listener(ws_in, channel_client), name=f"{channel}_dc_hdlr")
 
         logger.info(f"Socket client Join: {command}")
         await asyncio.gather(*tasks)
@@ -308,10 +312,10 @@ class SocketServer(Thread):
         self.users = Users(TwitchClient(self.config["client_id"], ''))
         self.reload_event = asyncio.Event()
         self.shutdown_event = asyncio.Event()
-        self.loop.create_task(self.chat())
-        self.loop.create_task(self.alerts())
-        self.loop.create_task(self.config_listener())
-        self.loop.create_task(self.shutdown_listener())
+        self.loop.create_task(self.chat(), name=f"chat")
+        self.loop.create_task(self.alerts(), name=f"alert")
+        self.loop.create_task(self.config_listener(), name=f"config")
+        self.loop.create_task(self.shutdown_listener(), name=f"shutdown")
 
         self.webserver = WebServer(reload_evt=self.reload_event, loop=self.loop, shutdown_evt=self.shutdown_event,
                                    client_id=self.config["client_id"], secret=self.config["secret"])

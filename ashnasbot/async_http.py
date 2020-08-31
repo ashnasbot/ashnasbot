@@ -41,7 +41,7 @@ class WebServer(object):
         self.site = None
         self.client_id = client_id
         self.secret = secret
-        asyncio.ensure_future(self.start(), loop=self.loop)
+        loop.create_task(self.start(), name="webserver")
 
     async def start(self):
         self.app = web.Application(loop=self.loop, debug=True)

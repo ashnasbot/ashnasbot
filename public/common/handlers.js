@@ -8,6 +8,8 @@ var msg_size = parseFloat(appstyle);
 if (typeof scale_factor === 'undefined') { var scale_factor = 1.0;}
 var max_messages = Math.floor(window.innerHeight / (msg_size * scale_factor) ) + 1;
 
+var alternator = true;
+
 // Load at startup, this is done async (we should use window.speechSynthesis.onvoiceschanged)
 var synth = window.speechSynthesis;
 var voices = synth.getVoices();
@@ -210,6 +212,8 @@ new Vue({
                     case "TWITCHCHATMESSAGE":
                         ts = performance.now();
                         msgtimes.push(ts);
+                        msg.alternator = alternator;
+                        alternator = !alternator;
                         chat = this.chat.concat(msg);
                         var container = document.getElementById('chat');
                         if (container == null){
@@ -319,6 +323,9 @@ new Vue({
               console.log(Date.now() - 600000)
               if (save.ts > (Date.now() - 600000)){
                   this.chat = save.chat;
+                  if(this.chat.length > 0) {
+                    alternator = !this.chat[this.chat.length - 1].alternator
+                  }
               } else {
                   console.log("Cache exists but is over 10 minutes old")
               }

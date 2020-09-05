@@ -166,7 +166,7 @@ class WebServer(object):
         return_channel = state.split(";")[1]
         return_theme = state.split(";")[2]
 
-        resp = aiohttp.web.HTTPFound(f'/static/{return_theme}/chat.html?channel={return_channel}')
+        resp = aiohttp.web.HTTPFound(f'/views/{return_theme}/chat.html?channel={return_channel}')
         resp.cookies['token'] = token["access_token"]
         return resp
 

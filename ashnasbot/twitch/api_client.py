@@ -124,7 +124,7 @@ class TwitchClient():
             if int(user["_id"]) not in existing_follows:
                 new_follows.append({"username": user['display_name'], "id": user["_id"]})
                 if emit:
-                    logger.info("%s is a new follower", user['display_name'], )
+                    logger.info("FOLLOW %s is a new follower", user['display_name'], )
 
         if new_follows:
             db.update_multi(tbl_name, new_follows, primary="username", keys=["username"])
@@ -150,10 +150,7 @@ class TwitchClient():
 
         for name, urls in resp.items():
             if urls:
-                try:
-                    badges[name] = urls["alpha"]
-                except:
-                    badges[name] = urls["image"]
+                badges[name] = urls["image"]
 
         if badges:
             sub_badges = {}

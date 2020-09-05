@@ -11,14 +11,17 @@ import uuid
 import bleach
 
 from .api_client import TwitchClient
+from ..config import Config
 from .data import *
 from . import commands
 from . import db
+from . import bttv
 
 CHEER_REGEX = re.compile(r"((?<=^)|(?<=\s))(?P<emotename>[a-zA-Z]+)(\d+)(?=(\s|$))", flags=re.IGNORECASE)
 
 
 logger = logging.getLogger(__name__)
+config = Config()
 
 
 def render_emotes(message, emotes):
@@ -49,6 +52,24 @@ def render_emotes(message, emotes):
         logger.error(e)
         raise
     
+    return message
+
+async def render_bttv(message, channel):
+    emotes = bttv.emotes()
+    if "global" not in emotes:
+        await bttv.get_global_emotes()
+        emotes = bttv.emotes()
+    if channel not in emotes:
+        await bttv.get_emotes_for_channel(channel)
+        emotes = bttv.emotes()
+
+    for code, idx in emotes[channel].items():
+        if code in message:
+            message = message.replace(code, bttv.get_emote(code, idx))
+    for code, idx in emotes["global"].items():
+        if code in message:
+            message = message.replace(code, bttv.get_emote(code, idx))
+
     return message
 
 async def get_channel_badges(channel):
@@ -244,6 +265,9 @@ async def handle_message(event):
     else:
         # render_emotes escapes its output already
         message = html.escape(raw_msg)
+
+    if "bttv" in config and config["bttv"]:
+        message = await render_bttv(message, event.tags["room-id"])
 
     if re.match(URL_REGEX,message):
         message = await render_clips(message)

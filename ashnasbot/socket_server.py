@@ -326,4 +326,4 @@ class SocketServer(Thread):
             logger.info("Interrrupted")
             self.shutdown()
             logger.info("Done")
-        logger.info("Ashnasbot Exited succesfully")
+        logger.info("Ashnasbot shutdown complete")

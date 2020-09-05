@@ -3,6 +3,16 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_CFG = """{
+    "client_id": "",
+    "oauth": "oauth:",
+    "username": "BOT_USERNAME",
+    "secret": "",
+    "user_id": 123456789,
+    "log_level":"INFO",
+    "bttv": true
+}
+"""
 
 class ReloadException(Exception):
     pass
@@ -42,6 +52,8 @@ class Config():
                 with open('config.json') as f:
                     self._config = json.load(f)
             except:
+                with open('config.json', 'w') as f:
+                    f.write(DEFAULT_CFG)
                 raise ConfigError("No config.json found")
 
             return self

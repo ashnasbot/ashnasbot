@@ -64,14 +64,16 @@ div.chat_window {
   overflow-wrap: break-word;
 }
 
-img.emote {
-  display: inline-block;
+img {
   vertical-align: middle;
-  height: 1em;
-  margin: -1ex 0;
+  display: inline-block;
   image-rendering: auto;
 }
 
+img.emote {
+  height: 1em;
+  margin: -1ex 0;
+}
 
 .cheertext-gray { color: #979797}
 .cheertext-purple { color: #9c3ee8}

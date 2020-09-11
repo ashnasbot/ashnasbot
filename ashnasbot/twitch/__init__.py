@@ -17,6 +17,7 @@ from . import commands
 from . import db
 from . import bttv
 
+# TODO: move to data
 CHEER_REGEX = re.compile(r"((?<=^)|(?<=\s))(?P<emotename>[a-zA-Z]+)(\d+)(?=(\s|$))", flags=re.IGNORECASE)
 
 
@@ -24,52 +25,50 @@ logger = logging.getLogger(__name__)
 config = Config()
 
 
-def render_emotes(message, emotes):
+async def render_emotes(message, emotes, bttv_channel=None):
     """Render emotes into message
 
     As a side effect, html-escapes the message
     This is unavoidable.
     """
     try:
+        pattern = ""
+        twitch_pattern = ""
+        bttv_pattern = ""
         replacements = {}
 
-        for emote in emotes.split("/"):
-            eid, pos = emote.split(':')
-            occurances = pos.split(',')
-            # Grab the 1st occurance, as we'll replace the rest inplace with regex.
-            start, end = occurances[0].split('-')
-            substr = message[int(start):int(end) + 1]
-            replace_str = EMOTE_URL_TEMPLATE.format(eid=eid, alt=substr)
+        if emotes:
 
-            replacements[substr] = replace_str
+            for emote in emotes.split("/"):
+                eid, pos = emote.split(':')
+                occurances = pos.split(',')
+                # Grab the 1st occurance, as we'll replace the rest inplace with regex.
+                start, end = occurances[0].split('-')
+                substr = message[int(start):int(end) + 1]
+                replace_str = EMOTE_URL_TEMPLATE.format(eid=eid, alt=substr)
+
+                replacements[substr] = replace_str
+
+            twitch_pattern = "|".join([re.escape(k) for k in sorted(replacements,key=len,reverse=True)])
+
+        if bttv_channel:
+            bttv_emotes = await bttv.get_emotes(bttv_channel)
+            if bttv_emotes:
+                bttv_pattern = "|".join([re.escape(k) for k in sorted(bttv_emotes.keys(),key=len,reverse=True)])
+                replacements.update(**bttv_emotes)
 
         message = html.escape(message)
 
-        pattern = re.compile("|".join([re.escape(k) for k in sorted(replacements,key=len,reverse=True)]), flags=re.DOTALL)
-        message = pattern.sub(lambda x: replacements[x.group(0)], message)
+        pattern = "|".join(p for p in [bttv_pattern, twitch_pattern] if p)
+
+        if pattern:
+            regex = re.compile(pattern, flags=re.DOTALL)
+            message = regex.sub(lambda x: replacements[x.group(0)], message)
 
     except Exception as e:
         logger.error(e)
         raise
     
-    return message
-
-async def render_bttv(message, channel):
-    emotes = bttv.emotes()
-    if "global" not in emotes:
-        await bttv.get_global_emotes()
-        emotes = bttv.emotes()
-    if channel not in emotes:
-        await bttv.get_emotes_for_channel(channel)
-        emotes = bttv.emotes()
-
-    for code, idx in emotes[channel].items():
-        if code in message:
-            message = message.replace(code, bttv.get_emote(code, idx))
-    for code, idx in emotes["global"].items():
-        if code in message:
-            message = message.replace(code, bttv.get_emote(code, idx))
-
     return message
 
 async def get_channel_badges(channel):
@@ -260,14 +259,14 @@ async def handle_message(event):
     if "badges" in etags and etags["badges"]:
         badges = await render_badges(event.channel, etags['badges'])
 
-    if 'emotes' in etags and etags["emotes"]:
-        message = render_emotes(raw_msg, etags['emotes'])
+    temotes = 'emotes' in etags and etags["emotes"]
+    bemotes = etags["room-id"] if "bttv" in config and config["bttv"] else None
+    if temotes or bemotes:
+        message = await render_emotes(raw_msg, temotes, bemotes)
     else:
-        # render_emotes escapes its output already
-        message = html.escape(raw_msg)
+        # Render emotes does this as a side-effect
+        message = html.escape(message)
 
-    if "bttv" in config and config["bttv"]:
-        message = await render_bttv(message, event.tags["room-id"])
 
     if re.match(URL_REGEX,message):
         message = await render_clips(message)

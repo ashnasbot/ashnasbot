@@ -68,7 +68,7 @@ class TwitchClient():
         url = "/kraken/users"
         params = {'login': f'{self.target_user}'}
 
-        logger.debug("Getting id for self (%s)", self.target_user)
+        logger.debug("Getting id for current channel (%s)", self.target_user)
 
         resp = await self._make_api_request(url, params)
         self.channel_id = resp["users"][0]["_id"]
@@ -106,7 +106,6 @@ class TwitchClient():
 
         url = f"/kraken/channels/{self.channel_id}/follows"
 
-        logger.debug("Retrieving new followers")
         recent_followers = await self._make_api_request(url, {'limit': 10})
         new_follows = []
 

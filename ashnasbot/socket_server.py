@@ -1,14 +1,16 @@
 import asyncio
 from asyncio import CancelledError as CancelledError
+from collections import deque
 import contextvars
 import json
 import logging
-from queue import Empty
+from queue import Queue, Empty
 from random import randrange
 import time
 from threading import Thread
 import uuid
 from concurrent.futures import ThreadPoolExecutor
+import os
 
 import websockets
 
@@ -17,7 +19,7 @@ from .chat_bot import ChatBot
 from .config import Config, ReloadException
 from .twitch import db
 from .twitch.pubsub import PubSubClient
-from .twitch import handle_message
+from .twitch import handle_message, get_bits
 from .twitch.api_client import TwitchClient
 from .twitch.av import get_sound
 from .twitch.commands import BannedException
@@ -29,7 +31,13 @@ SCRAPE_AVATARS = True
 logging.getLogger("websockets").setLevel(logging.INFO)
 ctx_client_id = contextvars.ContextVar('client_id')
 
-def filter_output(message, commands=False, **kwargs):
+def filter_output(event, commands=False, **kwargs):
+    if not "chat" in kwargs:
+        if event["type"] == 'TWITCHCHATMESSAGE':
+            return False
+    if not "alert" in kwargs:
+        if event["type"] != 'TWITCHCHATMESSAGE':
+            return False
     return True
 
 def allowed_content(event, commands=False, **kwargs):
@@ -37,6 +45,12 @@ def allowed_content(event, commands=False, **kwargs):
     if not commands:
         if message.startswith('!'):
             logger.debug("COMMAND %s (Ignored)", message)
+            return False
+    if not "chat" in kwargs:
+        if event.type == 'TWITCHCHATMESSAGE':
+            return False
+    if not "alert" in kwargs:
+        if event.type != 'TWITCHCHATMESSAGE':
             return False
     return True
 
@@ -63,6 +77,8 @@ class SocketServer(Thread):
         Thread.__init__(self)
         self._event_queue = None
         self.websocket_server = None
+        self.recent_events = deque([], 20)
+        self.replay_queue = Queue()
 
     async def chat(self):
         queue = None 
@@ -82,6 +98,11 @@ class SocketServer(Thread):
                     self.chatbot.unsubscribe(channel)
                 if event and channel and any([allowed_content(event, **s) for s in self.channels[channel]]):
                     content = await handle_message(event)
+                    if event.type != 'TWITCHCHATMESSAGE':
+                        self.recent_events.append(content)
+                    elif "tags" in content and "bits" in content["tags"]:
+                        bits_evt = get_bits(content)
+                        self.recent_events.append(bits_evt)
                     if content:
                         if "tags" in content and any([s.get("images", None) for s in self.channels[channel]]):
                             content['logo'] = await self.users.get_picture(content['tags']['user-id'])
@@ -118,6 +139,35 @@ class SocketServer(Thread):
                 if processing:
                     processing = False
                     queue.task_done()
+    
+    async def replay(self):
+        while not self.shutdown_event.is_set():
+            try:
+                event = self.replay_queue.get_nowait()
+                event["id"] = str(uuid.uuid4())  # Reset the id
+                filename = "evtdmp.json"
+                if os.path.exists(filename):
+                    wr_flags = 'r+'
+                else:
+                    wr_flags = 'w+'
+                with open(filename, wr_flags) as file:
+                    try:
+                        data = json.load(file)
+                    except json.decoder.JSONDecodeError:
+                        data = []
+                    data.append(event)
+                    file.seek(0)
+                    json.dump(data, file, indent=2)
+                if event["type"] == 'TWITCHCHATMESSAGE':
+                    channel = event["channel"]
+                    for s in self.channels[channel]:
+                        if filter_output(event, **s):
+                            await s["socket"].send(json.dumps(event, cls=MsgEncoder))
+                else:
+                    await self._event_queue.put(event)
+            except Empty:
+                await asyncio.sleep(1)
+
 
     async def config_listener(self):
         while not self.shutdown_event.is_set():
@@ -183,10 +233,13 @@ class SocketServer(Thread):
                     'type' : "FOLLOW",
                     'channel': channel,
                     'tags': {
-                        'system-msg': f"{nickname} followed the channel"
+                        'system-msg': f"{nickname} followed the channel",
+                        'tmi-sent-ts': str(int(time.time())) + "000",
+                        'display-name': nickname
                     }
                 }
                 await self._event_queue.put(evt_msg)
+                self.recent_events.append(evt_msg)
 
             # Don't spam api
             await asyncio.sleep(80 + randrange(20))
@@ -237,8 +290,8 @@ class SocketServer(Thread):
             "clientId": ctx_client_id.get(str(uuid.uuid4()))
         }
         channel_client.update(commands)
+        channel = commands["channel"]
         if "chat" in commands:
-            channel = commands["chat"]
             if db.exists("banned")and db.find("banned", name=channel):
                 logger.error(f"We are banned from {channel}")
                 resp = {"type": "BANNED", "channel": channel}
@@ -246,13 +299,12 @@ class SocketServer(Thread):
                 return
             self.chatbot.subscribe(channel)
         if "alert" in commands:
-            channel = commands['alert']
             alert_task = asyncio.create_task(self.followers(channel), name=f"{channel}_followers")
             channel_client["alert"] = alert_task
             tasks.append(alert_task)
+            self.chatbot.subscribe(channel)
         if "auth" in commands:
             # TODO: handle multiple cleanly
-            channel = commands["chat"]
             if not channel in self.http_clients:
                 self.http_clients[channel] = TwitchClient(self.config["client_id"], channel)
             channel_id = await self.http_clients[channel].get_channel_id(channel)
@@ -316,9 +368,11 @@ class SocketServer(Thread):
         self.loop.create_task(self.alerts(), name=f"alert")
         self.loop.create_task(self.config_listener(), name=f"config")
         self.loop.create_task(self.shutdown_listener(), name=f"shutdown")
+        self.loop.create_task(self.replay(), name=f"event_replay")
 
         self.webserver = WebServer(reload_evt=self.reload_event, loop=self.loop, shutdown_evt=self.shutdown_event,
-                                   client_id=self.config["client_id"], secret=self.config["secret"])
+                                   client_id=self.config["client_id"], secret=self.config["secret"], events=self.recent_events,
+                                   replay=self.replay_queue)
 
         try:
             self.loop.run_forever()

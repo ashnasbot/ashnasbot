@@ -5,7 +5,7 @@ Vue.component('config-menu', {
             this.commands = config.commands;
             this.follows = config.follows;
             this.images = config.images;
-            this.alerts = config.alerts;
+            this.alert = config.alert;
             this.sound = config.sound;
             this.hosts = config.hosts;
             this.menu = config.menu;
@@ -23,7 +23,7 @@ Vue.component('config-menu', {
         commands: true,
         follows: false,
         images: true,
-        alerts: true,
+        alert: true,
         sound: true,
         hosts: false,
         menu: true,
@@ -34,7 +34,7 @@ Vue.component('config-menu', {
         commands(n) { this.handleInput(); },
         follows(n) { this.handleInput(); },
         images(n) { this.handleInput(); },
-        alerts(n) { this.handleInput(); },
+        alert(n) { this.handleInput(); },
         sound(n) { this.handleInput(); },
         hosts(n) { this.handleInput(); },
         menu(n) { this.handleInput(); },
@@ -47,7 +47,7 @@ Vue.component('config-menu', {
     <label>Allow commands<input name="commands" type="checkbox" v-model="commands"> </label>
     <!--<label>Show follows<input name="follows" type="checkbox" v-model="follows"></label>-->
     <label>Pull Avatars<input name="images" type="checkbox" v-model="images"></label>
-    <label>Show Chat Notifications<input name="alerts" type="checkbox" v-model="alerts"></label>
+    <label>Show Chat Notifications<input name="alert" type="checkbox" v-model="alert"></label>
     <label>Sounds<input name="sound" type="checkbox" v-model="sound"></label>
     <label>Follow Hosts<input name="hosts" type="checkbox" v-model="hosts"></label>
     <label>Show menu on load<input name="menu" type="checkbox" v-model="menu"></label>

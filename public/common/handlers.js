@@ -2,11 +2,7 @@
  * Max messages before several will be deleted per batch
  * Helps with high loads
  */
-var app = document.getElementById('app');
-var appstyle = window.getComputedStyle(app, null).getPropertyValue('font-size');
-var msg_size = parseFloat(appstyle); 
-if (typeof scale_factor === 'undefined') { var scale_factor = 1.0;}
-var max_messages = Math.floor(window.innerHeight / (msg_size * scale_factor) ) + 1;
+var max_messages, msg_size, scale_factor;
 
 var alternator = true;
 
@@ -38,11 +34,18 @@ function getAuth() {
             .split('; ')
             .find(row => row.startsWith('token'))
             .split('=')[1];
+        token_channel = cookies
+            .split('; ')
+            .find(row => row.startsWith('user'))
+            .split('=')[1];
     } catch(err) {
-        return auth;
+        return null;
     }
 
     auth = false;
+    if (channel == token_channel) {
+        return null;
+    }
 
     return fetch('https://id.twitch.tv/oauth2/validate', {headers: {'Authorization': 'OAuth ' + oauth}})
         .then(response => {
@@ -62,7 +65,7 @@ function getAuth() {
             }
         })
         .catch(error => {
-            console.error('Failed to authorize token:', error);
+            console.warn('Failed to authorize token:', error);
         })
         .then((response) => auth);
 }
@@ -107,6 +110,7 @@ new Vue({
             for (var i = 0; i < cmds.length; i++) {
                 clientConfig[cmds[i]] = channel;
             }
+            clientConfig["channel"] = channel
             if (this.token) {
                 clientConfig["auth"] = this.token;
             }
@@ -195,16 +199,19 @@ new Vue({
                         this.chatsocket.onclose = null;
                         this.chatsocket.close();
                         break;
-                    case "FOLLOW":
                     case "RAID":
+                        if (this.$refs.raidhandler){
+                            this.$refs.raidhandler.do_alert(msg);
+                        }
+                    case "FOLLOW":
                     case "SUBGIFT":
                     case "SUB":
-                        if (self.config["alerts"]) {
+                        if (self.config["alert"]) {
                             do_alert(msg, this, this.config["sound"]);
                         }
                         // No Break: flow through
                     case "TWITCHCHATUSERNOTICE":
-                        if (!self.config["alerts"]) {
+                        if (!self.config["alert"]) {
                             console.log(msg);
                             break;
                         }
@@ -217,7 +224,7 @@ new Vue({
                         chat = this.chat.concat(msg);
                         var container = document.getElementById('chat');
                         if (container == null){
-                            container = document.getElementById('app');
+                            container = this.$el;
                         }
                         if (checkOverflow(container)) {
                             this.chat.shift();
@@ -260,6 +267,11 @@ new Vue({
         window.addEventListener('beforeunload', this.unload)
     },
     mounted: function () {
+        var appstyle = window.getComputedStyle(this.$el, null).getPropertyValue('font-size');
+        var msg_size = parseFloat(appstyle); 
+        if (typeof scale_factor === 'undefined') { scale_factor = 1.0;}
+        max_messages = Math.floor(window.innerHeight / (msg_size * scale_factor) ) + 1;
+
         var show_menu;
         if (localStorage.config) {
             this.config = JSON.parse(localStorage.config);
@@ -297,30 +309,35 @@ new Vue({
             if (checkOverflow(chat)) {
                 this.chat.shift();
             }
+            if (this.chat.length > max_messages * 1.1) {
+                this.chat = chat.slice(Math.max(
+                    chat.length - max_messages, 0)
+                );
+            }
         }.bind(this), 300);
 
-        if(show_menu) {
-            document.getElementsByClassName("menu")[0].style.opacity = "1";
+        if (document.getElementsByClassName("menu")[0]) {
+            if(show_menu) {
+                document.getElementsByClassName("menu")[0].style.opacity = "1";
 
-            this.menu_timeout = setTimeout(function() {
-                document.getElementsByClassName("menu")[0].style.opacity = "0";
-            }, 10000);
+                this.menu_timeout = setTimeout(function() {
+                    document.getElementsByClassName("menu")[0].style.opacity = "0";
+                }, 10000);
+            }
+
+            window.addEventListener("keypress", function(e) {
+                document.getElementsByClassName("menu")[0].style.opacity = "1";
+                this.menu_timeout = setTimeout(function() {
+                    document.getElementsByClassName("menu")[0].style.opacity = "0";
+                }, 3000);
+            }.bind(this));
         }
-
-        window.addEventListener("keypress", function(e) {
-            document.getElementsByClassName("menu")[0].style.opacity = "1";
-            this.menu_timeout = setTimeout(function() {
-                document.getElementsByClassName("menu")[0].style.opacity = "0";
-            }, 3000);
-        }.bind(this));
 
         this.curChannel = getChannel();
 
         if (localStorage.getItem('chat-' + this.curChannel)) {
             try {
               save = JSON.parse(localStorage.getItem('chat-' + this.curChannel));
-              console.log(save.ts)
-              console.log(Date.now() - 600000)
               if (save.ts > (Date.now() - 600000)){
                   this.chat = save.chat;
                   if(this.chat.length > 0) {
@@ -444,27 +461,28 @@ function setSlideDelay(rate) {
 }
 
 function refreshLoop() {
-  window.requestAnimationFrame(() => {
-    const now = performance.now();
-    while (msgtimes.length > 0 && msgtimes[0] <= now - 10000) {
-      msgtimes.shift();
-    }
-    msgrate = msgtimes.length/10;
-    if (msgrate > 4 && animrate == "0.1s") {
-        console.warn("Disable animation to boost rendering");
-        animrate = "0s";
-        setSlideDelay(animrate);
-    } else if (msgrate > 3 && animrate == "0.3s") {
-        console.info("Increasing animation rate");
-        animrate = "0.1s";
-        setSlideDelay(animrate);
-    } else if ( msgrate < 1 && animrate != "0.3s") {
-        console.warn("Reenabling animations");
-        animrate = "0.3s";
-        setSlideDelay(animrate);
-    }
-    refreshLoop();
-  });
+    function refresh() {
+        window.requestAnimationFrame(refresh);
+        const now = performance.now();
+        while (msgtimes.length > 0 && msgtimes[0] <= now - 10000) {
+        msgtimes.shift();
+        }
+        msgrate = msgtimes.length/10;
+        if (msgrate > 4 && animrate == "0.1s") {
+            console.warn("Disable animation to boost rendering");
+            animrate = "0s";
+            setSlideDelay(animrate);
+        } else if (msgrate > 3 && animrate == "0.3s") {
+            console.info("Increasing animation rate");
+            animrate = "0.1s";
+            setSlideDelay(animrate);
+        } else if ( msgrate < 1 && animrate != "0.3s") {
+            console.warn("Reenabling animations");
+            animrate = "0.3s";
+            setSlideDelay(animrate);
+        }
+    };
+    refresh();
 }
 
 refreshLoop();

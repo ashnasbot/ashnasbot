@@ -21,6 +21,7 @@ Vue.component('view-select', {
         this.getdata().then((data) => {
             this.views = data.views
         });
+        document.title = this.current + " - Ashnasbot"
     },
     template: `<select onchange="location.href=this.value">
         <option v-for="view in views"

@@ -6,6 +6,7 @@ import logging
 import dataset
 import os
 from requests_oauthlib import OAuth2Session
+import time
 
 import base64
 from cryptography import fernet
@@ -30,7 +31,7 @@ os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
 
 class WebServer(object):
     def __init__(self, reload_evt=None, address='0.0.0.0', port=8080, loop=None, shutdown_evt=None,
-                 client_id=None, secret=None):
+                 client_id=None, secret=None, events=None, replay=None):
         self.address = address
         self.port = port
         self.reload_evt = reload_evt
@@ -41,15 +42,17 @@ class WebServer(object):
         self.site = None
         self.client_id = client_id
         self.secret = secret
+        self.events = events
+        self.replay_queue = replay
         loop.create_task(self.start(), name="webserver")
 
     async def start(self):
-        self.app = web.Application(loop=self.loop, debug=True)
+        self.app = web.Application(loop=self.loop, logger=logger)
         fernet_key = fernet.Fernet.generate_key()
         secret_key = base64.urlsafe_b64decode(fernet_key)
         setup(self.app, EncryptedCookieStorage(secret_key))
         self.setup_routes()
-        self.runner = web.AppRunner(self.app)
+        self.runner = web.AppRunner(self.app, access_log=None)
         await self.runner.setup()
         self.site = web.TCPSite(self.runner, self.address, self.port)
         await self.site.start()
@@ -73,6 +76,7 @@ class WebServer(object):
         self.app.router.add_get('/api/views', self.get_views)
         self.app.router.add_post('/api/config', self.post_config)
         self.app.router.add_post('/api/shutdown', self.post_shutdown)
+        self.app.router.add_post('/replay_event', self.post_replay)
         self.app.router.add_static('/static', path="public/")
         self.app.router.add_static('/views', path="views/")
 
@@ -82,6 +86,7 @@ class WebServer(object):
         # Shortcuts
         self.app.router.add_get('/', self.get_dashboard)
         self.app.router.add_get('/dashboard', self.get_dashboard)
+        self.app.router.add_get('/events', self.get_recent_events)
         self.app.router.add_get('/chat', self.get_chat)
         self.app.router.add_get('/user_auth', self.begin_auth)
         self.app.router.add_get('/authorize', self.auth_callback)
@@ -103,9 +108,24 @@ class WebServer(object):
                     resp.append(path.name)
         return web.json_response(resp)
 
+    async def get_recent_events(self, request):
+        resp = []
+        for evt in self.events:
+            try:
+                resp.insert(0, evt.__dict__)
+            except:
+                resp.insert(0, evt)
+
+        return web.json_response(resp)
+
     async def post_shutdown(self, request):
         if self.shutdown_evt:
             self.shutdown_evt.set()
+        return web.Response()
+
+    async def post_replay(self, request):
+        event = await request.json()
+        self.replay_queue.put(event)
         return web.Response()
 
     async def post_config(self, request):

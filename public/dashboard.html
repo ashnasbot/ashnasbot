@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Dashboard - Ashnasbot</title>
+	<script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+  <script defer src="dashboard.js"></script>
+  <!-- UIkit CSS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/uikit@3.5.7/dist/css/uikit.min.css" />
+
+  <!-- UIkit JS -->
+  <script src="https://cdn.jsdelivr.net/npm/uikit@3.5.7/dist/js/uikit.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/uikit@3.5.7/dist/js/uikit-icons.min.js"></script>
+</head>
+<body class="uk-background-secondary" style="height: 100vh;">
+<div id="app" class="uk-padding-small uk-light uk-background-secondary">
+  <h2 class="uk-heading-small">Ashnasbot Dashboard</h1>
+  <!-- This is the subnav containing the toggling elements -->
+  <ul uk-tab>
+    <li><a href="#">Events</a></li>
+    <li><a href="#">Create</a></li>
+  </ul>
+
+  <!-- This is the container of the content items -->
+  <ul class="uk-switcher">
+    <events-display></events-display>
+    <event-create></event-create>
+  </ul>
+</div>
+</body>
+</html>
+

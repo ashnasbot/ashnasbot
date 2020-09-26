@@ -126,9 +126,11 @@ def handle_other_commands(event):
             return ret_event
         elif event._command == "HOSTTARGET":
             ret_event = ResponseEvent()
-            if event.message == "-":
+            if event.message.startswith("- "):
                 ret_event['message'] = "Stopped hosting"
             else:
+                print(event.message)
+                logger.debug(event.message)
                 channel = re.search(r"(\w+)\s[\d-]+", event.message).group(1)
                 ret_event['message'] = channel
                 ret_event['type'] = "HOST"
@@ -165,7 +167,7 @@ def win_cmd(event, *args):
     if random.randint(1, 10) == 1:
         event["message"] = f"{caller} looses"
     else:
-    event["message"] = f"{caller} wins {val} points"
+        event["message"] = f"{caller} wins {val} points"
     return event
 
 def hello_cmd(event, *args):
@@ -208,7 +210,7 @@ def get_pokemon(num_or_name):
                 for entry in pokedata:
                     pokedex.append({
                         "id": entry["id"],
-                        "name": entry["name"]["english"],
+                        "name": entry["name"],
                         "caughtby": "{}"
                     })
 
@@ -233,10 +235,15 @@ def pokedex_cmd(event, num_or_name, *args):
     if pokemon:
         caughtby = json.loads(pokemon["caughtby"])
         caught_text = ""
+        found_text = ""
         if caughtby:
             caught_text = f" - caught by {list(caughtby.keys())}"
 
-        event["message"] = f'Pokemon {pokemon["id"]} is {pokemon["name"]}{caught_text}'
+        if pokemon["found_in"]:
+            found_text = f" - found in {pokemon['found_in']}"
+
+
+        event["message"] = f'Pokemon {pokemon["id"]} is {pokemon["name"]}{found_text}{caught_text}'
     else:
         event["message"] = f"Pokemon '{num_or_name}' not found"
 
@@ -381,11 +388,16 @@ def proffer_cmd(event, *args):
     event["message"] = f"!add {proffered}"
     return event
 
+def discord_cmd(event, *args):
+    event["message"] = "Ashnas has one too! https://discord.gg/2xR2fxr"
+
 COMMANDS = {
     '!goawayashnasbot': goaway_cmd,
     '!no': no_cmd,
     '!so': so_cmd,
     '!bs': bs_cmd,
+    '!dq': discord_cmd,
+    '!discord': discord_cmd,
     '!ashnasbot': hello_cmd,
     '!backseat': bs_cmd,
     '!praise': praise_cmd,

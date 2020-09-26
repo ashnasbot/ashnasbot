@@ -216,6 +216,11 @@ async def render_clips(message):
             <span class="clipper">{clipped_by}</span></div>'''
     return URL_REGEX.sub(render, message)
 
+def get_bits(evt):
+    evt["type"] = "BITS"
+    return evt
+
+
 async def handle_message(event):
     etags = event.tags if hasattr(event, "tags") else {}
     raw_msg = event.message if hasattr(event, "message") else ""

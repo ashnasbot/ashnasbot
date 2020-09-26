@@ -52,7 +52,7 @@ class TwitchClient():
 
         if not session or session.closed:
             logger.info("Starting new client API session")
-            session = aiohttp.ClientSession()
+            session = aiohttp.ClientSession(raise_for_status=True)
             self.__sessions[self.client_id] = session
 
         if not url.startswith("http"):

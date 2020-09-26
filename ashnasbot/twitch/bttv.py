@@ -23,6 +23,7 @@ async def get_emotes_for_channel(channel):
         SESSION = aiohttp.ClientSession()
 
     EMOTES[channel] = {}
+    REGEX[channel] = {}
 
     url = BTTV_API_CHANNEL.format(channel=channel)
 

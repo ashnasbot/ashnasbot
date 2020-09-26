@@ -57,7 +57,7 @@ class OrderedEnum(Enum):
             return self.value < other.value
         return NotImplemented
 
-class PRIV(OrderedEnum):
+class PRIV(str, OrderedEnum):
     COMMON = auto()
     SUB = auto()
     VIP = auto()
@@ -95,6 +95,7 @@ def handle_command(event):
     ret_event.tags['response'] = True
     if callable(cmd):
         ret_event = cmd(ret_event, *args)
+        ret_event.priv = ""
         return ret_event
 
 def handle_other_commands(event):

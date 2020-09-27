@@ -179,8 +179,7 @@ Vue.component('event-create', {
           id: "zzz",
           tags: {
             "color": "#126B00",
-            "display-name": "Eatitup_86",
-            "id": "zzz",
+            "display-name": `${this.options.who.value}`,
             "msg-id": "raid",
             "msg-param-viewerCount": `${this.options.viewers.value}`,
             "system-msg": `${this.options.who.value} is raiding with a party of ${this.options.viewers.value}`,

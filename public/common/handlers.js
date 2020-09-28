@@ -355,7 +355,7 @@ new Vue({
         }
 
         this.curChannel = getChannel();
-        clientCfg = this.getClientConfig();
+        clientCfg = JSON.parse(this.getClientConfig());
 
         if ("chat" in clientCfg) {
             if (localStorage.getItem('chat-' + this.curChannel)) {

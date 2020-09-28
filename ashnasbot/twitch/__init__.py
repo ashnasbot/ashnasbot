@@ -294,47 +294,6 @@ async def handle_message(event):
             'extra' : extra
             }
 
-def handle_redemption(message):
-    event = json.loads(message)
-    evt_type = event["type"]
-    if evt_type == "reward-redeemed":
-        title = event["data"]["redemption"]["reward"]["title"]
-        data = {
-            'badges': [],
-            'nickname': event["data"]["redemption"]["user"]["display_name"],
-            'orig_message' : event["data"]["redemption"]["user_input"],
-            'message': "",
-            'id' :  uuid.uuid4(),
-            'tags' : {
-                "cost": event["data"]["redemption"]["reawrd"]["cost"],
-                "color": event["data"]["redemption"]["reawrd"]["background_color"]
-            },
-            'type' : "REDEMPTION",
-            'channel' : event["data"]["redemption"]["reawrd"]["channel"],
-            'extra' : []
-            }
-
-        data["tags"]["system-msg"] = f"{data['nickname']} redeemed {title} for {data['tags']['cost']}"
-        logging.info(f"PUBSUB: {data}")
-        return data
-    if evt_type == "RESPONSE":
-        message = "Connected to websocket"
-        if event["error"]:
-            message = event["error"]
-        logging.info(f"PUBSUB: {message}")
-        data = {
-            'badges': [],
-            'nickname': "System",
-            'message': message,
-            'orig_message': "",
-            'id' :  uuid.uuid4(),
-            'tags': {},
-            'type': "SYSTEM",
-            'channel': None,
-            'extra': []
-        }
-        return data
-
 def create_event(from_evt, message):
     new_evt = copy.copy(from_evt)
     new_evt.message = message

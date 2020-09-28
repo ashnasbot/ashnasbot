@@ -51,7 +51,7 @@ Vue.component('config-menu', {
     <label>Sounds<input name="sound" type="checkbox" v-model="sound"></label>
     <label>Follow Hosts<input name="hosts" type="checkbox" v-model="hosts"></label>
     <label>Show menu on load<input name="menu" type="checkbox" v-model="menu"></label>
-    <label>Show Channel point redemptions (requires auth)<input name="menu" type="checkbox" v-model="channel_points"></label>
+    <label>Show alerts from PubSub (requires auth)<input name="menu" type="checkbox" v-model="channel_points"></label>
     </div>
     </div>
     `

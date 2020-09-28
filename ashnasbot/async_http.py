@@ -148,12 +148,12 @@ class WebServer(object):
 
     async def begin_auth(self, request):
         # Step 1
-        scope = ['channel:read:redemptions' ]
+        scope = ['channel:read:redemptions']
         oauth = OAuth2Session(client_id=self.client_id, redirect_uri=redirect_uri,
                             scope=scope)
         authorization_url, state = oauth.authorization_url(auth_base_url)
         return_channel = request.query.get("channel", None)
-        return_theme = request.query.get("theme", "simple")
+        return_theme = request.query.get("theme", "noir")
 
         state = f"{state};{return_channel};{return_theme}"
 
@@ -178,9 +178,7 @@ class WebServer(object):
         code = request.query['code']
         token = twitch.fetch_token(token_url, code=code, body=body)
 
-        # At this point you can fetch protected resources but lets save
-        # the token and show how this is done from a persisted token
-        # in /profile.
+        # At this point you can fetch protected resources, lets save the token
         session['token'] = token
         state = session['state']
         return_channel = state.split(";")[1]
@@ -189,6 +187,7 @@ class WebServer(object):
         resp = aiohttp.web.HTTPFound(f'/views/{return_theme}/chat.html?channel={return_channel}')
         resp.cookies['token'] = token["access_token"]
         return resp
+
 
 if __name__ == '__main__':
 

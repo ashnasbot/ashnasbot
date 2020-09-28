@@ -28,21 +28,24 @@ var config = {
 
 function getAuth() {
     var auth = null;
+    var token_channel = null;
     var oauth;
     try {
         oauth = cookies
             .split('; ')
             .find(row => row.startsWith('token'))
             .split('=')[1];
+    } catch(err) {
+        console.log("No auth")
+        return null;
+    }
+    try {
         token_channel = cookies
             .split('; ')
             .find(row => row.startsWith('user'))
             .split('=')[1];
-    } catch(err) {
-        return null;
-    }
+    } catch { }
 
-    auth = false;
     if (channel == token_channel) {
         return null;
     }
@@ -56,16 +59,18 @@ function getAuth() {
         })
         .then(authStatus => {
             token_channel = authStatus["login"];
-            channel = self.getChannel();
+            channel = this.getChannel();
             if (channel == token_channel) {
-                console.log("OAuth Token valid for " + channel);
+                console.log(`OAuth Token valid for ${channel}`);
+                document.cookie = `user=${channel};path=/`;
                 auth = oauth;
             } else {
-                console.warn("OAuth Token invalid for " + channel);
+                console.warn(`OAuth Token invalid for ${channel}`);
             }
         })
         .catch(error => {
             console.warn('Failed to authorize token:', error);
+            auth = false;
         })
         .then((response) => auth);
 }
@@ -102,6 +107,10 @@ new Vue({
     methods: {
         updateCfg: function(data) {
             this.config = data;
+        },
+        getToken: function() {
+            // Note: this may not return!
+            document.location = "/user_auth?channel=" + this.channel + "&theme=" + this.theme;
         },
         getClientConfig: function() {
             const channel = getChannel();
@@ -206,16 +215,20 @@ new Vue({
                     case "FOLLOW":
                     case "SUBGIFT":
                     case "SUB":
-                        if (self.config["alert"]) {
+                        if (this.config["alert"]) {
                             do_alert(msg, this, this.config["sound"]);
                         }
                         // No Break: flow through
                     case "TWITCHCHATUSERNOTICE":
-                        if (!self.config["alert"]) {
+                        if (!this.config["alert"]) {
                             console.log(msg);
                             break;
                         }
                         // No Break: flow through
+                    case "SYSTEM":
+                        if (msg.message == "ERR_BADAUTH") {
+                            this.refresh_token()
+                        }
                     case "TWITCHCHATMESSAGE":
                         ts = performance.now();
                         msgtimes.push(ts);
@@ -279,24 +292,32 @@ new Vue({
         } else {
             show_menu = this.$children[0].menu;
         }
-        if (!self.channel) {
+        if (!this.channel) {
             console.warn("No channel specified");
             return;
         }
         if (this.config["channel_points"]) {
-            this.auth.then( auth => {
+            if (!this.auth) {
+                this.config["channel_points"] = false;
+                this.getToken();
+            } else {
+                this.auth.then( auth => {
 
-                if (auth) {
-                    this.token = auth;
-                    this.connect();
-                } else {
-                    // TODO: Display feedback that auth failed
-                    if (auth != null) {
-                        this.config["channel_points"] = false;
+                    if (auth) {
+                        this.token = auth;
+                        this.connect();
+                    } else {
+                        // TODO: Display feedback that auth failed
+                        if (auth == null) {
+                            console.log("No auth for channel")
+                        } else {
+                            console.log("Auth invalid, aquiring new token")
+                            this.config["channel_points"] = false;
+                            this.getToken();
+                        }
                     }
-                    document.location = "/user_auth?channel=" + self.channel + "&theme=" + self.theme;
-                }
-            })
+                })
+            }
         } else {
             this.connect();
         }
@@ -334,23 +355,25 @@ new Vue({
         }
 
         this.curChannel = getChannel();
+        clientCfg = this.getClientConfig();
 
-        if (localStorage.getItem('chat-' + this.curChannel)) {
-            try {
-              save = JSON.parse(localStorage.getItem('chat-' + this.curChannel));
-              if (save.ts > (Date.now() - 600000)){
-                  this.chat = save.chat;
-                  if(this.chat.length > 0) {
-                    alternator = !this.chat[this.chat.length - 1].alternator
-                  }
-              } else {
-                  console.log("Cache exists but is over 10 minutes old")
-              }
-            } catch(e) {
-              localStorage.removeItem('chat-' + this.curChannel);
+        if ("chat" in clientCfg) {
+            if (localStorage.getItem('chat-' + this.curChannel)) {
+                try {
+                save = JSON.parse(localStorage.getItem('chat-' + this.curChannel));
+                if (save.ts > (Date.now() - 600000)){
+                    this.chat = save.chat;
+                    if(this.chat.length > 0) {
+                        alternator = !this.chat[this.chat.length - 1].alternator
+                    }
+                } else {
+                    console.log("Cache exists but is over 10 minutes old")
+                }
+                } catch(e) {
+                    localStorage.removeItem('chat-' + this.curChannel);
+                }
             }
-          }
-
+        }
     },
 
     beforeDestroy: function(){

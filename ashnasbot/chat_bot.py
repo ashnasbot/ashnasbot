@@ -94,15 +94,15 @@ class ChatBot():
                 logger.info("Chraity stuff")
             elif msg_id == "sub":
                 evt.type = "SUB"
-                logger.info(f"SUB {evt.tags['display-name']} subbed")
+                logger.info(f"SUB {evt.tags['display-name']} subscribed")
             elif msg_id == "resub":
                 evt.type = "SUB"
-                logger.info(f"SUB {evt.tags['display-name']} subbed for {evt.tags['msg-param-cumulative-months']} months")
+                logger.info(f"SUB {evt.tags['display-name']} subscribed for {evt.tags['msg-param-cumulative-months']} months")
             elif msg_id == "subgift":
-                logger.info(f"SUB {evt.tags['display-name']} gifted a sub to {evt.tags['msg-param-recipient-display-name']}")
+                logger.info(f"SUB {evt.tags['display-name']} gifted a subscription to {evt.tags['msg-param-recipient-display-name']}")
                 evt.type = "SUBGIFT"
             elif msg_id == "raid":
-                logger.info(f"RAID {evt.tags['display-name']} raiding with a party of {evt.tags['msg-param-viewerCount']}")
+                logger.info(f"RAID {evt.tags['display-name']} is raiding with a party of {evt.tags['msg-param-viewerCount']}")
                 evt.type = "RAID"
             elif msg_id in ["host", "host_success", "host_success_viewers"]:
                 evt.type = "HOST"

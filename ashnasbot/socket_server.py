@@ -50,7 +50,8 @@ def allowed_content(event, commands=False, **kwargs):
         if event.type == 'TWITCHCHATMESSAGE':
             return False
     if not "alert" in kwargs:
-        if event.type != 'TWITCHCHATMESSAGE':
+        # RAID, HOST, SUBGIFT, SUB
+        if event.type in ['TWITCHATUSERNOTICE', 'SUB', "RAID", "HOST"]:
             return False
     return True
 
@@ -71,12 +72,13 @@ class SocketServer(Thread):
         self.chatbot = None
         self.users = None
         self.http_clients = {}
+        self.pubsub_clients = {}
         self.loop = None
         self.reload_event = None
         self.shutdown_event = None
         Thread.__init__(self)
-        self._event_queue = None
         self.websocket_server = None
+        self._event_queue = None
         self.recent_events = deque([], 20)
         self.replay_queue = Queue()
 
@@ -164,6 +166,7 @@ class SocketServer(Thread):
                         if filter_output(event, **s):
                             await s["socket"].send(json.dumps(event, cls=MsgEncoder))
                 else:
+                    # Dont add_event as we've seen it before
                     await self._event_queue.put(event)
             except Empty:
                 await asyncio.sleep(1)
@@ -187,9 +190,10 @@ class SocketServer(Thread):
         if "heartbeat" in channel_client:
             channel_client["heartbeat"].cancel()
         if "alert" in channel_client:
-            channel_client["alert"].cancel()
+            if hasattr(channel_client["alert"], "cancel"):
+                channel_client["alert"].cancel()
         if "pubsub" in channel_client:
-            channel_client["pubsub"].disconnect()
+            await channel_client["pubsub"].disconnect()
 
         # Sleep in case we're just refreshing
         await asyncio.sleep(5)
@@ -238,11 +242,14 @@ class SocketServer(Thread):
                         'display-name': nickname
                     }
                 }
-                await self._event_queue.put(evt_msg)
-                self.recent_events.append(evt_msg)
+                await self.add_alert(evt_msg)
 
             # Don't spam api
             await asyncio.sleep(80 + randrange(20))
+
+    async def add_alert(self, evt):
+        self.recent_events.append(evt)
+        await self._event_queue.put(evt)
 
     async def alerts(self):
         while not self.shutdown_event.is_set():
@@ -259,11 +266,17 @@ class SocketServer(Thread):
                     event['audio'] = get_sound("Mana_got_item")
                 if event['type'] == "SUB":
                     event['audio'] = get_sound("Super_Nintendo_Chalmers")
+                    
 
                 if channel:
                     self.channels[channel] = [s for s in self.channels[channel] if not s["socket"].closed]
                     for s in self.channels[channel]:
                         await s["socket"].send(json.dumps(event))
+                elif channel is None:
+                    # This is a broadcast
+                    for c in self.channels:
+                        for s in self.channels[c]:
+                            await s["socket"].send(json.dumps(event))
                 else:
                     logger.error("No channel for alert")
             except Exception as e:
@@ -298,22 +311,29 @@ class SocketServer(Thread):
                 await ws_in.send(json.dumps(resp))
                 return
             self.chatbot.subscribe(channel)
-        if "alert" in commands:
-            alert_task = asyncio.create_task(self.followers(channel), name=f"{channel}_followers")
-            channel_client["alert"] = alert_task
-            tasks.append(alert_task)
-            self.chatbot.subscribe(channel)
         if "auth" in commands:
             # TODO: handle multiple cleanly
             if not channel in self.http_clients:
                 self.http_clients[channel] = TwitchClient(self.config["client_id"], channel)
-            channel_id = await self.http_clients[channel].get_channel_id(channel)
-            token = commands["auth"]
-            pubsub = PubSubClient(channel_id, token, self._event_queue)
-            channel_client["pubsub"] = pubsub
-            ps_conn = await pubsub.connect()
-            tasks.append(asyncio.create_task(pubsub.heartbeat(ps_conn), name=f"{channel}_ps_hb"))
-            tasks.append(asyncio.create_task(pubsub.receive_message(ps_conn), name=f"{channel}_ps_receive"))
+            if channel in self.pubsub_clients:
+                pubsub = self.pubsub_clients[channel]
+                channel_client["pubsub"] = pubsub
+                await pubsub.connect()
+            else:
+                channel_id = await self.http_clients[channel].get_channel_id(channel)
+                token = commands["auth"]
+                pubsub = PubSubClient(channel, channel_id, token, self.add_alert)
+                self.pubsub_clients[channel] = pubsub
+                channel_client["pubsub"] = pubsub
+                ps_conn = await pubsub.connect()
+                tasks.append(asyncio.create_task(pubsub.heartbeat(ps_conn), name=f"{channel}_ps_hb"))
+                tasks.append(asyncio.create_task(pubsub.receive_message(ps_conn), name=f"{channel}_ps_receive"))
+        elif "alert" in commands:
+            # No auth, so poll for follows
+            alert_task = asyncio.create_task(self.followers(channel), name=f"{channel}_followers")
+            channel_client["alert"] = alert_task
+            tasks.append(alert_task)
+            self.chatbot.subscribe(channel)
 
         heartbeat_task = asyncio.create_task(self.heartbeat(ws_in), name=f"{channel}_hb")
         tasks.append(heartbeat_task)

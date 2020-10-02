@@ -1,5 +1,6 @@
 import json
 import logging
+import sys
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +20,8 @@ class ReloadException(Exception):
 
 class ConfigError(Exception):
     pass
+
+_no_default = object()
 
 class Config():
 
@@ -43,8 +46,7 @@ class Config():
 
         def __getitem__(self, key):
             if key not in self._config.keys():
-                logger.info(self._config.keys())
-                raise KeyError
+                raise ValueError(f"{key} not configured")
             return self._config[key]
 
         def _load(self):
@@ -57,3 +59,11 @@ class Config():
                 raise ConfigError("No config.json found")
 
             return self
+
+        def get(self, key, default=_no_default):
+            if key not in self._config.keys():
+                if default is _no_default:
+                    raise ValueError(f"{key} not configured")
+                else:
+                    return default
+            return self._config[key]

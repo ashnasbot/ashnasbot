@@ -11,7 +11,10 @@ python3 -m pip install --user virtualenv
 ```
 ```
 git clone https://github.com/ashnasbot/ashnasbot.git
-cd ashnasbot
+cd ashnasbot/views
+git submodule init
+git submodule update
+cd ..
 
 python3 -m virtualenv env
 # Windows

@@ -9,6 +9,9 @@ from requests_oauthlib import OAuth2Session
 import time
 
 import base64
+from cryptography.hazmat import backends
+from cryptography.hazmat.backends.openssl.backend import backend as be_cc
+backends._available_backends_list =[be_cc]
 from cryptography import fernet
 from aiohttp import web
 import urllib.parse
@@ -44,7 +47,7 @@ class WebServer(object):
         self.secret = secret
         self.events = events
         self.replay_queue = replay
-        loop.create_task(self.start(), name="webserver")
+        loop.create_task(self.start())
 
     async def start(self):
         self.app = web.Application(loop=self.loop, logger=logger)

@@ -67,7 +67,7 @@ class ChatBot():
             except Exception as e:
                 fut.set_exception(e)
 
-        f = functools.partial(self.loop.create_task, coro, name="c")
+        f = functools.partial(self.loop.create_task, coro)
         # We're in a non-event loop thread so we use a Future
         # to get the task from the event loop thread once
         # it's ready.

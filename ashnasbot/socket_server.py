@@ -107,7 +107,8 @@ class SocketServer(Thread):
                         self.recent_events.append(bits_evt)
                     if content:
                         if "tags" in content and any([s.get("images", None) for s in self.channels[channel]]):
-                            content['logo'] = await self.users.get_picture(content['tags']['user-id'])
+                            if self.users:
+                                content['logo'] = await self.users.get_picture(content['tags']['user-id'])
                         if 'tags' in content and 'response' in content['tags']:
                             self.chatbot.send_message(content['message'], channel)
                         self.channels[channel] = [s for s in self.channels[channel] if not s["socket"].closed]
@@ -118,7 +119,6 @@ class SocketServer(Thread):
                     content = await handle_message(event)
                     for c in self.channels:
                         for s in self.channels[c]:
-                            # TODO: Do we need global resp too?
                             await s["socket"].send(json.dumps(content))
 
 
@@ -225,7 +225,10 @@ class SocketServer(Thread):
         await asyncio.sleep(10)
         while not self.shutdown_event.is_set():
             if not channel in self.http_clients:
-                self.http_clients[channel] = TwitchClient(self.config["client_id"], channel)
+                try:
+                    self.http_clients[channel] = TwitchClient(self.config["client_id"], channel)
+                except:
+                    return
             recent_followers = await self.http_clients[channel].get_new_followers()
             if not recent_followers: 
                 await asyncio.sleep(80 + randrange(20))
@@ -312,30 +315,32 @@ class SocketServer(Thread):
                 return
             self.chatbot.subscribe(channel)
         if "auth" in commands:
-            # TODO: handle multiple cleanly
-            if not channel in self.http_clients:
-                self.http_clients[channel] = TwitchClient(self.config["client_id"], channel)
-            if channel in self.pubsub_clients:
-                pubsub = self.pubsub_clients[channel]
-                channel_client["pubsub"] = pubsub
-                await pubsub.connect()
-            else:
-                channel_id = await self.http_clients[channel].get_channel_id(channel)
-                token = commands["auth"]
-                pubsub = PubSubClient(channel, channel_id, token, self.add_alert)
-                self.pubsub_clients[channel] = pubsub
-                channel_client["pubsub"] = pubsub
-                ps_conn = await pubsub.connect()
-                tasks.append(asyncio.create_task(pubsub.heartbeat(ps_conn), name=f"{channel}_ps_hb"))
-                tasks.append(asyncio.create_task(pubsub.receive_message(ps_conn), name=f"{channel}_ps_receive"))
+            try:
+                if not channel in self.http_clients:
+                    self.http_clients[channel] = TwitchClient(self.config["client_id"], channel)
+                if channel in self.pubsub_clients:
+                    pubsub = self.pubsub_clients[channel]
+                    channel_client["pubsub"] = pubsub
+                    await pubsub.connect()
+                else:
+                    channel_id = await self.http_clients[channel].get_channel_id(channel)
+                    token = commands["auth"]
+                    pubsub = PubSubClient(channel, channel_id, token, self.add_alert)
+                    self.pubsub_clients[channel] = pubsub
+                    channel_client["pubsub"] = pubsub
+                    ps_conn = await pubsub.connect()
+                    tasks.append(self.make_task(pubsub.heartbeat(ps_conn), name=f"{channel}_ps_hb"))
+                    tasks.append(self.make_task(pubsub.receive_message(ps_conn), name=f"{channel}_ps_receive"))
+            except ValueError:
+                pass
         elif "alert" in commands:
             # No auth, so poll for follows
-            alert_task = asyncio.create_task(self.followers(channel), name=f"{channel}_followers")
+            alert_task = self.make_task(self.followers(channel), name=f"{channel}_followers")
             channel_client["alert"] = alert_task
             tasks.append(alert_task)
             self.chatbot.subscribe(channel)
 
-        heartbeat_task = asyncio.create_task(self.heartbeat(ws_in), name=f"{channel}_hb")
+        heartbeat_task = self.make_task(self.heartbeat(ws_in), name=f"{channel}_hb")
         tasks.append(heartbeat_task)
         channel_client["heartbeat"] = heartbeat_task
         channel_client["channel"] = channel
@@ -344,7 +349,7 @@ class SocketServer(Thread):
         else:
             self.channels[channel] = [channel_client]
 
-        self.loop.create_task(self.disconnect_listener(ws_in, channel_client), name=f"{channel}_dc_hdlr")
+        self.make_task(self.disconnect_listener(ws_in, channel_client), name=f"{channel}_dc_hdlr")
 
         logger.info(f"Socket client Join: {command}")
         await asyncio.gather(*tasks)
@@ -368,6 +373,13 @@ class SocketServer(Thread):
             logger.error(f"Missing config ({e})")
             logger.error("Go to 'http://localhost:8080' to set")
 
+    def make_task(self, func, name):
+        try:
+            return self.loop.create_task(func, name=name)
+        except TypeError:
+            return self.loop.create_task(func)
+
+
     def run(self):
         logger.info("Starting socket server")
         self.loop = asyncio.new_event_loop()
@@ -379,19 +391,34 @@ class SocketServer(Thread):
         self.websocket_server = self.loop.run_until_complete(start_server)
 
         self.load_clients()
-        if self.config["oauth"]:
-            self.chatbot = ChatBot(self.loop, self.config["username"], self.config["oauth"])
-        self.users = Users(TwitchClient(self.config["client_id"], ''))
+        secret = self.config.get("secret", None)
+        client_id = self.config.get("client_id", None)
+        oauth = self.config.get("oauth", None)
+        user = self.config.get("username", None)
+
+        if user and oauth:
+            self.chatbot = ChatBot(self.loop, user, oauth)
+        else:
+            logger.warning("No user/oauth - Chat unavailable")
+        
+        if client_id:
+            try:
+                self.users = Users(TwitchClient(client_id, ''))
+            except ValueError:
+                logger.warning("No client secret - API unavilable")
+        else:
+            logger.warning("No client ID - API unavilable")
+
         self.reload_event = asyncio.Event()
         self.shutdown_event = asyncio.Event()
-        self.loop.create_task(self.chat(), name=f"chat")
-        self.loop.create_task(self.alerts(), name=f"alert")
-        self.loop.create_task(self.config_listener(), name=f"config")
-        self.loop.create_task(self.shutdown_listener(), name=f"shutdown")
-        self.loop.create_task(self.replay(), name=f"event_replay")
+        self.make_task(self.chat(), name=f"chat")
+        self.make_task(self.alerts(), name=f"alert")
+        self.make_task(self.config_listener(), name=f"config")
+        self.make_task(self.shutdown_listener(), name=f"shutdown")
+        self.make_task(self.replay(), name=f"event_replay")
 
         self.webserver = WebServer(reload_evt=self.reload_event, loop=self.loop, shutdown_evt=self.shutdown_event,
-                                   client_id=self.config["client_id"], secret=self.config["secret"], events=self.recent_events,
+                                   client_id=client_id, secret=secret, events=self.recent_events,
                                    replay=self.replay_queue)
 
         try:

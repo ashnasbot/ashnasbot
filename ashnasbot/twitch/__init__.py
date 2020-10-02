@@ -24,6 +24,12 @@ CHEER_REGEX = re.compile(r"((?<=^)|(?<=\s))(?P<emotename>[a-zA-Z]+)(\d+)(?=(\s|$
 logger = logging.getLogger(__name__)
 config = Config()
 
+API_CLIENT = None
+try:
+    API_CLIENT = TwitchClient(None, None)
+except ValueError:
+    logger.warning("No API client, API features unavailable")
+
 
 async def render_emotes(message, emotes, bttv_channel=None):
     """Render emotes into message
@@ -76,11 +82,13 @@ async def get_channel_badges(channel):
     if not db.exists(tbl_name):
         db.create(tbl_name, 
                   primary="name")
+    
+    if not API_CLIENT:
+        return {}
 
     if db.expired(channel + "_badges"):
         logger.info("No badge cache for %s", channel)
-        client = TwitchClient(None, None)
-        badges = await client.get_badges_for_channel(channel)
+        badges = await API_CLIENT.get_badges_for_channel(channel)
         rows = [{"name":k, "url":v} for k,v in badges.items()]
         keys = ["name"]
 
@@ -98,8 +106,8 @@ async def get_channel_badges(channel):
 CHEERMOTES = {}
 async def load_cheermotes():
     global CHEERMOTES 
-    client = TwitchClient(None, None)
-    CHEERMOTES = await client.get_cheermotes()
+    if API_CLIENT:
+        CHEERMOTES = await API_CLIENT.get_cheermotes()
 
 def get_cheermotes(cheer, value):
     data = []
@@ -195,7 +203,9 @@ async def render_bits(message, bits):
     
 URL_REGEX = re.compile(r"(http(s)?://)?(clips.twitch.tv/(\w+)|www.twitch.tv/\w+/clip/(\w+))", flags=re.IGNORECASE)
 async def render_clips(message):
-    client = TwitchClient(None, None)
+    if not API_CLIENT:
+        return message
+
     match = URL_REGEX.search(message)
     slug = match.group(4)
     if slug is None:
@@ -204,7 +214,7 @@ async def render_clips(message):
         logger.error("Malformed clip url %s", match.groups())
         return message
 
-    details = await client.get_clip(slug)
+    details = await API_CLIENT.get_clip(slug)
 
     def render(match):
         thumbnail = details["thumbnails"]["small"]
@@ -270,7 +280,7 @@ async def handle_message(event):
         message = await render_emotes(raw_msg, temotes, bemotes)
     else:
         # Render emotes does this as a side-effect
-        message = html.escape(message)
+        message = html.escape(raw_msg)
 
 
     if re.match(URL_REGEX,message):

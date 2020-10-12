@@ -71,6 +71,8 @@ class TwitchClient():
         logger.debug("Getting id for current channel (%s)", self.target_user)
 
         resp = await self._make_api_request(url, params)
+        if resp["_total"] == 0:
+            raise ValueError(f"Channel {self.target_user} does not exist.")
         self.channel_id = resp["users"][0]["_id"]
 
     async def get_channel_id(self, channel):

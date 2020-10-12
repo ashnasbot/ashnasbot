@@ -51,20 +51,13 @@ def allowed_content(event, commands=False, **kwargs):
             return False
     if not "alert" in kwargs:
         # RAID, HOST, SUBGIFT, SUB
-        if event.type in ['TWITCHATUSERNOTICE', 'SUB', "RAID", "HOST"]:
+        if event.type in ['TWITCHATUSERNOTICE', 'SUB', "RAID", "HOSTED"]:
             return False
     return True
 
 def strip_content(content):
     return content
 
-# TODO: make this serialisation useful in the client
-class MsgEncoder(json.JSONEncoder):
-    def default(self, obj): # pylint: disable=method-hidden
-        if obj.__class__.__name__ in ["PRIV"]:
-            return {"__enum__": str(obj)}
-        return json.JSONEncoder.default(self, obj)
-    
 class SocketServer(Thread):
 
     def __init__(self):
@@ -102,19 +95,20 @@ class SocketServer(Thread):
                     content = await handle_message(event)
                     if event.type != 'TWITCHCHATMESSAGE':
                         self.recent_events.append(content)
-                    elif "tags" in content and "bits" in content["tags"]:
-                        bits_evt = get_bits(content)
-                        self.recent_events.append(bits_evt)
                     if content:
-                        if "tags" in content and any([s.get("images", None) for s in self.channels[channel]]):
-                            if self.users:
-                                content['logo'] = await self.users.get_picture(content['tags']['user-id'])
-                        if 'tags' in content and 'response' in content['tags']:
-                            self.chatbot.send_message(content['message'], channel)
+                        if "tags" in content:
+                            if "bits" in content["tags"]:
+                                bits_evt = get_bits(content)
+                                self.recent_events.append(bits_evt)
+                            if any([s.get("images", None) for s in self.channels[channel]]):
+                                if self.users:
+                                    content['logo'] = await self.users.get_picture(content['tags']['user-id'])
+                            if 'response' in content['tags']:
+                                self.chatbot.send_message(content['message'], channel)
                         self.channels[channel] = [s for s in self.channels[channel] if not s["socket"].closed]
                         for s in self.channels[channel]:
                             if filter_output(content, **s):
-                                await s["socket"].send(json.dumps(content, cls=MsgEncoder))
+                                await s["socket"].send(json.dumps(content))
                 elif not channel:
                     content = await handle_message(event)
                     for c in self.channels:
@@ -147,26 +141,13 @@ class SocketServer(Thread):
             try:
                 event = self.replay_queue.get_nowait()
                 event["id"] = str(uuid.uuid4())  # Reset the id
-                filename = "evtdmp.json"
-                if os.path.exists(filename):
-                    wr_flags = 'r+'
-                else:
-                    wr_flags = 'w+'
-                with open(filename, wr_flags) as file:
-                    try:
-                        data = json.load(file)
-                    except json.decoder.JSONDecodeError:
-                        data = []
-                    data.append(event)
-                    file.seek(0)
-                    json.dump(data, file, indent=2)
                 if event["type"] == 'TWITCHCHATMESSAGE':
                     channel = event["channel"]
                     for s in self.channels[channel]:
                         if filter_output(event, **s):
-                            await s["socket"].send(json.dumps(event, cls=MsgEncoder))
+                            await s["socket"].send(json.dumps(event))
                 else:
-                    # Dont add_event as we've seen it before
+                    # Don't add_event as we've seen it before
                     await self._event_queue.put(event)
             except Empty:
                 await asyncio.sleep(1)

@@ -208,6 +208,7 @@ new Vue({
                         this.chatsocket.onclose = null;
                         this.chatsocket.close();
                         break;
+                    case "HOSTED":
                     case "RAID":
                         if (this.$refs.raidhandler){
                             this.$refs.raidhandler.do_alert(msg);
@@ -281,7 +282,7 @@ new Vue({
     },
     mounted: function () {
         var appstyle = window.getComputedStyle(this.$el, null).getPropertyValue('font-size');
-        var msg_size = parseFloat(appstyle); 
+        msg_size = parseFloat(appstyle); 
         if (typeof scale_factor === 'undefined') { scale_factor = 1.0;}
         max_messages = Math.floor(window.innerHeight / (msg_size * scale_factor) ) + 1;
 
@@ -296,9 +297,9 @@ new Vue({
             console.warn("No channel specified");
             return;
         }
-        if (this.config["channel_points"]) {
+        if (this.config["pubsub"]) {
             if (!this.auth) {
-                this.config["channel_points"] = false;
+                this.config["pubsub"] = false;
                 this.getToken();
             } else {
                 this.auth.then( auth => {
@@ -312,7 +313,7 @@ new Vue({
                             console.log("No auth for channel")
                         } else {
                             console.log("Auth invalid, aquiring new token")
-                            this.config["channel_points"] = false;
+                            this.config["pubsub"] = false;
                             this.getToken();
                         }
                     }
@@ -331,7 +332,7 @@ new Vue({
                 this.chat.shift();
             }
             if (this.chat.length > max_messages * 1.1) {
-                this.chat = chat.slice(Math.max(
+                this.chat = this.chat.slice(Math.max(
                     chat.length - max_messages, 0)
                 );
             }

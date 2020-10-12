@@ -32,15 +32,17 @@ async def get_emotes_for_channel(channel):
         emotes = await resp.json()
 
     if "message" in emotes and emotes["message"] == "user not found":
-        return
+        if "global" not in EMOTES:
+            return
+    else:
+        EMOTES[channel] = {
+            emote["code"]: emote["id"] for emote in emotes["channelEmotes"]}
+        EMOTES[channel].update(**{
+            emote["code"]: emote["id"] for emote in emotes["sharedEmotes"]})
 
     if "global" not in EMOTES:
         EMOTES["global"] = await get_global_emotes()
 
-    EMOTES[channel] = {
-        emote["code"]: emote["id"] for emote in emotes["channelEmotes"]}
-    EMOTES[channel].update(**{
-        emote["code"]: emote["id"] for emote in emotes["sharedEmotes"]})
     EMOTES[channel].update(**EMOTES["global"])
     if channel not in REGEX:
         REGEX[channel] = {}

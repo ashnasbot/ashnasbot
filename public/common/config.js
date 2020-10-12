@@ -3,13 +3,12 @@ Vue.component('config-menu', {
         if (localStorage.config) {
             config = JSON.parse(localStorage.config);
             this.commands = config.commands;
-            this.follows = config.follows;
             this.images = config.images;
             this.alert = config.alert;
             this.sound = config.sound;
             this.hosts = config.hosts;
             this.menu = config.menu;
-            this.channel_points = config.channel_points;
+            this.pubsub = config.pubsub;
         }
     },
     methods: {
@@ -21,37 +20,34 @@ Vue.component('config-menu', {
     data: function () {
       return {
         commands: true,
-        follows: false,
         images: true,
         alert: true,
         sound: true,
         hosts: false,
         menu: true,
-        channel_points: false
+        pubsub: false
       }
     },
     watch: {
         commands(n) { this.handleInput(); },
-        follows(n) { this.handleInput(); },
         images(n) { this.handleInput(); },
         alert(n) { this.handleInput(); },
         sound(n) { this.handleInput(); },
         hosts(n) { this.handleInput(); },
         menu(n) { this.handleInput(); },
-        channel_points(n) { this.handleInput(); },
+        pubsub(n) { this.handleInput(); },
     },
     template: `
     <div class="popout">
     <div class="form">
     <span>Press 'Submit' to set config </span>
     <label>Allow commands<input name="commands" type="checkbox" v-model="commands"> </label>
-    <!--<label>Show follows<input name="follows" type="checkbox" v-model="follows"></label>-->
     <label>Pull Avatars<input name="images" type="checkbox" v-model="images"></label>
     <label>Show Chat Notifications<input name="alert" type="checkbox" v-model="alert"></label>
     <label>Sounds<input name="sound" type="checkbox" v-model="sound"></label>
     <label>Follow Hosts<input name="hosts" type="checkbox" v-model="hosts"></label>
     <label>Show menu on load<input name="menu" type="checkbox" v-model="menu"></label>
-    <label>Show alerts from PubSub (requires auth)<input name="menu" type="checkbox" v-model="channel_points"></label>
+    <label>Show alerts from PubSub (requires auth)<input name="menu" type="checkbox" v-model="pubsub"></label>
     </div>
     </div>
     `

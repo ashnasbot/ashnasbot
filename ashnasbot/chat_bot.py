@@ -49,8 +49,7 @@ class ChatBot():
         logger.debug(f"unsubscribe: {channel}")
         self.observer.leave_channel(channel)
         if channel not in self.channels:
-            logger.warn(f"unsubscribing from channel not subbed: {channel}")
-            logging.debug(traceback.format_stack())
+            logger.debug(f"unsubscribing from channel not subbed: {channel}")
         else:
             logger.info(f"Leaving channel: {channel}")
             self.channels.remove(channel)

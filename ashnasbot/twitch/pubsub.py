@@ -114,9 +114,10 @@ def handle_pubsub(channel, message):
         return data
     elif evt_type == "MESSAGE":
         data = event["data"]
-        if data["type"] == "raiding":
-            nickname = data["raider"]["display_name"]
-            viewers = int(data["raiding_viewer_count"])
+        message = json.loads(data["message"])
+        if message["type"] == "raiding":
+            nickname = message["raider"]["display_name"]
+            viewers = int(message["raiding_viewer_count"])
             print("PUBSUB RAID", nickname, viewers)
 
             return {
@@ -134,13 +135,13 @@ def handle_pubsub(channel, message):
             "extra": [
                 "quoted"
             ]}
-        elif data["type"] == "host_start":
-            nickname = data["host"]["display_name"]
-            viewers = int(data["hosting_viewer_count"])
+        elif message["type"] == "host_start":
+            nickname = message["host"]["display_name"]
+            viewers = int(message["hosting_viewer_count"])
             print("PUBSUB HOST", nickname, viewers)
 
             return {
-            "type": "HOST",
+            "type": "HOSTED",
             "nickname": nickname,
             "channel": channel,
             "message": "",
@@ -154,8 +155,8 @@ def handle_pubsub(channel, message):
             "extra": [
                 "quoted"
             ]}
-        elif data["type"] == "follow":
-            nickname = data["follower"]["display_name"]
+        elif message["type"] == "follow":
+            nickname = message["follower"]["display_name"]
             print("PUBSUB FOLLOW", nickname, viewers)
 
             return {

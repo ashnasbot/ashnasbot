@@ -91,28 +91,8 @@ def handle_pubsub(channel, message):
     if evt_type == "PONG":
         return
 
-    logger.error(event)
-    if evt_type == "reward-redeemed":
-        title = event["data"]["redemption"]["reward"]["title"]
-        data = {
-            'badges': [],
-            'nickname': event["data"]["redemption"]["user"]["display_name"],
-            'orig_message' : event["data"]["redemption"]["user_input"],
-            'message': "",
-            'id' :  uuid.uuid4(),
-            'tags' : {
-                "cost": event["data"]["redemption"]["reawrd"]["cost"],
-                "color": event["data"]["redemption"]["reawrd"]["background_color"]
-            },
-            'type' : "REDEMPTION",
-            'channel' : event["data"]["redemption"]["reawrd"]["channel"],
-            'extra' : []
-            }
-
-        data["tags"]["system-msg"] = f"{data['nickname']} redeemed {title} for {data['tags']['cost']}"
-        logging.info(f"PUBSUB: {data}")
-        return data
-    elif evt_type == "MESSAGE":
+    logger.debug(event)
+    if evt_type == "MESSAGE":
         data = event["data"]
         message = json.loads(data["message"])
         if message["type"] == "raiding":
@@ -173,6 +153,29 @@ def handle_pubsub(channel, message):
             "extra": [
                 "quoted"
             ]}
+        elif message["type"] == "reward-redeemed": 
+            title = message["data"]["redemption"]["reward"]["title"]
+
+            orig_message = ""
+            if "user_input" in message["data"]["redemption"]:
+                orig_message: message["data"]["redemption"]["user_input"] 
+            data = {
+                'badges': [],
+                'nickname': message["data"]["redemption"]["user"]["display_name"],
+                'orig_message' : orig_message,
+                'message': "",
+                'id' :  str(uuid.uuid4()),
+                'tags' : {
+                    "cost": message["data"]["redemption"]["reward"]["cost"],
+                    "color": message["data"]["redemption"]["reward"]["background_color"]
+                },
+                'type' : "REDEMPTION",
+                'extra' : []
+                }
+
+            data["tags"]["system-msg"] = f"{data['nickname']} redeemed {title} for {data['tags']['cost']}"
+            logging.info(f"PUBSUB: {data}")
+            return data
     elif evt_type == "RESPONSE":
         message = "Connected to websocket"
         if event["error"]:

@@ -220,6 +220,7 @@ new Vue({
                             do_alert(msg, this, this.config["sound"]);
                         }
                         // No Break: flow through
+                    case "REDEMPTION":
                     case "TWITCHCHATUSERNOTICE":
                         if (!this.config["alert"]) {
                             console.log(msg);
@@ -395,7 +396,7 @@ function checkOverflow(el)
     if ( !curOverflow || curOverflow === "visible" )
         el.style.overflow = "hidden";
 
-    var isOverflowing = el.clientHeight < el.scrollHeight;
+    var isOverflowing = el.clientHeight < el.scrollHeight - 2; /* THIS IS A HACK */
 
     el.style.overflow = curOverflow;
 

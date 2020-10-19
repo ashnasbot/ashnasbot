@@ -36,7 +36,7 @@ def filter_output(event, commands=False, **kwargs):
         if event["type"] == 'TWITCHCHATMESSAGE':
             return False
     if not "alert" in kwargs:
-        if event["type"] != 'TWITCHCHATMESSAGE':
+        if event["type"] not in ['TWITCHCHATMESSAGE', 'BITS']:
             return False
     return True
 
@@ -174,7 +174,9 @@ class SocketServer(Thread):
             if hasattr(channel_client["alert"], "cancel"):
                 channel_client["alert"].cancel()
         if "pubsub" in channel_client:
-            await channel_client["pubsub"].disconnect()
+            c = channel_client["channel"]
+            if c in self.pubsub_clients:
+                await self.pubsub_clients[c].disconnect()
 
         # Sleep in case we're just refreshing
         await asyncio.sleep(5)
@@ -283,6 +285,7 @@ class SocketServer(Thread):
         tasks = []
         channel = ""
         channel_client = {
+            "channel": commands["channel"],
             "socket": ws_in,
             "clientId": ctx_client_id.get(str(uuid.uuid4()))
         }

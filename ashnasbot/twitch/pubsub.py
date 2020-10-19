@@ -31,7 +31,7 @@ class PubSubClient():
         """
         self.refcount += 1
         if self.connection:
-            return
+            return self.connection
 
         self.connection = await websockets.client.connect('wss://pubsub-edge.twitch.tv')
         if self.connection.open:

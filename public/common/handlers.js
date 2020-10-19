@@ -6,10 +6,6 @@ var max_messages, msg_size, scale_factor;
 
 var alternator = true;
 
-// Load at startup, this is done async (we should use window.speechSynthesis.onvoiceschanged)
-var synth = window.speechSynthesis;
-var voices = synth.getVoices();
-
 // This serves only to stop random things knocking the websocket
 // can filter though proxy
 var cookies = document.cookie;
@@ -202,24 +198,27 @@ new Vue({
             }
             for (const event of events) {
                 msg = JSON.parse(event.data);
+                if (this.config["sound"] && this.$refs.soundhandler) {
+                    this.$refs.soundhandler.do_alert(msg);
+                }
                 switch(msg.type) {
                     case "BANNED":
                         alert("Banned from " + msg.channel)
                         this.chatsocket.onclose = null;
                         this.chatsocket.close();
                         break;
+                    case "BITS":
+                        if (msg.type == "BITS") { msg.type = "TWITCHCHATMESSAGE" }
                     case "HOSTED":
                     case "RAID":
-                        if (this.$refs.raidhandler){
-                            this.$refs.raidhandler.do_alert(msg);
+                        if (msg.type in ["RIAD", "HOSTED"]){
+                            if (this.$refs.raidhandler) {
+                                this.$refs.raidhandler.do_alert(msg);
+                            }
                         }
                     case "FOLLOW":
                     case "SUBGIFT":
                     case "SUB":
-                        if (this.config["alert"]) {
-                            do_alert(msg, this, this.config["sound"]);
-                        }
-                        // No Break: flow through
                     case "REDEMPTION":
                     case "TWITCHCHATUSERNOTICE":
                         if (!this.config["alert"]) {
@@ -401,60 +400,6 @@ function checkOverflow(el)
     el.style.overflow = curOverflow;
 
     return isOverflowing;
-}
-
-// Alert handling - WIP
-function do_alert(event, app, sounds)
-{
-    name = event.nickname
-    if (event.audio && sounds) {
-        var audio = new Audio(event.audio);
-        audio.play().then(function(){
-            audio.addEventListener("ended", function(){
-                voice = synth.getVoices()[0].name;
-                var utterThis = new SpeechSynthesisUtterance(event.orig_message);
-                synth.speak(utterThis);
-            });
-        });
-    }
-
-    if (event.type == "FOLLOW") {
-        var suffix = " gets whacked!"
-
-        var d = Math.random();
-        if (d < 0.05) {
-            suffix = " gets quacked!"
-        }
-
-        var p = document.createElement("p"); 
-        p.classList.add('toast-inner');
-        // and give it some content 
-        var mContent = document.createTextNode(name + suffix); 
-        // add the text node to the newly created div
-        p.appendChild(mContent);
-        app.alert = p.outerHTML;
-        setTimeout(function(){
-            app.alert = "";
-        }.bind(app), 10000);
-        return
-    }
-    if (event.type == "RAID") {
-        var p = document.createElement("p"); 
-        p.classList.add('toast-inner');
-        // and give it some content 
-        var mContent = document.createTextNode(event.message); 
-        // add the text node to the newly created div
-        p.appendChild(mContent);
-        app.alert = p.outerHTML;
-        return
-    }
-    if (event.type == "SUB") {
-        console.log("Sub alert")
-    }
-
-    setTimeout(function(){
-        app.alert = "";
-    }.bind(app), 10000);
 }
 
 window.onresize = function(event) {

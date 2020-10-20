@@ -21,7 +21,6 @@ from .twitch import db
 from .twitch.pubsub import PubSubClient
 from .twitch import handle_message, get_bits
 from .twitch.api_client import TwitchClient
-from .twitch.av import get_sound
 from .twitch.commands import BannedException
 from .users import Users
 
@@ -218,10 +217,12 @@ class SocketServer(Thread):
                 continue
 
             for nickname in recent_followers:
+                # TODO: Create_event()
                 evt_msg = {
                     'nickname': nickname,
                     'type' : "FOLLOW",
                     'channel': channel,
+                    "id": str(uuid.uuid4()),
                     'tags': {
                         'system-msg': f"{nickname} followed the channel",
                         'tmi-sent-ts': str(int(time.time())) + "000",
@@ -248,11 +249,6 @@ class SocketServer(Thread):
                     channel = event['channel']
                 except KeyError:
                     channel = event.channel
-                if event['type'] == "FOLLOW":
-                    event['audio'] = get_sound("Mana_got_item")
-                if event['type'] == "SUB":
-                    event['audio'] = get_sound("Super_Nintendo_Chalmers")
-                    
 
                 if channel:
                     self.channels[channel] = [s for s in self.channels[channel] if not s["socket"].closed]

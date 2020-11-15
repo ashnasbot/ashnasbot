@@ -241,7 +241,9 @@ new Vue({
                             container = this.$el;
                         }
                         if (checkOverflow(container)) {
-                            this.chat.shift();
+                            if (this.chat.length > 1) {
+                                this.chat.shift();
+                            }
                         }
                         this.chat = chat.slice(Math.max(
                             chat.length - max_messages, 0)
@@ -329,7 +331,9 @@ new Vue({
         }
         setInterval(function() {
             if (checkOverflow(chat)) {
-                this.chat.shift();
+                if (this.chat.length > 1) {
+                    this.chat.shift();
+                }
             }
             if (this.chat.length > max_messages * 1.1) {
                 this.chat = this.chat.slice(Math.max(
@@ -398,6 +402,9 @@ function checkOverflow(el)
     var isOverflowing = el.clientHeight < el.scrollHeight - 2; /* THIS IS A HACK */
 
     el.style.overflow = curOverflow;
+    if (!isOverflowing){
+        isOverflowing = el.scrollHeight > window.innerHeight;
+    }
 
     return isOverflowing;
 }

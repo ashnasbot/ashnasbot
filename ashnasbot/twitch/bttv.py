@@ -25,6 +25,9 @@ async def get_emotes_for_channel(channel):
     EMOTES[channel] = {}
     REGEX[channel] = {}
 
+    if "global" not in EMOTES:
+        EMOTES["global"] = await get_global_emotes()
+
     url = BTTV_API_CHANNEL.format(channel=channel)
 
     async with SESSION.get(url) as resp:
@@ -39,9 +42,6 @@ async def get_emotes_for_channel(channel):
             emote["code"]: emote["id"] for emote in emotes["channelEmotes"]}
         EMOTES[channel].update(**{
             emote["code"]: emote["id"] for emote in emotes["sharedEmotes"]})
-
-    if "global" not in EMOTES:
-        EMOTES["global"] = await get_global_emotes()
 
     EMOTES[channel].update(**EMOTES["global"])
     if channel not in REGEX:

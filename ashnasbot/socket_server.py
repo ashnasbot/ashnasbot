@@ -175,7 +175,10 @@ class SocketServer(Thread):
         if "pubsub" in channel_client:
             c = channel_client["channel"]
             if c in self.pubsub_clients:
-                await self.pubsub_clients[c].disconnect()
+                last = await self.pubsub_clients[c].disconnect()
+                if last:
+                    del self.pubsub_clients[c]
+                
 
         # Sleep in case we're just refreshing
         await asyncio.sleep(5)

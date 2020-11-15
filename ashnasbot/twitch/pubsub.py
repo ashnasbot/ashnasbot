@@ -46,6 +46,11 @@ class PubSubClient():
         self.refcount -= 1
         if self.refcount < 1:
             self.stop_event.set()
+            return True
+
+    @property
+    def connected(self):
+        return self.connection.open
 
     def generate_nonce(self):
         """Generate nonce from seconds since epoch (UTC)."""
@@ -62,13 +67,15 @@ class PubSubClient():
         while not self.stop_event.is_set():
             try:
                 message = await connection.recv()
-                evt = handle_pubsub(self.channel, message)
+                evt = handle_pubsub(message)
                 if evt:
                     evt["channel"] = self.channel
                     await self.add_event(evt)
             except websockets.exceptions.ConnectionClosed:
                 logging.warning('Connection with pubsub server closed')
                 break
+            except Exception as e:
+                logging.error("Pubsub failure: %s", e)
 
     async def heartbeat(self, connection):
         """Send heartbeat to server every minute."""
@@ -79,12 +86,14 @@ class PubSubClient():
                 await connection.send(json_request)
                 await asyncio.sleep(60)
             except websockets.exceptions.ConnectionClosed:
-                logging.warning('Connection with pubsub server closed')
+                logging.error('Connection with pubsub server closed')
+                evt = make_message("SYSTEM", "PubSub Disconnected")
+                evt["channel"] = self.channel
+                await self.add_event(evt)
                 break
 
 
-def handle_pubsub(channel, message):
-    # TODO: DRY
+def handle_pubsub(message):
     event = json.loads(message)
     evt_type = event["type"]
 
@@ -95,101 +104,80 @@ def handle_pubsub(channel, message):
     if evt_type == "MESSAGE":
         data = event["data"]
         message = json.loads(data["message"])
+        msg_type = None
+        tags = {}
+        extra = []
+        orig_message = None
         if message["type"] == "raiding":
             nickname = message["raider"]["display_name"]
             viewers = int(message["raiding_viewer_count"])
-            print("PUBSUB RAID", nickname, viewers)
-
-            return {
-            "type": "RAID",
-            "nickname": nickname,
-            "channel": channel,
-            "message": "",
-            'id' :  str(uuid.uuid4()),
-            "tags": {
+            msg_type = "RAID"
+            tags = {
                 "display-name": nickname,
                 "msg-id": "raid",
-                "msg-param-viewerCount": f"viewers",
+                "msg-param-viewerCount": viewers,
                 "system-msg": f"{nickname} is raiding with a party of {viewers}",
-            },
-            "extra": [
-                "quoted"
-            ]}
+            }
+            extra.append("quoted")
         elif message["type"] == "host_start":
             nickname = message["host"]["display_name"]
             viewers = int(message["hosting_viewer_count"])
-            print("PUBSUB HOST", nickname, viewers)
-
-            return {
-            "type": "HOSTED",
-            "nickname": nickname,
-            "channel": channel,
-            "message": "",
-            'id' :  str(uuid.uuid4()),
-            "tags": {
+            msg_type = "HOSTED"
+            tags = {
                 "display-name": nickname,
                 "msg-id": "host",
                 "msg-param-viewerCount": f"viewers",
                 "system-msg": f"{nickname} is hosting for {viewers} viewers",
-            },
-            "extra": [
-                "quoted"
-            ]}
+            }
+            extra.append("quoted")
         elif message["type"] == "follow":
             nickname = message["follower"]["display_name"]
-            print("PUBSUB FOLLOW", nickname, viewers)
-
-            return {
-            "type": "FOLLOW",
-            "nickname": nickname,
-            "channel": channel,
-            "message": "",
-            'id' :  str(uuid.uuid4()),
-            "tags": {
+            msg_type = "FOLLOW"
+            tags = {
                 "display-name": nickname,
                 "msg-id": "follow",
                 "system-msg": f"{nickname} is following the channel",
-            },
-            "extra": [
-                "quoted"
-            ]}
-        elif message["type"] == "reward-redeemed": 
+            }
+            extra.append("quoted")
+        elif message["type"] == "reward-redeemed":
+            nickname = message["data"]["redemption"]["user"]["display_name"]
             title = message["data"]["redemption"]["reward"]["title"]
-
-            orig_message = ""
             if "user_input" in message["data"]["redemption"]:
-                orig_message: message["data"]["redemption"]["user_input"] 
-            data = {
-                'badges': [],
-                'nickname': message["data"]["redemption"]["user"]["display_name"],
-                'orig_message' : orig_message,
-                'message': "",
-                'id' :  str(uuid.uuid4()),
-                'tags' : {
-                    "cost": message["data"]["redemption"]["reward"]["cost"],
-                    "color": message["data"]["redemption"]["reward"]["background_color"]
-                },
-                'type' : "REDEMPTION",
-                'extra' : []
-                }
+                orig_message = message["data"]["redemption"]["user_input"] 
+            msg_type = "REDEMPTION"
+            tags = {
+                "cost": message["data"]["redemption"]["reward"]["cost"],
+                "color": message["data"]["redemption"]["reward"]["background_color"],
+                "system-msg": f"{nickname} redeemed {title}"
+            }
 
-            data["tags"]["system-msg"] = f"{data['nickname']} redeemed {title} for {data['tags']['cost']}"
-            logging.info(f"PUBSUB: {data}")
+        if msg_type:
+            data = make_message(msg_type)
+            data["nickname"] = nickname
+            if orig_message:
+                data["orig_message"] = orig_message
+            data["tags"] = tags
+            data["extra"] = extra
             return data
+
     elif evt_type == "RESPONSE":
         message = "Connected to websocket"
         if event["error"]:
             message = event["error"]
         logging.info(f"PUBSUB: {message}")
-        data = {
-            'badges': [],
-            'nickname': "System",
-            'message': message,
-            'orig_message': "",
-            'id' :  str(uuid.uuid4()),
-            'tags': {},
-            'type': "SYSTEM",
-            'channel': None,
-            'extra': []
-        }
+        data = make_message("SYSTEM", message)
         return data
+
+def make_message(type, message=""):
+    return {
+        'badges': [],
+        'nickname': "System",
+        'message': message,
+        'orig_message': "",
+        'id' :  str(uuid.uuid4()),
+        'tags': {},
+        'type': type,
+        'channel': None,
+        'extra': []
+    }
+

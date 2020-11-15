@@ -259,6 +259,7 @@ async def handle_message(event):
     if raw_msg.startswith('\u0001'):
         # Strip "\001ACTION" off /me
         raw_msg = raw_msg.replace('\u0001', "")[7:]
+        orig_message = raw_msg
         quoted = False
 
     if 'system-msg' in etags:

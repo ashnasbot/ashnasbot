@@ -391,6 +391,7 @@ def proffer_cmd(event, *args):
 
 def discord_cmd(event, *args):
     event["message"] = "Ashnas has one too! https://discord.gg/2xR2fxr"
+    return event
 
 COMMANDS = {
     '!goawayashnasbot': goaway_cmd,

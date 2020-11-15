@@ -5,6 +5,7 @@ import json
 import logging
 import dataset
 import os
+from pathlib import Path
 from requests_oauthlib import OAuth2Session
 import time
 
@@ -77,6 +78,7 @@ class WebServer(object):
     def setup_routes(self):
         self.app.router.add_get('/api/config', self.get_config)
         self.app.router.add_get('/api/views', self.get_views)
+        self.app.router.add_get('/res/{view}/sound/{event}', self.get_sound)
         self.app.router.add_post('/api/config', self.post_config)
         self.app.router.add_post('/api/shutdown', self.post_shutdown)
         self.app.router.add_post('/replay_event', self.post_replay)
@@ -121,6 +123,31 @@ class WebServer(object):
 
         return web.json_response(resp)
 
+    AUDIO_FILETYPES = [".wav", ".mp3", ".mp4", ".ogg", ".flac"]
+
+    async def get_sound(self, request):
+        view = request.match_info['view']
+        event = request.match_info['event']
+        # TODO: This
+        query = request.query_string
+        if query:
+            logger.error(query)
+
+        views_path = os.path.join('views', view)
+        views_match = list(Path(views_path).glob(event + ".*"))
+
+        for match in views_match:
+            if match.suffix in self.AUDIO_FILETYPES:
+                return web.FileResponse(views_match[0])
+
+        fallback_match = list(Path("public/audio").glob(event + ".*"))
+        for match in fallback_match:
+            if match.suffix in self.AUDIO_FILETYPES:
+                return web.FileResponse(fallback_match[0])
+        
+        return web.HTTPNotFound()
+
+
     async def post_shutdown(self, request):
         if self.shutdown_evt:
             self.shutdown_evt.set()
@@ -152,8 +179,7 @@ class WebServer(object):
     async def begin_auth(self, request):
         # Step 1
         scope = ['channel:read:redemptions']
-        oauth = OAuth2Session(client_id=self.client_id, redirect_uri=redirect_uri,
-                            scope=scope)
+        oauth = OAuth2Session(client_id=self.client_id, redirect_uri=redirect_uri, scope=scope)
         authorization_url, state = oauth.authorization_url(auth_base_url)
         return_channel = request.query.get("channel", None)
         return_theme = request.query.get("theme", "noir")

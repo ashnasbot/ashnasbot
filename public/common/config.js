@@ -6,6 +6,7 @@ Vue.component('config-menu', {
             this.images = config.images;
             this.alert = config.alert;
             this.sound = config.sound;
+            this.tts = config.tts;
             this.hosts = config.hosts;
             this.menu = config.menu;
             this.pubsub = config.pubsub;
@@ -23,6 +24,7 @@ Vue.component('config-menu', {
         images: true,
         alert: true,
         sound: true,
+        tts: false,
         hosts: false,
         menu: true,
         pubsub: false
@@ -33,6 +35,7 @@ Vue.component('config-menu', {
         images(n) { this.handleInput(); },
         alert(n) { this.handleInput(); },
         sound(n) { this.handleInput(); },
+        tts(n) { this.handleInput(); },
         hosts(n) { this.handleInput(); },
         menu(n) { this.handleInput(); },
         pubsub(n) { this.handleInput(); },
@@ -45,6 +48,7 @@ Vue.component('config-menu', {
     <label>Pull Avatars<input name="images" type="checkbox" v-model="images"></label>
     <label>Show Chat Notifications<input name="alert" type="checkbox" v-model="alert"></label>
     <label>Sounds<input name="sound" type="checkbox" v-model="sound"></label>
+    <label>Text to speech<input name="tts" type="checkbox" v-model="tts"></label>
     <label>Follow Hosts<input name="hosts" type="checkbox" v-model="hosts"></label>
     <label>Show menu on load<input name="menu" type="checkbox" v-model="menu"></label>
     <label>Show alerts from PubSub (requires auth)<input name="menu" type="checkbox" v-model="pubsub"></label>

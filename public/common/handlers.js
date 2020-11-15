@@ -43,7 +43,7 @@ function getAuth() {
     } catch { }
 
     if (channel == token_channel) {
-        return null;
+        return (new Promise(oauth => {return oauth}));
     }
 
     return fetch('https://id.twitch.tv/oauth2/validate', {headers: {'Authorization': 'OAuth ' + oauth}})
@@ -211,7 +211,7 @@ new Vue({
                         if (msg.type == "BITS") { msg.type = "TWITCHCHATMESSAGE" }
                     case "HOSTED":
                     case "RAID":
-                        if (msg.type in ["RIAD", "HOSTED"]){
+                        if (["RAID", "HOSTED"].includes(msg.type)){
                             if (this.$refs.raidhandler) {
                                 this.$refs.raidhandler.do_alert(msg);
                             }

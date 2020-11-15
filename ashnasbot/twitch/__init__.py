@@ -284,7 +284,7 @@ async def handle_message(event):
         message = html.escape(raw_msg)
 
 
-    if re.match(URL_REGEX,message):
+    if re.search(URL_REGEX,message):
         message = await render_clips(message)
 
     message = bleach.linkify(message)

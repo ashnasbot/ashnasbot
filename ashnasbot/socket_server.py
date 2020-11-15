@@ -143,8 +143,7 @@ class SocketServer(Thread):
                 if event["type"] == 'TWITCHCHATMESSAGE':
                     channel = event["channel"]
                     for s in self.channels[channel]:
-                        if filter_output(event, **s):
-                            await s["socket"].send(json.dumps(event))
+                        await s["socket"].send(json.dumps(event))
                 else:
                     # Don't add_event as we've seen it before
                     await self._event_queue.put(event)

@@ -11,3 +11,5 @@ twitchdata.db
 debug.log
 SECRET.txt
 .cache
+
+public/audio/*

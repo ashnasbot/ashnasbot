@@ -13,3 +13,8 @@ SECRET.txt
 .cache
 
 public/audio/*
+twitchdata.db-shm
+twitchdata.db-wal
+
+build/*
+dist/*

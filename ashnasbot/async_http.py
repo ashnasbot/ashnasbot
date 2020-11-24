@@ -85,7 +85,7 @@ class WebServer(object):
         self.app.router.add_get('/favicon.ico', self.get_favicon)
 
         # Shortcuts
-        self.app.router.add_get('/', self.get_dashboard)
+        self.app.router.add_get('/', self.get_chat)
         self.app.router.add_get('/dashboard', self.get_dashboard)
         self.app.router.add_get('/events', self.get_recent_events)
         self.app.router.add_get('/chat', self.get_chat)

@@ -203,7 +203,7 @@ class SocketServer():
             if channel in self.http_clients:
                 del self.http_clients[channel]
         logger.debug("WS client disconnect cleanup complete")
-        remaining_tasks = [task for task in asyncio.Task.all_tasks() if not task.done()]
+        remaining_tasks = [task for task in asyncio.all_tasks(self.loop) if not task.done()]
         logger.debug("Remaining Tasks: %d", len(remaining_tasks))
         for t in remaining_tasks:
             logger.debug("               : %s", t)

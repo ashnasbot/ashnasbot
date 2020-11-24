@@ -361,7 +361,8 @@ class SocketServer():
     async def shutdown(self):
         logger.info("Shutting down server")
         self.websocket_server.close()
-        self.chatbot.close()
+        if self.chatbot:
+            self.chatbot.close()
         queue = self.chatbot.chat()
         await queue.put(None)
         await self._event_queue.put(None)

@@ -401,7 +401,10 @@ class SocketServer():
         user = self.config.get("username", None)
 
         if user and oauth:
-            self.chatbot = ChatBot(self.loop, user, oauth)
+            try:
+                self.chatbot = ChatBot(self.loop, user, oauth)
+            except RuntimeError:
+                logger.warning("Bad user/oauth - Chat unavailable")
         else:
             logger.warning("No user/oauth - Chat unavailable")
         

@@ -1,11 +1,17 @@
 #!/usr/bin/env python3
 import logging
+import sys
 import signal
 
-# TODO: Why?
-# pylint: disable=import-error, no-name-in-module
 from ashnasbot import socket_server
 from ashnasbot import config
+
+
+def patch_crypto():
+    # This is needed to help pyinstaller find the right backend
+    from cryptography.hazmat import backends
+    from cryptography.hazmat.backends.openssl.backend import backend as be_cc
+    backends._available_backends_list =[be_cc]
 
 
 if __name__ == '__main__':
@@ -20,6 +26,7 @@ if __name__ == '__main__':
     # set up logging to file and screen
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.DEBUG)
+    patch_crypto()
 
     console = logging.StreamHandler()
     console.setLevel(log_level)
@@ -34,14 +41,6 @@ if __name__ == '__main__':
     root_logger.addHandler(logfile)
 
     socket_thread = socket_server.SocketServer()
-
-    def sighandler(signum, frame):
-        logging.info(f"SIGNAL: {signum}")
-        socket_thread.shutdown()
-
-    signal.signal(signal.SIGINT, sighandler)
-
+    signal.signal(signal.SIGINT, socket_thread.stop)
     # blocks forever
-    socket_thread.start()
-
-    socket_thread.join()
+    socket_thread.run()

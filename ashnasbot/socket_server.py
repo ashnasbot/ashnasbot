@@ -10,7 +10,7 @@ import time
 from threading import Thread
 import uuid
 from concurrent.futures import ThreadPoolExecutor
-import os
+import sys
 
 import websockets
 
@@ -18,7 +18,7 @@ from .async_http import WebServer
 from .chat_bot import ChatBot
 from .config import Config, ReloadException
 from .twitch import db
-from .twitch.pubsub import PubSubClient
+from .twitch.pubsub import PubSubClient, PUBSUB_MESSAGE_TYPES
 from .twitch import handle_message, get_bits
 from .twitch.api_client import TwitchClient
 from .twitch.commands import BannedException
@@ -54,10 +54,18 @@ def allowed_content(event, commands=False, **kwargs):
             return False
     return True
 
+def pubsub_filter(event):
+    ext = event.get("extra", {})
+
+    if "pubsub" in ext:
+        return True
+    return False
+
+
 def strip_content(content):
     return content
 
-class SocketServer(Thread):
+class SocketServer():
 
     def __init__(self):
         self.channels = {}
@@ -68,6 +76,7 @@ class SocketServer(Thread):
         self.loop = None
         self.reload_event = None
         self.shutdown_event = None
+        self.shutdown_complete = None
         Thread.__init__(self)
         self.websocket_server = None
         self._event_queue = None
@@ -85,6 +94,8 @@ class SocketServer(Thread):
 
                 queue = self.chatbot.chat()
                 event = await queue.get()
+                if event == None:
+                    return
                 processing = True
                 channel = event.channel
                 if channel and channel not in self.channels:
@@ -127,7 +138,6 @@ class SocketServer(Thread):
 
             except Exception as e:
                 import traceback
-                import os.path
                 err = traceback.format_exc()
                 logger.debug(err)
             finally:
@@ -154,14 +164,17 @@ class SocketServer(Thread):
     async def config_listener(self):
         while not self.shutdown_event.is_set():
             await self.reload_event.wait()
+            if self.shutdown_event.is_set():
+                return
             logger.info("Reloading config")
             self.load_clients()
             self.reload_event.clear()
 
     async def shutdown_listener(self):
         await self.shutdown_event.wait()
+        self.reload_event.set()
         logger.info("Shutdown Started")
-        self.shutdown()
+        await self.shutdown()
 
     async def disconnect_listener(self, ws, channel_client):
         await ws.wait_closed()
@@ -254,6 +267,9 @@ class SocketServer(Thread):
 
                 if channel:
                     self.channels[channel] = [s for s in self.channels[channel] if not s["socket"].closed]
+                    if channel in self.pubsub_clients and not pubsub_filter(event):
+                        continue
+
                     for s in self.channels[channel]:
                         await s["socket"].send(json.dumps(event))
                 elif channel is None:
@@ -267,7 +283,8 @@ class SocketServer(Thread):
                 logger.error(e)
             finally:
                 self._event_queue.task_done()
-                await asyncio.sleep(30)
+
+            await asyncio.sleep(30)
 
     async def handle_connect(self, ws_in, path):
         try:
@@ -315,7 +332,7 @@ class SocketServer(Thread):
                     tasks.append(self.make_task(pubsub.receive_message(ps_conn), name=f"{channel}_ps_receive"))
             except ValueError:
                 pass
-        elif "alert" in commands:
+        elif "alert" in commands and channel not in self.pubsub_clients:
             # No auth, so poll for follows
             alert_task = self.make_task(self.followers(channel), name=f"{channel}_followers")
             channel_client["alert"] = alert_task
@@ -338,12 +355,17 @@ class SocketServer(Thread):
         logger.info(f"Socket client Leave: {command}")
         await ws_in.close()
 
-    def shutdown(self):
+    def stop(self, *args):
+        self.shutdown_event.set()
+
+    async def shutdown(self):
         logger.info("Shutting down server")
         self.websocket_server.close()
-        self.websocket_server.wait_closed()
-        for task in asyncio.Task.all_tasks():
-            task.cancel()
+        self.chatbot.close()
+        queue = self.chatbot.chat()
+        await queue.put(None)
+        await self._event_queue.put(None)
+        await asyncio.sleep(2)
         logger.info("Stopping loop")
         self.loop.stop()
 
@@ -403,10 +425,5 @@ class SocketServer(Thread):
                                    client_id=client_id, secret=secret, events=self.recent_events,
                                    replay=self.replay_queue)
 
-        try:
-            self.loop.run_forever()
-        except KeyboardInterrupt:
-            logger.info("Interrrupted")
-            self.shutdown()
-            logger.info("Done")
+        self.loop.run_forever()
         logger.info("Ashnasbot shutdown complete")

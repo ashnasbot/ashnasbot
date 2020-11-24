@@ -201,7 +201,7 @@ async def render_bits(message, bits):
     res = CHEER_REGEX.sub(render_cheer, message)
     return res, total
     
-URL_REGEX = re.compile(r"(http(s)?://)?(clips.twitch.tv/(\w+)|www.twitch.tv/\w+/clip/(\w+))", flags=re.IGNORECASE)
+URL_REGEX = re.compile(r"(http(s)?://)?(clips.twitch.tv/(\w+)|www.twitch.tv/\w+/clip/(\w+))([?][=0-9a-zA-Z])?", flags=re.IGNORECASE)
 async def render_clips(message):
     if not API_CLIENT:
         return message
@@ -214,7 +214,11 @@ async def render_clips(message):
         logger.error("Malformed clip url %s", match.groups())
         return message
 
-    details = await API_CLIENT.get_clip(slug)
+    try:
+        details = await API_CLIENT.get_clip(slug)
+    except:
+        logger.error("Failed to get clip")
+        return message
 
     def render(match):
         thumbnail = details["thumbnails"]["small"]

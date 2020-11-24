@@ -10,9 +10,6 @@ from requests_oauthlib import OAuth2Session
 import time
 
 import base64
-from cryptography.hazmat import backends
-from cryptography.hazmat.backends.openssl.backend import backend as be_cc
-backends._available_backends_list =[be_cc]
 from cryptography import fernet
 from aiohttp import web
 import urllib.parse
@@ -30,7 +27,6 @@ redirect_uri = "http://localhost:8080/authorize"
 
 
 os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
-
 
 
 class WebServer(object):

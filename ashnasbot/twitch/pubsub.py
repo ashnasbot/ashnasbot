@@ -1,4 +1,5 @@
 import asyncio
+from enum import Enum
 import json
 import logging
 from threading import Event
@@ -9,6 +10,14 @@ from ..config import Config
 
 MSG_PING = { "type": "PING" }
 logger = logging.getLogger(__name__)
+
+PUBSUB_MESSAGE_TYPES = [
+    # "SUB",  # TODO
+    "RAID",
+    "HOSTED",
+    "FOLLOW",
+    "REDEMPTION",
+]
 
 
 class PubSubClient():
@@ -97,10 +106,11 @@ def handle_pubsub(message):
     event = json.loads(message)
     evt_type = event["type"]
 
+    logger.debug(event)
     if evt_type == "PONG":
         return
 
-    logger.debug(event)
+    # TODO: SUBs
     if evt_type == "MESSAGE":
         data = event["data"]
         message = json.loads(data["message"])
@@ -156,6 +166,7 @@ def handle_pubsub(message):
             data["nickname"] = nickname
             if orig_message:
                 data["orig_message"] = orig_message
+                data["message"] = orig_message
             data["tags"] = tags
             data["extra"] = extra
             return data
@@ -178,6 +189,6 @@ def make_message(type, message=""):
         'tags': {},
         'type': type,
         'channel': None,
-        'extra': []
+        'extra': ["pubsub"]
     }
 

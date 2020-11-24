@@ -135,3 +135,4 @@ class ChatBot():
         for c in self.channels:
             logger.info(f"closing chat {c}")
             self.observer.leave_channel(c)
+        self.observer.stop()

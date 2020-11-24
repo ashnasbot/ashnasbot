@@ -6,7 +6,7 @@ A simple twitch integration project to play with some python, very basic.
 Just download and run `ashnasbot.exe` not install needed.
 - run `ashnasbot.exe` in a terminal - it will create the required files.
 - use `CRTL`+`C` to quit and set the config.
-- Install required `views` into the directory.
+- Install required [views](https://github.com/ashnasbot/ashnasbot-views) into the directory.
 - run `ashnasbot.exe` again.
 
 ### dev

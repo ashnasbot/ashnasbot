@@ -26,12 +26,20 @@ logger = logging.getLogger(__name__)
 config = Config()
 
 API_CLIENT = None
-try:
-    API_CLIENT = TwitchClient(None, None)
-except ValueError:
-    logger.warning("No API client, API features unavailable")
-except ConnectionError:
-    logger.error("Failed to contact Twitch")
+retry = 5
+
+while API_CLIENT is None:
+    try:
+        API_CLIENT = TwitchClient(None, None)
+    except ValueError:
+        logger.warning("No API client, API features unavailable")
+        break
+    except ConnectionError:
+        logger.error("Failed to contact Twitch")
+        retry -= 1
+        if retry < 1:
+            break
+        time.sleep(2)
 
 
 async def render_emotes(message, emotes, bttv_channel=None):

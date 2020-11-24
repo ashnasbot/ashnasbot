@@ -35,7 +35,10 @@ class TwitchClient():
             body = urllib.parse.urlencode({'client_id': self.client_id, 'client_secret': cfg["secret"]})
             client = BackendApplicationClient(client_id=cfg["client_id"])
             oauth = OAuth2Session(client=client)
-            token = oauth.fetch_token(token_url='https://id.twitch.tv/oauth2/token', body=body)
+            try:
+                token = oauth.fetch_token(token_url='https://id.twitch.tv/oauth2/token', body=body)
+            except:
+                raise ValueError("OAuth: failed to get token")
 
         self.oauth = token["access_token"]
 

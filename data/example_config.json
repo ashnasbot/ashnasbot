@@ -1,0 +1,9 @@
+{
+    "client_id": "0123456789abcdef",
+    "oauth": "oauth:p37fhabfp39gfbda",
+    "username": "twitch_user",
+    "secret": "MY_SECRET",
+    "user_id": 1234567890,
+    "log_level":"INFO",
+    "bttv": true
+}

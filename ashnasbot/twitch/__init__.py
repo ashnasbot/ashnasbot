@@ -4,6 +4,7 @@ import html
 import json
 import logging
 import re
+from requests.exceptions import ConnectionError
 import sys
 import time
 import uuid
@@ -29,6 +30,8 @@ try:
     API_CLIENT = TwitchClient(None, None)
 except ValueError:
     logger.warning("No API client, API features unavailable")
+except ConnectionError:
+    logger.error("Failed to contact Twitch")
 
 
 async def render_emotes(message, emotes, bttv_channel=None):

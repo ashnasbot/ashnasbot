@@ -313,6 +313,7 @@ new Vue({
                         // TODO: Display feedback that auth failed
                         if (auth == null) {
                             console.log("No auth for channel")
+                            this.connect();
                         } else {
                             console.log("Auth invalid, aquiring new token")
                             this.config["pubsub"] = false;

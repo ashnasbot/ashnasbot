@@ -12,7 +12,7 @@ Vue.component('sound-handler', {
 	},
 	data: function () {
         var urlChunks = location.pathname.split('/');
-        return {view: urlChunks[urlChunks.length - 2]};
+        return {view: urlChunks[urlChunks.length - 2], audio: null};
 	},
     methods: {
         do_alert: function (msg) {
@@ -56,11 +56,22 @@ Vue.component('sound-handler', {
 					return;
 			}
 			audio = new Audio(path);
-			audio.play().then( resp => {
-				this.do_tts(audio, speech);
-			}).catch(error => {
-				console.error(error)
-			})
+			if (this.audio && !this.audio.paused) {
+				this.audio.addEventListener("ended", function () {
+					audio.play().then( resp => {
+						this.do_tts(audio, speech);
+					}).catch(error => {
+						console.error(error)
+					})
+				}.bind(this))
+			} else {
+				audio.play().then( resp => {
+					this.do_tts(audio, speech);
+				}).catch(error => {
+					console.error(error)
+				})
+			}
+			this.audio = audio;
 		},
 		do_tts: function(audio, msg) {
 			if (this.tts) {

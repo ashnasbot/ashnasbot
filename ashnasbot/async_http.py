@@ -72,14 +72,24 @@ class WebServer(object):
         return web.FileResponse('public/favicon.ico')
 
     def setup_routes(self):
+        # API
         self.app.router.add_get('/api/config', self.get_config)
         self.app.router.add_get('/api/views', self.get_views)
         self.app.router.add_get('/res/{view}/sound/{event}', self.get_sound)
         self.app.router.add_post('/api/config', self.post_config)
         self.app.router.add_post('/api/shutdown', self.post_shutdown)
         self.app.router.add_post('/replay_event', self.post_replay)
-        self.app.router.add_static('/static', path="public/")
-        self.app.router.add_static('/views', path="views/")
+
+        # Static
+        try:
+            self.app.router.add_static('/static', path="public/")
+        except:
+            logging.error("No Static dir")
+
+        try:
+            self.app.router.add_static('/views', path="views/")
+        except:
+            logging.warning("No views installed")
 
         # This is very important
         self.app.router.add_get('/favicon.ico', self.get_favicon)

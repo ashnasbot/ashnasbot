@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
+import glob
 import logging
-import sys
+import os.path
+import shutil
 import signal
-
-from ashnasbot import socket_server
-from ashnasbot import config
+import sys
 
 
 def patch_crypto():
@@ -13,8 +13,32 @@ def patch_crypto():
     from cryptography.hazmat.backends.openssl.backend import backend as be_cc
     backends._available_backends_list =[be_cc]
 
+def copy_resources():
+    # pylint: disable=maybe-no-member
+    if not hasattr(sys, "_MEIPASS") or not getattr(sys, 'frozen', False):
+        return
+
+    src_dir = os.path.join(sys._MEIPASS, "public")
+    tgt_dir = os.path.join(os.path.dirname(sys.executable), "public")
+    src_cfg = os.path.join(sys._MEIPASS, "example_config.json")
+    tgt_cfg = os.path.join(os.path.dirname(sys.executable), "config.json")
+
+    print("Creating web directories")
+    shutil.copytree(src_dir, tgt_dir, dirs_exist_ok=True)
+    if not os.path.isfile(tgt_cfg):
+        print("Creating config.json")
+        print(src_cfg, tgt_cfg)
+        shutil.copy(src_cfg, tgt_cfg)
+
 
 if __name__ == '__main__':
+    copy_resources()
+
+    # These must only be imported after the resources are in place
+    from ashnasbot import socket_server
+    from ashnasbot import config
+
+    print("Loading config")
     cfg = config.Config()
     try:
         lvl = cfg["log_level"].upper()

@@ -1,5 +1,5 @@
 aiohttp==3.7.2
-bleach==3.2.1
+bleach==3.3.0
 dataset==1.4.1
 requests==2.25.0
 git+git://github.com/ashnasbot/twitch-observer@master#egg

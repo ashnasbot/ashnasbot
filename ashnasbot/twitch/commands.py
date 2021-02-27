@@ -12,6 +12,8 @@ from .. import config
 
 logger = logging.getLogger(__name__)
 
+# TODO: load from gameinfo.txt
+GAMEINFO = "Treasure of the Rudas is a 1996 Square RPG released in Japan only, the last game they developed for the platform"
 # TODO: command cooldown (per channel)
 
 class BannedException(Exception):
@@ -94,9 +96,12 @@ def handle_command(event):
     ret_event.priv = priv_level
     ret_event.tags['response'] = True
     if callable(cmd):
-        ret_event = cmd(ret_event, *args)
-        ret_event.priv = ""
-        return ret_event
+        try:
+            ret_event = cmd(ret_event, *args)
+            ret_event.priv = ""
+            return ret_event
+        except:
+            return
 
 def handle_other_commands(event):
     try:
@@ -157,9 +162,21 @@ def beta_cmd(event, *args):
     event["message"] = "*Ralph Wiggum voice* I'm in Beta"
     return event
 
+def gameinfo_cmd(event, *args):
+    event["message"] = GAMEINFO
+    return event
+
+def mantras_cmd(event, *args):
+    event["message"] = """Mantas are Rudras' Spells, only we need to make them, join in on the work here: https://pad.riseup.net/p/GUZZZVN-xPDnUJv-pEzM-keep"""
+    return event
+
 def pringles_cmd(event, *args):
     resps = ["Am I from a f**king Cartoon?", "Sour cream & onion!"]
     event["message"] = random.choice(resps)
+    return event
+
+def approve_cmd(event, *args):
+    event["message"] = "https://clips.twitch.tv/TrustworthyFaintFalconRlyTho"
     return event
 
 def win_cmd(event, *args):
@@ -177,7 +194,7 @@ def hello_cmd(event, *args):
     return event
 
 def bs_cmd(event, *args):
-    event["message"] = f"No backseating please, we like to watch them suffer"
+    event["message"] = f"We're experiencing this game together for the first time, please don't spoil it if you already know."
     return event
 
 def so_cmd(event, who, *args):
@@ -191,7 +208,7 @@ def so_cmd(event, who, *args):
     return event
     
 def uptime(event, *args):
-    if event.tags['caller'] != 'darkshoxx':
+    if event.tags['caller'].lower() != 'darkshoxx':
         return
 
     event["message"] = f"You're late, darkshoxx!"
@@ -212,10 +229,11 @@ def get_pokemon(num_or_name):
                     pokedex.append({
                         "id": entry["id"],
                         "name": entry["name"],
+                        "found_in": entry["found_in"],
                         "caughtby": "{}"
                     })
 
-                db.update_multi(tbl_name, pokedex, primary="name", keys=["id", "name", "caughtby"])
+                db.update_multi(tbl_name, pokedex, primary="name", keys=["id", "name", "caughtby", "found_in"])
     except Exception as e:
         print("Err", e)
 
@@ -240,11 +258,11 @@ def pokedex_cmd(event, num_or_name, *args):
         if caughtby:
             caught_text = f" - caught by {list(caughtby.keys())}"
 
-        if pokemon["found_in"]:
+        if "found_in" in pokemon and pokemon["found_in"]:
             found_text = f" - found in {pokemon['found_in']}"
 
 
-        event["message"] = f'Pokemon {pokemon["id"]} is {pokemon["name"]}{found_text}{caught_text}'
+        event["message"] = f'Pokemon #{pokemon["id"]} is {pokemon["name"]}{found_text}{caught_text}'
     else:
         event["message"] = f"Pokemon '{num_or_name}' not found"
 
@@ -307,6 +325,7 @@ PRAISE_ENDINGS = [
     "easy to clean",
     "ＤＥＬＵＸＥ",
     "™",
+    "All rights reserved",
     "jack of all trades",
     "'IwlIj jachjaj",
     "all transactions are final",
@@ -317,7 +336,12 @@ PRAISE_ENDINGS = [
     "now for only 19,99",
     "better than Baby Shark",
     "\"The best thing on the internet.\" - Abraham Lincoln",
-    "omnishambles!"
+    "omnishambles!",
+    "'aint afraid of no ghost",
+    "12/10",
+    "better than a bucket of steam",
+    "can be worn as a hat",
+    "available in all good toystores"
 ]
 
 CALM = [
@@ -346,37 +370,39 @@ def calm_cmd(event, *args):
     return event
 
 def death_cmd(event, *args):
+    if event.priv < PRIV.VIP:
+        return
+
     if not db.exists("channel"):
         db.create("channel", primary="channel")
     try:
-        data = db.find_one("channel", channel=event["channel"])
+        data = db.find("channel", channel=event["channel"])
         if data == None:
             data = {"channel": event["channel"], "deaths":0}
         DEATHS = data["deaths"]
-    except:
+    except Exception as e:
         DEATHS = 0
 
     plus = " ".join(args)
-    if event.tags['caller'] == 'Ashnas' or event.tags['caller'] == 'darkshoxx' or \
-        event.tags['caller'] == 'TheADrain':
-        update = True
-        if plus == "":
+    update = True
+    if plus == "":
+        update = False
+    elif plus == "++":
+        DEATHS += 1
+    elif plus == "--":
+        DEATHS -= 1
+    else:
+        try:
+            DEATHS = int(plus)
+        except ValueError:
             update = False
-        elif plus == "++":
-            DEATHS += 1
-        elif plus == "--":
-            DEATHS -= 1
-        else:
-            try:
-                DEATHS = int(plus)
-            except ValueError:
-                update = False
-                event["message"] = f"/me unknown deaths value: {plus}"
-                return event
-        if update:
-            data["deaths"] = DEATHS
-            # TODO: logger
-            db.update("channel", data, ["channel"])
+            event["message"] = f"/me unknown deaths value: {plus}"
+            return event
+
+    if update:
+        data["deaths"] = DEATHS
+        # TODO: logger
+        db.update("channel", data, ["channel"])
 
     times = "times"
     if DEATHS == 1:
@@ -411,6 +437,9 @@ COMMANDS = {
     '!catch': catch_pokemon_cmd,
     #meme
     '!pringles': pringles_cmd,
+    '!gameinfo': gameinfo_cmd,
+    '!mantras': mantras_cmd,
+    '!approve': approve_cmd,
     '!beta': beta_cmd,
     '!win': win_cmd,
 }

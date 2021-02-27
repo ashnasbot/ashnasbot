@@ -62,6 +62,7 @@ function getAuth() {
                 auth = oauth;
             } else {
                 console.warn(`OAuth Token invalid for ${channel}`);
+                auth = false;
             }
         })
         .catch(error => {
@@ -235,11 +236,19 @@ new Vue({
                         msgtimes.push(ts);
                         msg.alternator = alternator;
                         alternator = !alternator;
-                        chat = this.chat.concat(msg);
                         var container = document.getElementById('chat');
                         if (container == null){
                             container = this.$el;
                         }
+                        const isScrolledToBottom = container.scrollHeight - container.clientHeight <= container.scrollTop + 1
+
+                        chat = this.chat.concat(msg);
+                        // scroll to bottom if isScrolledToBottom is true
+                        setTimeout(() => {
+                            if (isScrolledToBottom) {
+                                container.scrollTop = container.scrollHeight - container.clientHeight
+                            }
+                        }, 100);
                         if (checkOverflow(container)) {
                             if (this.chat.length > 1) {
                                 this.chat.shift();
@@ -369,6 +378,10 @@ new Vue({
                 save = JSON.parse(localStorage.getItem('chat-' + this.curChannel));
                 if (save.ts > (Date.now() - 600000)){
                     this.chat = save.chat;
+                    setTimeout(() => {
+                        var container = document.getElementById('chat');
+                        container.scrollTop = container.scrollHeight + 1000;
+                    }, 100);
                     if(this.chat.length > 0) {
                         alternator = !this.chat[this.chat.length - 1].alternator
                     }
@@ -388,27 +401,31 @@ new Vue({
 });
 
 // Determines if the passed element is overflowing its bounds.
-// Will temporarily modify the "overflow" style to detect this
-// if necessary.
 function checkOverflow(el)
 {
-    var curOverflow = el.style.overflow;
+
+    var curOverflow = getComputedStyle(el).overflowY;
     if (document.hidden) {
         return false
     }
 
-    if ( !curOverflow || curOverflow === "visible" )
-        el.style.overflow = "hidden";
+    if (curOverflow != "hidden" )
+    {
+        return false;
+    }
 
     var isOverflowing = el.clientHeight < el.scrollHeight - 2; /* THIS IS A HACK */
 
-    el.style.overflow = curOverflow;
     if (!isOverflowing){
         isOverflowing = el.scrollHeight > window.innerHeight;
     }
 
     return isOverflowing;
 }
+
+setInterval(function() {
+
+}, 500)
 
 window.onresize = function(event) {
     max_messages = Math.floor(window.innerHeight / (msg_size * scale_factor) ) + 1;

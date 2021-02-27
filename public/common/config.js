@@ -43,15 +43,34 @@ Vue.component('config-menu', {
     template: `
     <div class="popout">
     <div class="form">
-    <span>Press 'Submit' to set config </span>
-    <label>Allow commands<input name="commands" type="checkbox" v-model="commands"> </label>
-    <label>Pull Avatars<input name="images" type="checkbox" v-model="images"></label>
-    <label>Show Chat Notifications<input name="alert" type="checkbox" v-model="alert"></label>
-    <label>Sounds<input name="sound" type="checkbox" v-model="sound"></label>
-    <label>Text to speech<input name="tts" type="checkbox" v-model="tts"></label>
-    <label>Follow Hosts<input name="hosts" type="checkbox" v-model="hosts"></label>
-    <label>Show menu on load<input name="menu" type="checkbox" v-model="menu"></label>
-    <label>Show alerts from PubSub (requires auth)<input name="menu" type="checkbox" v-model="pubsub"></label>
+    <fieldset>
+    <legend>Press 'Submit' to set config </legend>
+
+    <input type="checkbox" id="menuChk1" v-model="commands">
+    <label for="menuChk1" name="commands">Allow Commands</label>
+
+    <input type="checkbox" id="menuChk2" v-model="images">
+    <label for="menuChk2" name="images">Pull Avatars</label>
+
+    <input type="checkbox" id="menuChk3" v-model="alert" >
+    <label for="menuChk3" name="alert">Show chat notifications</label>
+
+    <input type="checkbox" id="menuChk4" v-model="sound" >
+    <label for="menuChk4" name="sound">Sounds</label>
+
+    <input type="checkbox" id="menuChk5" v-model="tts" >
+    <label for="menuChk5" name="tts">Text to speech</label>
+
+    <input type="checkbox" id="menuChk6" v-model="hosts" >
+    <label for="menuChk6" name="hosts">Follow hosts</label>
+
+    <input type="checkbox" id="menuChk7" v-model="menu" >
+    <label for="menuChk7" name="menu">Show menu on load</label>
+
+    <input type="checkbox" id="menuChk8" v-model="pubsub" >
+    <label for="menuChk8" name="pubsub">Show alerts from PubSub (requires auth)</label>
+    </fieldset>
+
     </div>
     </div>
     `

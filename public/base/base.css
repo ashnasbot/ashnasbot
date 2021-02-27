@@ -15,6 +15,10 @@ a {
   width: 100vw;
 }
 
+#chat {
+  overflow-y: scroll;
+}
+
 .menu {
   position: absolute;
   opacity: 0;

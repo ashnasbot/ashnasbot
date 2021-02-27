@@ -25,7 +25,7 @@ class PubSubClient():
     def __init__(self, channel, channel_id, token, add_event):
         self.config = Config()
         self.add_event = add_event
-        self.topics = [f"channel-points-channel-v1.{channel_id}", f"dashboard-activity-feed.{channel_id}"]
+        self.topics = [f"dashboard-activity-feed.{channel_id}"]
         self.channel = channel
         self.auth_token = token
         self.stop_event = Event()
@@ -158,6 +158,15 @@ def handle_pubsub(message):
             tags = {
                 "cost": message["data"]["redemption"]["reward"]["cost"],
                 "color": message["data"]["redemption"]["reward"]["background_color"],
+                "system-msg": f"{nickname} redeemed {title}"
+            }
+        elif message["type"] == "channel_points_custom_reward_redemption":
+            nickname = message["channel_points_redeeming_user"]["display_name"]
+            title = message["channel_points_reward_title"]
+            if message["channel_points_user_input"]:
+                orig_message = message["channel_points_user_input"] 
+            msg_type = "REDEMPTION"
+            tags = {
                 "system-msg": f"{nickname} redeemed {title}"
             }
 

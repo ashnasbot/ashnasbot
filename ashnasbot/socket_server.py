@@ -7,7 +7,6 @@ import logging
 from queue import Queue, Empty
 from random import randrange
 import time
-from threading import Thread
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 import sys
@@ -33,6 +32,9 @@ ctx_client_id = contextvars.ContextVar('client_id')
 def filter_output(event, commands=False, **kwargs):
     if not "chat" in kwargs:
         if event["type"] == 'TWITCHCHATMESSAGE':
+            return False
+    elif "pubsub" in kwargs:
+        if "tags" in event and "custom-reward-id" in event["tags"]:
             return False
     if not "alert" in kwargs:
         if event["type"] not in ['TWITCHCHATMESSAGE', 'BITS']:
@@ -77,7 +79,6 @@ class SocketServer():
         self.reload_event = None
         self.shutdown_event = None
         self.shutdown_complete = None
-        Thread.__init__(self)
         self.websocket_server = None
         self._event_queue = None
         self.recent_events = deque([], 20)
@@ -267,8 +268,8 @@ class SocketServer():
 
                 if channel:
                     self.channels[channel] = [s for s in self.channels[channel] if not s["socket"].closed]
-                    if channel in self.pubsub_clients and not pubsub_filter(event):
-                        continue
+                    if pubsub_filter(event):
+                        continue  # Discard pubsub duplicated messages
 
                     for s in self.channels[channel]:
                         await s["socket"].send(json.dumps(event))
@@ -363,8 +364,8 @@ class SocketServer():
         self.websocket_server.close()
         if self.chatbot:
             self.chatbot.close()
-        queue = self.chatbot.chat()
-        await queue.put(None)
+            queue = self.chatbot.chat()
+            await queue.put(None)
         await self._event_queue.put(None)
         await asyncio.sleep(2)
         logger.info("Stopping loop")

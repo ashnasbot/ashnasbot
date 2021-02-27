@@ -184,9 +184,9 @@ class WebServer(object):
 
     async def begin_auth(self, request):
         # Step 1
-        scope = ['channel:read:redemptions']
+        scope = []
         oauth = OAuth2Session(client_id=self.client_id, redirect_uri=redirect_uri, scope=scope)
-        authorization_url, state = oauth.authorization_url(auth_base_url)
+        authorization_url, state = oauth.authorization_url(auth_base_url, force_verify=True)
         return_channel = request.query.get("channel", None)
         return_theme = request.query.get("theme", "noir")
 

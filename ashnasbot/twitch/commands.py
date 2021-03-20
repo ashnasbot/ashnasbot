@@ -7,13 +7,14 @@ import time
 import uuid
 
 from . import db
+from . import pokedex
 
 from .. import config
 
 logger = logging.getLogger(__name__)
 
 # TODO: load from gameinfo.txt
-GAMEINFO = "Treasure of the Rudas is a 1996 Square RPG released in Japan only, the last game they developed for the platform"
+GAMEINFO = "Pokémon Blue Version is a 1996 RPG developed by Game Freak for the Nintendo Game Boy"
 # TODO: command cooldown (per channel)
 
 class BannedException(Exception):
@@ -167,12 +168,7 @@ def gameinfo_cmd(event, *args):
     return event
 
 def mantras_cmd(event, *args):
-    event["message"] = """Mantas are Rudras' Spells, only we need to make them, join in on the work here: https://pad.riseup.net/p/GUZZZVN-xPDnUJv-pEzM-keep"""
-    return event
-
-def pringles_cmd(event, *args):
-    resps = ["Am I from a f**king Cartoon?", "Sour cream & onion!"]
-    event["message"] = random.choice(resps)
+    event["message"] = """Wrong game! this is Pokemon, but the mantras are here: https://pad.riseup.net/p/GUZZZVN-xPDnUJv-pEzM-keep"""
     return event
 
 def approve_cmd(event, *args):
@@ -214,65 +210,39 @@ def uptime(event, *args):
     event["message"] = f"You're late, darkshoxx!"
     return event
 
-def get_pokemon(num_or_name):
-    tbl_name = "pokedex"
-    try:
-        if not db.exists(tbl_name):
-            db.create(tbl_name, primary="name")
-            dir_path = os.path.dirname(os.path.realpath(__file__))
-            pokedex_path = os.path.join(dir_path, "data", "pokedex.json")
-            with open(pokedex_path, 'r', encoding="utf8") as f:
-                pokedata = json.load(f)
-                pokedex = []
-
-                for entry in pokedata:
-                    pokedex.append({
-                        "id": entry["id"],
-                        "name": entry["name"],
-                        "found_in": entry["found_in"],
-                        "caughtby": "{}"
-                    })
-
-                db.update_multi(tbl_name, pokedex, primary="name", keys=["id", "name", "caughtby", "found_in"])
-    except Exception as e:
-        print("Err", e)
-
-    tbl = db.get(tbl_name)
-    try: 
-        num = int(num_or_name)
-        return next((p for p in tbl if p["id"] == num), None)
-    except ValueError:
-        return next((p for p in tbl if p["name"].lower() == num_or_name.lower()), None)
-    except Exception as e:
-        print(e)
-
-    return None
-
-
 def pokedex_cmd(event, num_or_name, *args):
-    pokemon = get_pokemon(num_or_name)
+    pokemon = pokedex.get_pokemon(num_or_name)
     if pokemon:
         caughtby = json.loads(pokemon["caughtby"])
         caught_text = ""
         found_text = ""
+        dex_entry = ""
+
         if caughtby:
             caught_text = f" - caught by {list(caughtby.keys())}"
 
         if "found_in" in pokemon and pokemon["found_in"]:
             found_text = f" - found in {pokemon['found_in']}"
 
+        if "dex_entry" in pokemon and pokemon["dex_entry"]:
+            dex_entry = f", {pokemon['dex_entry'][:-1]}"
 
-        event["message"] = f'Pokemon #{pokemon["id"]} is {pokemon["name"]}{found_text}{caught_text}'
+
+        event["message"] = f'Pokémon #{pokemon["id"]} is {pokemon["name"]}{found_text}{caught_text}{dex_entry}'
     else:
-        event["message"] = f"Pokemon '{num_or_name}' not found"
+        event["message"] = f"Pokémon '{num_or_name}' not found"
 
     return event
 
 def catch_pokemon_cmd(event, num_or_name, *args):
-    pokemon = get_pokemon(num_or_name)
+    if event.priv < PRIV.VIP:
+        return
+
+    pokemon = pokedex.get_pokemon(num_or_name)
 
     try:
         if pokemon:
+            pokedex.player_pokedex_catch(event["channel"], pokemon["id"])
             caughtby = json.loads(pokemon["caughtby"])
             caughtby[event["channel"]] = f"{time.time()}"
             pokemon["caughtby"] = json.dumps(caughtby)
@@ -285,6 +255,29 @@ def catch_pokemon_cmd(event, num_or_name, *args):
         event["message"] = f""
 
     return event
+
+def poke_info_cmd(event, *args):
+    event["message"] = f"Using a Super Gameboy 2 and a Link-Cable to Internet adaptor, we're getting 151 Pokemon the original way"
+    return event
+
+def uncatch_pokemon_cmd(event, num, *args):
+    if event.priv < PRIV.MOD:
+        return
+
+    pokedex.player_pokedex_catch(event["channel"], num, False)
+
+def red_cmd(event, *args):
+    event["message"] = f"twitch.tv/theadrain is playing Red"
+    return event
+
+def blue_cmd(event, *args):
+    event["message"] = f"yes, it is blue"
+    return event
+
+def green_cmd(event, *args):
+    event["message"] = f"Look Dorothy, it's green"
+    return event
+
 
 PRAISE_ENDINGS = [
     "saviour of ages!",
@@ -380,7 +373,7 @@ def death_cmd(event, *args):
         if data == None:
             data = {"channel": event["channel"], "deaths":0}
         DEATHS = data["deaths"]
-    except Exception as e:
+    except:
         DEATHS = 0
 
     plus = " ".join(args)
@@ -433,10 +426,15 @@ COMMANDS = {
     '!deaths': death_cmd,
     '!uptime': uptime,
     '!proffer': proffer_cmd,
+    # Poke
     '!pokedex': pokedex_cmd,
     '!catch': catch_pokemon_cmd,
+    '!uncatch': uncatch_pokemon_cmd,
+    '!151': poke_info_cmd,
+    '!red': red_cmd,
+    '!blue': blue_cmd,
+    '!green': green_cmd,
     #meme
-    '!pringles': pringles_cmd,
     '!gameinfo': gameinfo_cmd,
     '!mantras': mantras_cmd,
     '!approve': approve_cmd,

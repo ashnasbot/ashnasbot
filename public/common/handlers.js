@@ -99,7 +99,8 @@ new Vue({
         ping: null,
         channel: getChannel(),
         theme: getTheme(),
-        curChannel: ""
+        curChannel: "",
+        scene: null
     },
     methods: {
         updateCfg: function(data) {
@@ -122,7 +123,7 @@ new Vue({
             }
             return JSON.stringify(clientConfig);
         },
-        loadData: function() {
+        loadData: function(event) {
             if (event.data == "ping") {
                 this.chatsocket.send("pong");
                 return;
@@ -132,13 +133,16 @@ new Vue({
             }
             this.incoming.push(event);
         },
-        unload: function (event) {
+        store_chat: function(event) {
             save = {
                 ts: Date.now(),
                 chat: this.chat
             }
             const parsed = JSON.stringify(save);
             localStorage.setItem('chat-' + this.curChannel, parsed);
+        },
+        unload: function (event) {
+            this.store_chat(event);
             if ("chatsocket" in this) {
                 this.chatsocket.onclose = null;
                 this.chatsocket.close();
@@ -286,10 +290,11 @@ new Vue({
                 };
             }
             this.incoming = [];
+            this.store_chat();
         }
     },
     created: function () {
-        window.addEventListener('beforeunload', this.unload)
+        window.addEventListener('beforeunload', this.unload);
     },
     mounted: function () {
         var appstyle = window.getComputedStyle(this.$el, null).getPropertyValue('font-size');
@@ -392,6 +397,12 @@ new Vue({
                     localStorage.removeItem('chat-' + this.curChannel);
                 }
             }
+        }
+
+        if ("obsstudio" in window) {
+            window.obsstudio.getCurrentScene(function (scene) {
+                this.scene = scene;
+            })
         }
     },
 

@@ -16,6 +16,8 @@ import urllib.parse
 from aiohttp_session import setup, get_session, new_session, session_middleware
 from aiohttp_session.cookie_storage import EncryptedCookieStorage
 
+from ashnasbot.twitch import pokedex
+
 logger = logging.getLogger(__name__)
 
 db = dataset.connect('sqlite:///ashnasbot.db')
@@ -101,6 +103,9 @@ class WebServer(object):
         self.app.router.add_get('/chat', self.get_chat)
         self.app.router.add_get('/user_auth', self.begin_auth)
         self.app.router.add_get('/authorize', self.auth_callback)
+        
+        # API
+        self.app.router.add_get('/dex', self.get_pokedex)
 
     @staticmethod
     async def get_config(request):
@@ -223,19 +228,10 @@ class WebServer(object):
         resp.cookies['token'] = token["access_token"]
         return resp
 
-
-if __name__ == '__main__':
-
-    loop = asyncio.get_event_loop()
-    logging.basicConfig(level=logging.DEBUG)
-    loop.set_debug(False)
-    ws = WebServer(loop=loop)
-    try:
-        loop.run_forever()
-    except KeyboardInterrupt:
-        tasks = asyncio.gather(
-                    *asyncio.Task.all_tasks(loop=loop),
-                    loop=loop,
-                    return_exceptions=True)
-        tasks.add_done_callback(lambda t: loop.stop())
-        tasks.cancel()
+    def get_pokedex(self, request):
+        player = request.query['channel']
+        resp = {}
+        dex = pokedex.get_player_pokedex(player)
+        for row in dex:
+            resp[row['id']] = row['caught']
+        return web.json_response(resp)

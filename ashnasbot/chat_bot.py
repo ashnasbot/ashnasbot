@@ -1,16 +1,9 @@
 import logging
-import time
 import functools
-import re
-from threading import Thread, current_thread, Event
 from concurrent.futures import Future
 
-import traceback
 import asyncio
 from twitchobserver import Observer
-
-from . import twitch
-from .twitch import commands
 
 logger = logging.getLogger(__name__)
 

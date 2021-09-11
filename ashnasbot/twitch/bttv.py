@@ -1,13 +1,13 @@
 import aiohttp
 import logging
-import re
 
 logger = logging.getLogger(__name__)
 
 
 BTTV_API_GLOBAL = "https://api.betterttv.net/3/cached/emotes/global"
 BTTV_API_CHANNEL = "https://api.betterttv.net/3/cached/users/twitch/{channel}"
-BTTV_EMOTE_URL_TEMPLATE = """<img src=\"https://cdn.betterttv.net/emote/{id}/2x\" class="emote" alt=\"{name}\" title=\"{name}\" />"""
+BTTV_EMOTE_URL_TEMPLATE = """<img src=\"https://cdn.betterttv.net/emote/{id}/2x\"
+                             class="emote" alt=\"{name}\" title=\"{name}\" />"""
 
 SESSION = None
 EMOTES = {}
@@ -63,8 +63,10 @@ async def get_global_emotes():
 
     return {emote["code"]: emote["id"] for emote in emotes}
 
+
 def get_emote(code, idx):
     return BTTV_EMOTE_URL_TEMPLATE.format(name=code, id=idx)
+
 
 async def get_emotes(channel):
     if channel not in REGEX:
@@ -73,8 +75,11 @@ async def get_emotes(channel):
         return None
     return REGEX[channel]
 
+
 def get_pattern_old(message, channel):
-    return REGEX[channel].sub(lambda match: BTTV_EMOTE_URL_TEMPLATE.format(name=match.group(0), id=EMOTES[channel][match.group(0)]), message)
+    return REGEX[channel].sub(lambda match: BTTV_EMOTE_URL_TEMPLATE.format(
+        name=match.group(0), id=EMOTES[channel][match.group(0)]), message)
+
 
 def emotes():
     return EMOTES

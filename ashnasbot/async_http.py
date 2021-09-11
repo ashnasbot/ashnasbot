@@ -1,5 +1,4 @@
 import aiohttp
-from aiohttp import web
 import asyncio
 import json
 import logging
@@ -7,13 +6,12 @@ import dataset
 import os
 from pathlib import Path
 from requests_oauthlib import OAuth2Session
-import time
 
 import base64
 from cryptography import fernet
 from aiohttp import web
 import urllib.parse
-from aiohttp_session import setup, get_session, new_session, session_middleware
+from aiohttp_session import setup, get_session, new_session
 from aiohttp_session.cookie_storage import EncryptedCookieStorage
 
 from ashnasbot.twitch import pokedex
@@ -58,8 +56,7 @@ class WebServer(object):
         await self.runner.setup()
         self.site = web.TCPSite(self.runner, self.address, self.port)
         await self.site.start()
-        logger.info('------ serving on %s:%d ------'
-              % (self.address, self.port))
+        logger.info('------ serving on %s:%d ------' % (self.address, self.port))
 
     @staticmethod
     async def get_dashboard(request):
@@ -85,12 +82,12 @@ class WebServer(object):
         # Static
         try:
             self.app.router.add_static('/static', path="public/")
-        except:
+        except Exception:
             logging.error("No Static dir")
 
         try:
             self.app.router.add_static('/views', path="views/")
-        except:
+        except Exception:
             logging.warning("No views installed")
 
         # This is very important
@@ -103,7 +100,7 @@ class WebServer(object):
         self.app.router.add_get('/chat', self.get_chat)
         self.app.router.add_get('/user_auth', self.begin_auth)
         self.app.router.add_get('/authorize', self.auth_callback)
-        
+
         # API
         self.app.router.add_get('/dex', self.get_pokedex)
 
@@ -129,7 +126,7 @@ class WebServer(object):
         for evt in self.events:
             try:
                 resp.insert(0, evt.__dict__)
-            except:
+            except AttributeError:
                 resp.insert(0, evt)
 
         return web.json_response(resp)
@@ -155,9 +152,8 @@ class WebServer(object):
         for match in fallback_match:
             if match.suffix in self.AUDIO_FILETYPES:
                 return web.FileResponse(fallback_match[0])
-        
-        return web.HTTPNotFound()
 
+        return web.HTTPNotFound()
 
     async def post_shutdown(self, request):
         if self.shutdown_evt:
@@ -174,8 +170,8 @@ class WebServer(object):
             with open('config.json', 'r+') as config:
                 old_config = json.load(config)
                 new_config = await request.json()
-                if not all(k in new_config for k in ("client_id","oauth", "username")) or \
-                    not all(k in new_config for k in ("client_id","secret", "username")):
+                if not all(k in new_config for k in ("client_id", "oauth", "username")) or \
+                        not all(k in new_config for k in ("client_id", "secret", "username")):
                     logger.error("Config not complete")
                     return
 
@@ -213,7 +209,9 @@ class WebServer(object):
         session = await get_session(request)
         state = session['state']
 
-        body = urllib.parse.urlencode({'client_id': self.client_id, 'client_secret': self.secret, 'redirect_uri': redirect_uri})
+        body = urllib.parse.urlencode({'client_id': self.client_id,
+                                       'client_secret': self.secret,
+                                       'redirect_uri': redirect_uri})
         twitch = OAuth2Session(client_id=self.client_id, state=state)
         code = request.query['code']
         token = twitch.fetch_token(token_url, code=code, body=body)

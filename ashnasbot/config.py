@@ -1,6 +1,5 @@
 import json
 import logging
-import sys
 
 logger = logging.getLogger(__name__)
 
@@ -14,19 +13,22 @@ DEFAULT_CFG = """{
     "bttv": true
 }
 """
+_no_default = object()
+
 
 class ReloadException(Exception):
     pass
 
+
 class ConfigError(Exception):
     pass
 
-_no_default = object()
 
 class Config():
 
     # Singleton stuff
     instance = None
+
     def __new__(self):
         if not Config.instance:
             Config.instance = Config.__Config()
@@ -53,7 +55,7 @@ class Config():
             try:
                 with open('config.json') as f:
                     self._config = json.load(f)
-            except:
+            except Exception:
                 with open('config.json', 'w') as f:
                     f.write(DEFAULT_CFG)
                 raise ConfigError("No config.json found")

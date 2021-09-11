@@ -1,6 +1,4 @@
-import json
 import logging
-from pathlib import Path
 import urllib.parse
 
 import aiohttp
@@ -14,6 +12,7 @@ API_BASE = "https://api.twitch.tv"
 logger = logging.getLogger(__name__)
 
 token = None
+
 
 class TwitchClient():
 
@@ -29,7 +28,6 @@ class TwitchClient():
         self.target_user = target_user
         self.channel_id = None
 
-
         if not token:
             logger.warning("No token - retriving new token")
             body = urllib.parse.urlencode({'client_id': self.client_id, 'client_secret': cfg["secret"]})
@@ -37,7 +35,7 @@ class TwitchClient():
             oauth = OAuth2Session(client=client)
             try:
                 token = oauth.fetch_token(token_url='https://id.twitch.tv/oauth2/token', body=body)
-            except:
+            except Exception:
                 raise ValueError("OAuth: failed to get token")
 
         self.oauth = token["access_token"]
@@ -61,12 +59,9 @@ class TwitchClient():
         if not url.startswith("http"):
             url = API_BASE + url
 
-        async with session.get(url,
-                        params=params,
-                        headers=headers) as resp:
+        async with session.get(url, params=params, headers=headers) as resp:
             # TODO: check status (too many requests? etc)
             return await resp.json()
-
 
     async def get_channel_id(self, channel=None):
         url = "/helix/users"
@@ -86,16 +81,15 @@ class TwitchClient():
         if own_id:
             self.channel_id = channel_id
         return channel_id
-        
 
     async def get_user_info(self, user):
         url = "/helix/users"
         if not user:
             return {}
         if user.isnumeric():
-            params = { 'id': user }
+            params = {'id': user}
         else:
-            params = { 'login': user }
+            params = {'login': user}
 
         logger.debug("Getting user info for %s", user)
 
@@ -106,10 +100,9 @@ class TwitchClient():
             return {}
         return resp["data"][0]
 
-
     async def get_new_followers(self):
         emit = True
-        if self.channel_id == None:
+        if self.channel_id is None:
             await self.get_channel_id()
             emit = False
 
@@ -123,7 +116,7 @@ class TwitchClient():
         if not db.exists(tbl_name):
             db.create(tbl_name, primary="name")
             emit = False
-        
+
         tbl = db.get(tbl_name)
         existing_follows = [e["id"] for e in tbl]
 
@@ -141,7 +134,6 @@ class TwitchClient():
             return [u["username"] for u in new_follows]
         else:
             return []
-
 
     async def get_badges_for_channel(self, channel):
         logger.debug("Getting badges for %s", channel)
@@ -193,14 +185,13 @@ class TwitchClient():
                     value = teir["id"]
                     tiers[value] = img
                 cheermotes[prefix] = tiers
-        except:
+        except Exception:
             logger.warning("Failed to get cheermotes")
-        
+
         return cheermotes
 
-
     async def get_clip(self, clip):
-        url = f"https://api.twitch.tv/helix/clips"
-        params = { 'id': clip }
+        url = "https://api.twitch.tv/helix/clips"
+        params = {'id': clip}
         logger.debug("Getting clip details for slug: %s", clip)
         return await self._make_api_request(url, params=params)

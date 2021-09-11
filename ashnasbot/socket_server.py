@@ -9,15 +9,14 @@ from random import randrange
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
-import sys
 
 import websockets
 
 from .async_http import WebServer
 from .chat_bot import ChatBot
-from .config import Config, ReloadException
+from .config import Config
 from .twitch import db
-from .twitch.pubsub import PubSubClient, PUBSUB_MESSAGE_TYPES
+from .twitch.pubsub import PubSubClient
 from .twitch import handle_message, get_bits
 from .twitch.api_client import TwitchClient
 from .twitch.commands import BannedException
@@ -29,17 +28,19 @@ SCRAPE_AVATARS = True
 logging.getLogger("websockets").setLevel(logging.INFO)
 ctx_client_id = contextvars.ContextVar('client_id')
 
+
 def filter_output(event, commands=False, **kwargs):
-    if not "chat" in kwargs:
+    if "chat" not in kwargs:
         if event["type"] == 'TWITCHCHATMESSAGE':
             return False
     elif "pubsub" in kwargs:
         if "tags" in event and "custom-reward-id" in event["tags"]:
             return False
-    if not "alert" in kwargs:
+    if "alert" not in kwargs:
         if event["type"] not in ['TWITCHCHATMESSAGE', 'BITS']:
             return False
     return True
+
 
 def allowed_content(event, commands=False, **kwargs):
     message = event.message if hasattr(event, "message") else ""
@@ -47,14 +48,15 @@ def allowed_content(event, commands=False, **kwargs):
         if message.startswith('!'):
             logger.debug("COMMAND %s (Ignored)", message)
             return False
-    if not "chat" in kwargs:
+    if "chat" not in kwargs:
         if event.type == 'TWITCHCHATMESSAGE':
             return False
-    if not "alert" in kwargs:
+    if "alert" not in kwargs:
         # RAID, HOST, SUBGIFT, SUB
         if event.type in ['TWITCHATUSERNOTICE', 'SUB', "RAID", "HOSTED"]:
             return False
     return True
+
 
 def pubsub_filter(event):
     ext = event.get("extra", {})
@@ -67,6 +69,7 @@ def pubsub_filter(event):
 
 def strip_content(content):
     return content
+
 
 class SocketServer():
 
@@ -86,7 +89,7 @@ class SocketServer():
         self.replay_queue = Queue()
 
     async def chat(self):
-        queue = None 
+        queue = None
         while not self.shutdown_event.is_set():
             try:
                 processing = False
@@ -96,7 +99,7 @@ class SocketServer():
 
                 queue = self.chatbot.chat()
                 event = await queue.get()
-                if event == None:
+                if event is None:
                     return
                 processing = True
                 channel = event.channel
@@ -127,7 +130,6 @@ class SocketServer():
                         for s in self.channels[c]:
                             await s["socket"].send(json.dumps(content))
 
-
             except websockets.exceptions.ConnectionClosed as e:
                 logger.info(f"Connection closed {e.code}")
 
@@ -138,7 +140,7 @@ class SocketServer():
                 db.update("banned", {"name": e.channel}, ["name"])
                 self.chatbot.unsubscribe(channel)
 
-            except Exception as e:
+            except Exception:
                 import traceback
                 err = traceback.format_exc()
                 logger.debug(err)
@@ -146,7 +148,7 @@ class SocketServer():
                 if processing:
                     processing = False
                     queue.task_done()
-    
+
     async def replay(self):
         while not self.shutdown_event.is_set():
             try:
@@ -161,7 +163,6 @@ class SocketServer():
                     await self._event_queue.put(event)
             except Empty:
                 await asyncio.sleep(1)
-
 
     async def config_listener(self):
         while not self.shutdown_event.is_set():
@@ -192,7 +193,6 @@ class SocketServer():
                 last = await self.pubsub_clients[c].disconnect()
                 if last:
                     del self.pubsub_clients[c]
-                
 
         # Sleep in case we're just refreshing
         await asyncio.sleep(5)
@@ -223,13 +223,13 @@ class SocketServer():
     async def followers(self, channel):
         await asyncio.sleep(10)
         while not self.shutdown_event.is_set():
-            if not channel in self.http_clients:
+            if channel not in self.http_clients:
                 try:
                     self.http_clients[channel] = TwitchClient(self.config["client_id"], channel)
-                except:
+                except Exception:
                     return
             recent_followers = await self.http_clients[channel].get_new_followers()
-            if not recent_followers: 
+            if not recent_followers:
                 await asyncio.sleep(80 + randrange(20))
                 continue
 
@@ -238,7 +238,7 @@ class SocketServer():
                     # TODO: Create_event()
                     evt_msg = {
                         'nickname': nickname,
-                        'type' : "FOLLOW",
+                        'type': "FOLLOW",
                         'channel': channel,
                         "id": str(uuid.uuid4()),
                         'tags': {
@@ -292,7 +292,7 @@ class SocketServer():
     async def handle_connect(self, ws_in, path):
         try:
             command = await ws_in.recv()
-        except:
+        except (websockets.ConnectionClosed, RuntimeError):
             return
         if self.shutdown_event.is_set():
             return
@@ -310,7 +310,7 @@ class SocketServer():
         channel_client.update(commands)
         channel = commands["channel"]
         if "chat" in commands:
-            if db.exists("banned")and db.find("banned", name=channel):
+            if db.exists("banned") and db.find("banned", name=channel):
                 logger.error(f"We are banned from {channel}")
                 resp = {"type": "BANNED", "channel": channel}
                 await ws_in.send(json.dumps(resp))
@@ -318,7 +318,7 @@ class SocketServer():
             self.chatbot.subscribe(channel)
         if "auth" in commands:
             try:
-                if not channel in self.http_clients:
+                if channel not in self.http_clients:
                     self.http_clients[channel] = TwitchClient(self.config["client_id"], channel)
                 if channel in self.pubsub_clients:
                     pubsub = self.pubsub_clients[channel]
@@ -332,7 +332,8 @@ class SocketServer():
                     channel_client["pubsub"] = pubsub
                     ps_conn = await pubsub.connect()
                     tasks.append(self.make_task(pubsub.heartbeat(ps_conn), name=f"{channel}_ps_hb"))
-                    tasks.append(self.make_task(pubsub.receive_message(ps_conn), name=f"{channel}_ps_receive"))
+                    tasks.append(self.make_task(pubsub.receive_message(ps_conn),
+                                                name=f"{channel}_ps_receive"))
             except ValueError:
                 pass
         elif "alert" in commands and channel not in self.pubsub_clients:
@@ -387,7 +388,6 @@ class SocketServer():
         except TypeError:
             return self.loop.create_task(func)
 
-
     def run(self):
         logger.info("Starting socket server")
         self.loop = asyncio.new_event_loop()
@@ -411,7 +411,7 @@ class SocketServer():
                 logger.warning("Bad user/oauth - Chat unavailable")
         else:
             logger.warning("No user/oauth - Chat unavailable")
-        
+
         if client_id:
             try:
                 self.users = Users(TwitchClient(client_id, ''))
@@ -422,15 +422,15 @@ class SocketServer():
 
         self.reload_event = asyncio.Event()
         self.shutdown_event = asyncio.Event()
-        self.make_task(self.chat(), name=f"chat")
-        self.make_task(self.alerts(), name=f"alert")
-        self.make_task(self.config_listener(), name=f"config")
-        self.make_task(self.shutdown_listener(), name=f"shutdown")
-        self.make_task(self.replay(), name=f"event_replay")
+        self.make_task(self.chat(), name="chat")
+        self.make_task(self.alerts(), name="alert")
+        self.make_task(self.config_listener(), name="config")
+        self.make_task(self.shutdown_listener(), name="shutdown")
+        self.make_task(self.replay(), name="event_replay")
 
-        self.webserver = WebServer(reload_evt=self.reload_event, loop=self.loop, shutdown_evt=self.shutdown_event,
-                                   client_id=client_id, secret=secret, events=self.recent_events,
-                                   replay=self.replay_queue)
+        self.webserver = WebServer(reload_evt=self.reload_event, loop=self.loop,
+                                   shutdown_evt=self.shutdown_event, client_id=client_id, secret=secret,
+                                   events=self.recent_events, replay=self.replay_queue)
 
         self.loop.run_forever()
         logger.info("Ashnasbot shutdown complete")

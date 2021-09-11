@@ -1,7 +1,5 @@
 import json
-import logging
 import os
-import time
 
 from . import db
 
@@ -26,12 +24,13 @@ def get_pokemon(num_or_name):
                         "caughtby": "{}"
                     })
 
-                db.update_multi(tbl_name, pokedex, primary="name", keys=["id", "name", "caughtby", "found_in", "dex_entry"])
+                db.update_multi(tbl_name, pokedex, primary="name",
+                                keys=["id", "name", "caughtby", "found_in", "dex_entry"])
     except Exception as e:
         print("Err", e)
 
     tbl = db.get(tbl_name)
-    try: 
+    try:
         num = int(num_or_name)
         return next((p for p in tbl if p["id"] == num), None)
     except ValueError:
@@ -40,6 +39,7 @@ def get_pokemon(num_or_name):
         print(e)
 
     return None
+
 
 def get_player_pokedex(name):
     tbl_name = name + "_pokedex"

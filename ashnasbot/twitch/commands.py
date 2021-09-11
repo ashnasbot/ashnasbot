@@ -1,6 +1,6 @@
+from enum import Enum, auto
 import json
 import logging
-import os
 import random
 import re
 import time
@@ -14,12 +14,14 @@ from .. import config
 logger = logging.getLogger(__name__)
 
 # TODO: load from gameinfo.txt
-GAMEINFO = "Pokémon Blue Version is a 1996 RPG developed by Game Freak for the Nintendo Game Boy"
+GAMEINFO = "Final Fantasy 3 is the third one Kappa"
 # TODO: command cooldown (per channel)
+
 
 class BannedException(Exception):
     def __init__(self, channel):
         self.channel = channel
+
 
 class ResponseEvent(dict):
     """Render our own msgs through the bot."""
@@ -39,26 +41,29 @@ class ResponseEvent(dict):
         self.extra = ['quoted']
         self.type = 'TWITCHCHATMESSAGE'
         self.priv = PRIV.COMMON
-    
 
-from enum import Enum, auto
+
 class OrderedEnum(Enum):
     def __ge__(self, other):
         if self.__class__ is other.__class__:
             return self.value >= other.value
         return NotImplemented
+
     def __gt__(self, other):
         if self.__class__ is other.__class__:
             return self.value > other.value
         return NotImplemented
+
     def __le__(self, other):
         if self.__class__ is other.__class__:
             return self.value <= other.value
         return NotImplemented
+
     def __lt__(self, other):
         if self.__class__ is other.__class__:
             return self.value < other.value
         return NotImplemented
+
 
 class PRIV(str, OrderedEnum):
     COMMON = auto()
@@ -101,8 +106,9 @@ def handle_command(event):
             ret_event = cmd(ret_event, *args)
             ret_event.priv = ""
             return ret_event
-        except:
+        except Exception:
             return
+
 
 def handle_other_commands(event):
     try:
@@ -114,17 +120,17 @@ def handle_other_commands(event):
             return {
                     'nickname': event.tags['login'],
                     'orig_message': event._params,
-                    'id' : event.tags['target-msg-id'],
-                    'type' : event._command
+                    'id': event.tags['target-msg-id'],
+                    'type': event._command
                     }
         elif event._command == "CLEARCHAT":
             user = event.tags.get('target-user-id', "")
             logger.debug("CLEAR: %s from %s", user, event.tags['room-id'])
             return {
-                    'id' : str(uuid.uuid4()),
-                    'user' : user,
+                    'id': str(uuid.uuid4()),
+                    'user': user,
                     'room': event.tags['room-id'],
-                    'type' : event._command
+                    'type': event._command
                     }
         elif event._command == "RECONNECT":
             ret_event = ResponseEvent()
@@ -148,45 +154,54 @@ def handle_other_commands(event):
         logger.warn(e)
         return
 
+
 def goaway_cmd(event, *args):
     if event.priv < PRIV.MOD:
-        event["message"] = f"Only a mod or the broadcaster can remove me"
+        event["message"] = "Only a mod or the broadcaster can remove me"
         return event
     raise BannedException(event["channel"])
+
 
 def no_cmd(event, who, *args):
     remainder = " ".join(args)
     event["message"] = f"No {who} {remainder}"
     return event
 
+
 def beta_cmd(event, *args):
     event["message"] = "*Ralph Wiggum voice* I'm in Beta"
     return event
+
 
 def gameinfo_cmd(event, *args):
     event["message"] = GAMEINFO
     return event
 
+
 def mantras_cmd(event, *args):
-    event["message"] = """Wrong game! this is Final Fantasy, but the mantras are here: https://pad.riseup.net/p/GUZZZVN-xPDnUJv-pEzM-keep"""
+    event["message"] = """Wrong game! this is Final Fantasy,
+                          but the mantras are here: https://pad.riseup.net/p/GUZZZVN-xPDnUJv-pEzM-keep"""
     return event
+
 
 def approve_cmd(event, *args):
     event["message"] = "https://clips.twitch.tv/TrustworthyFaintFalconRlyTho"
     return event
 
+
 def win_cmd(event, *args):
     val = random.randint(30, 2000)
-    caller =  event.tags['caller']
+    caller = event.tags['caller']
     if random.randint(1, 10) == 1:
         event["message"] = f"{caller} looses"
     else:
         event["message"] = f"{caller} wins {val} points"
     return event
 
+
 def save_cmd(event, *args):
     if random.randint(1, 10) == 1:
-        event["message"] = f"But did you Dave?"
+        event["message"] = "But did you Dave?"
     else:
         event["message"] = "But did you save?"
     return event
@@ -197,9 +212,12 @@ def hello_cmd(event, *args):
     event["message"] = who
     return event
 
+
 def bs_cmd(event, *args):
-    event["message"] = f"We're experiencing this game together for the first time, please don't spoil it if you already know."
+    event["message"] = """We're experiencing this game together for the first time,
+                          please don't spoil it if you already know."""
     return event
+
 
 def so_cmd(event, who, *args):
     if event.priv < PRIV.VIP:
@@ -210,13 +228,15 @@ def so_cmd(event, who, *args):
     else:
         event["message"] = f"Shoutout to {who} at https://twitch.tv/{who.lower()} - they are a good egg <3"
     return event
-    
+
+
 def uptime(event, *args):
     if event.tags['caller'].lower() != 'darkshoxx':
         return
 
-    event["message"] = f"You're late, darkshoxx!"
+    event["message"] = "You're late, darkshoxx!"
     return event
+
 
 def pokedex_cmd(event, *args):
     if not args:
@@ -244,17 +264,17 @@ def pokedex_cmd(event, *args):
         if "dex_entry" in pokemon and pokemon["dex_entry"]:
             dex_entry = f", {pokemon['dex_entry'][:-1]}"
 
-
         event["message"] = f'Pokémon #{pokemon["id"]} is {pokemon["name"]}{found_text}{caught_text}{dex_entry}'
     else:
         event["message"] = f"Pokémon '{num_or_name}' not found"
 
     return event
 
+
 def catch_pokemon_cmd(event, num_or_name, *args):
     if event.priv < PRIV.VIP:
         return
-    event["message"] = f"This isn't Pokémon"
+    event["message"] = "This isn't Pokémon"
     return event
 
     pokemon = pokedex.get_pokemon(num_or_name)
@@ -271,13 +291,16 @@ def catch_pokemon_cmd(event, num_or_name, *args):
             event["message"] = f"Pokemon '{num_or_name}' not found"
     except Exception as e:
         print(e)
-        event["message"] = f""
+        event["message"] = ""
 
     return event
+
 
 def poke_info_cmd(event, *args):
-    event["message"] = f"Using a Super Gameboy 2 and a Link-Cable to Internet adaptor, we're getting 151 Pokemon the original way"
+    event["message"] = """Using a Super Gameboy 2 and a Link-Cable to Internet adaptor,
+                          we're getting 151 Pokemon the original way"""
     return event
+
 
 def uncatch_pokemon_cmd(event, num, *args):
     if event.priv < PRIV.VIP:
@@ -285,16 +308,19 @@ def uncatch_pokemon_cmd(event, num, *args):
 
     pokedex.player_pokedex_catch(event["channel"], num, False)
 
+
 def red_cmd(event, *args):
-    event["message"] = f"twitch.tv/theadrain is playing Red"
+    event["message"] = "twitch.tv/theadrain is playing Red"
     return event
+
 
 def blue_cmd(event, *args):
-    event["message"] = f"yes, it is blue"
+    event["message"] = "yes, it is blue"
     return event
 
+
 def green_cmd(event, *args):
-    event["message"] = f"Look Dorothy, it's green"
+    event["message"] = "Look Dorothy, it's green"
     return event
 
 
@@ -371,15 +397,18 @@ CALM = [
     "If you want to trick your subconscious into helping you feel calm, simply repeat: 'Every moment I feel calmer and calmer.'"
 ]
 
+
 def praise_cmd(event, praise, *args):
     ending = random.sample(PRAISE_ENDINGS, 1)[0]
     message = " ".join([praise, *args])
     event["message"] = f"Praise {message} - {ending.format(praise=message)}"
     return event
 
+
 def calm_cmd(event, *args):
     event["message"] = random.sample(CALM, 1)[0]
     return event
+
 
 def death_cmd(event, *args):
     if event.priv < PRIV.VIP:
@@ -389,10 +418,10 @@ def death_cmd(event, *args):
         db.create("channel", primary="channel")
     try:
         data = db.find("channel", channel=event["channel"])
-        if data == None:
-            data = {"channel": event["channel"], "deaths":0}
+        if data is None:
+            data = {"channel": event["channel"], "deaths": 0}
         DEATHS = data["deaths"]
-    except:
+    except Exception:
         DEATHS = 0
 
     plus = " ".join(args)
@@ -422,14 +451,17 @@ def death_cmd(event, *args):
     event["message"] = f"/me Our illustrious strimmer has died {DEATHS} {times}"
     return event
 
+
 def proffer_cmd(event, *args):
-    proffered =  " ".join(args)
+    proffered = " ".join(args)
     event["message"] = f"!add {proffered}"
     return event
+
 
 def discord_cmd(event, *args):
     event["message"] = "Ashnas has one too! https://discord.gg/2xR2fxr"
     return event
+
 
 COMMANDS = {
     '!goawayashnasbot': goaway_cmd,
@@ -453,7 +485,7 @@ COMMANDS = {
     '!red': red_cmd,
     '!blue': blue_cmd,
     '!green': green_cmd,
-    #meme
+    # meme
     '!gameinfo': gameinfo_cmd,
     '!mantras': mantras_cmd,
     '!approve': approve_cmd,

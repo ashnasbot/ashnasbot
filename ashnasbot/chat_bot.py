@@ -7,6 +7,7 @@ from twitchobserver import Observer
 
 logger = logging.getLogger(__name__)
 
+
 class ChatBot():
     evt_filter = ["TWITCHCHATJOIN", "TWITCHCHATMODE", "TWITCHCHATMESSAGE",
                   "TWITCHCHATUSERSTATE", "TWITCHCHATROOMSTATE", "TWITCHCHATLEAVE"]
@@ -106,8 +107,8 @@ class ChatBot():
                 logger.error("Queue full, discarding alert")
 
         elif evt.type == "TWITCHCHATCOMMAND" or \
-             evt.type == "TWITCHCHATCLEARCHAT" or \
-             evt.type == "TWITCHCHATHOSTTARGET":
+                evt.type == "TWITCHCHATCLEARCHAT" or \
+                evt.type == "TWITCHCHATHOSTTARGET":
             if evt._command in self.handled_commands:
                 logger.debug(evt._command)
                 self.add_task(self.chat_queue.put(evt))

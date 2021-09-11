@@ -6,6 +6,7 @@ db = dataset.connect('sqlite:///twitchdata.db')
 tables = {}
 logger = logging.getLogger(__name__)
 
+
 def exists(tbl_name):
     table = tables.get(tbl_name, None)
     if not table:
@@ -13,16 +14,16 @@ def exists(tbl_name):
         tables[tbl_name] = table
     try:
         return table.exists
-    except:
+    except Exception:
         logger.info("Table %s not found", tbl_name)
         return False
 
+
 def create(tbl_name, primary):
     logger.info("Create table %s", tbl_name)
-    tbl = db.create_table(tbl_name,
-                            primary_id=primary,
-                            primary_type=db.types.text)
+    tbl = db.create_table(tbl_name, primary_id=primary, primary_type=db.types.text)
     tables[tbl_name] = tbl
+
 
 def get(tbl_name):
     table = tables.get(tbl_name, None)
@@ -31,9 +32,11 @@ def get(tbl_name):
         tables[tbl_name] = table
     return table.all()
 
+
 def find(tbl_name, **kwargs):
     table = db[tbl_name]
     return table.find_one(**kwargs)
+
 
 def update(tbl_name, record, keys):
     table = db[tbl_name]
@@ -42,6 +45,7 @@ def update(tbl_name, record, keys):
     if not stats:
         stats = db["stats"]
     stats.upsert({"name": tbl_name, "val": time.time()}, keys=keys)
+
 
 def update_multi(tbl_name, rows, primary, keys):
     table = tables.get(tbl_name, None)
@@ -58,6 +62,7 @@ def update_multi(tbl_name, rows, primary, keys):
         if not stats:
             stats = db["stats"]
         stats.upsert({"name": tbl_name, "val": time.time()}, keys=keys)
+
 
 def insert_multi(tbl_name, rows, primary, keys):
     table = tables.get(tbl_name, None)
@@ -76,15 +81,14 @@ def insert_multi(tbl_name, rows, primary, keys):
             stats = db["stats"]
         stats.upsert({"name": tbl_name, "val": time.time()}, keys=keys)
 
+
 def expired(tbl_name):
     stats = db['stats']
     if not stats:
-        stats = db.create_table("stats", 
-                        primary_id="name",
-                        primary_type=db.types.text)
+        stats = db.create_table("stats", primary_id="name", primary_type=db.types.text)
         logger.debug("Table %s expired", tbl_name)
         return True
-    
+
     stored = stats.find_one(name=tbl_name)
     if not stored:
         logger.debug("Table %s expired", tbl_name)
@@ -93,5 +97,5 @@ def expired(tbl_name):
     if stored["val"] < time.time() - 86400:
         logger.debug("Table %s older than %d", tbl_name, time.time() - 86400)
         return True
-    
+
     return False

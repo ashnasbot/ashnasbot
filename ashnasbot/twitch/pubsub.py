@@ -1,5 +1,4 @@
 import asyncio
-from enum import Enum
 import json
 import logging
 from threading import Event
@@ -8,7 +7,7 @@ import websockets
 
 from ..config import Config
 
-MSG_PING = { "type": "PING" }
+MSG_PING = {"type": "PING"}
 logger = logging.getLogger(__name__)
 
 PUBSUB_MESSAGE_TYPES = [
@@ -35,8 +34,9 @@ class PubSubClient():
 
     async def connect(self):
         """Connect to webSocket server.
-        
-        websockets.client.connect returns a WebSocketClientProtocol, which is used to send and receive messages
+
+        websockets.client.connect returns a WebSocketClientProtocol,
+        which is used to send and receive messages.
         """
         self.refcount += 1
         if self.connection:
@@ -45,7 +45,8 @@ class PubSubClient():
         self.connection = await websockets.client.connect('wss://pubsub-edge.twitch.tv')
         if self.connection.open:
             logger.info("Connected to pubsub")
-            message = {"type": "LISTEN", "nonce": str(self.generate_nonce()), "data":{"topics": self.topics, "auth_token": self.auth_token}}
+            message = {"type": "LISTEN", "nonce": str(self.generate_nonce()),
+                       "data": {"topics": self.topics, "auth_token": self.auth_token}}
             logger.info(message)
             json_message = json.dumps(message)
             await self.send_message(json_message)
@@ -136,7 +137,7 @@ def handle_pubsub(message):
             tags = {
                 "display-name": nickname,
                 "msg-id": "host",
-                "msg-param-viewerCount": f"viewers",
+                "msg-param-viewerCount": "viewers",
                 "system-msg": f"{nickname} is hosting for {viewers} viewers",
             }
             extra.append("quoted")
@@ -153,7 +154,7 @@ def handle_pubsub(message):
             nickname = message["data"]["redemption"]["user"]["display_name"]
             title = message["data"]["redemption"]["reward"]["title"]
             if "user_input" in message["data"]["redemption"]:
-                orig_message = message["data"]["redemption"]["user_input"] 
+                orig_message = message["data"]["redemption"]["user_input"]
             msg_type = "REDEMPTION"
             tags = {
                 "cost": message["data"]["redemption"]["reward"]["cost"],
@@ -164,7 +165,7 @@ def handle_pubsub(message):
             nickname = message["channel_points_redeeming_user"]["display_name"]
             title = message["channel_points_reward_title"]
             if message["channel_points_user_input"]:
-                orig_message = message["channel_points_user_input"] 
+                orig_message = message["channel_points_user_input"]
             msg_type = "REDEMPTION"
             tags = {
                 "system-msg": f"{nickname} redeemed {title}"
@@ -188,16 +189,16 @@ def handle_pubsub(message):
     #    data = make_message("SYSTEM", message)
     #    return data
 
+
 def make_message(type, message=""):
     return {
         'badges': [],
         'nickname': "System",
         'message': message,
         'orig_message': "",
-        'id' :  str(uuid.uuid4()),
+        'id':  str(uuid.uuid4()),
         'tags': {},
         'type': type,
         'channel': None,
         'extra': ["pubsub"]
     }
-

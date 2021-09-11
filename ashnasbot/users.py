@@ -13,7 +13,5 @@ class Users():
         else:
             info = await self.http_client.get_user_info(user)
             self.users[user] = info
-        
+
         return info['logo']
-            
-            

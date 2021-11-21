@@ -67,46 +67,50 @@ class TwitchClient():
             # TODO: check status (too many requests? etc)
             return await resp.json()
 
-    async def get_own_channel_id(self):
-        url = "/kraken/users"
-        params = {'login': f'{self.target_user}'}
 
-        logger.debug("Getting id for current channel (%s)", self.target_user)
+    async def get_channel_id(self, channel=None):
+        url = "/helix/users"
+        own_id = False
+        if not channel:
+            own_id = True
+            channel = self.target_user
+
+        params = {'login': channel}
+
+        logger.debug("Getting id for channel (%s)", channel)
 
         resp = await self._make_api_request(url, params)
-        if resp["_total"] == 0:
+        if "data" not in resp or len(resp["data"]) < 1:
             raise ValueError(f"Channel {self.target_user} does not exist.")
-        self.channel_id = resp["users"][0]["_id"]
-
-    async def get_channel_id(self, channel):
-        url = f"/helix/users?login={channel}"
-
-        logger.debug("Getting id for %s", channel)
-
-        resp = await self._make_api_request(url)
-        try:
-            logger.debug(resp)
-            return resp["data"][0]["id"]
-        except Exception as e:
-            logger.warning(f"Get Channel ID failed {e}")
-            return None
+        channel_id = resp["data"][0]["id"]
+        if own_id:
+            self.channel_id = channel_id
+        return channel_id
+        
 
     async def get_user_info(self, user):
-        url = "/kraken/users"
+        url = "/helix/users"
+        if not user:
+            return {}
+        if user.isnumeric():
+            params = { 'id': user }
+        else:
+            params = { 'login': user }
 
         logger.debug("Getting user info for %s", user)
-        resp = await self._make_api_request(url, params={'id': user})
-        try:
-            return resp["users"][0]
-        except:
+
+        resp = await self._make_api_request(url, params=params)
+
+        if "data" not in resp or len(resp["data"]) < 1:
             logger.warning("User %s not found", user)
             return {}
+        return resp["data"][0]
 
 
     async def get_new_followers(self):
         emit = True
         if self.channel_id == None:
-            await self.get_own_channel_id()
+            await self.get_channel_id()
             emit = False
 
         url = f"/kraken/channels/{self.channel_id}/follows"
@@ -168,16 +172,20 @@ class TwitchClient():
 
         return badges
 
-    async def get_cheermotes(self):
-        url = "/kraken/bits/actions"
-        params = {'included_sponsored': 1}
+    async def get_cheermotes(self, channel=None):
+        url = "/helix/bits/cheermotes"
+        params = {}
+        if channel:
+            params["broadcaster_id"] = await self.get_channel_id(channel)
+            logger.debug("Getting channel cheermotes for %s", channel)
+        else:
+            logger.debug("Getting global cheermotes")
 
-        logger.debug("Getting global cheermotes")
         cheermotes = {}
         resp = await self._make_api_request(url, params)
-                
+
         try:
-            for cheer in resp["actions"]:
+            for cheer in resp["data"]:
                 prefix = cheer["prefix"]
                 tiers = {}
                 for teir in cheer["tiers"]:
@@ -190,7 +198,9 @@ class TwitchClient():
         
         return cheermotes
 
+
     async def get_clip(self, clip):
-        url = f"/kraken/clips/{clip}"
+        url = f"https://api.twitch.tv/helix/clips"
+        params = { 'id': clip }
         logger.debug("Getting clip details for slug: %s", clip)
-        return await self._make_api_request(url)
+        return await self._make_api_request(url, params=params)

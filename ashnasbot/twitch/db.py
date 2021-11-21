@@ -38,6 +38,10 @@ def find(tbl_name, **kwargs):
 def update(tbl_name, record, keys):
     table = db[tbl_name]
     table.upsert(record, keys, ensure=True)
+    stats = tables.get("stats", None)
+    if not stats:
+        stats = db["stats"]
+    stats.upsert({"name": tbl_name, "val": time.time()}, keys=keys)
 
 def update_multi(tbl_name, rows, primary, keys):
     table = tables.get(tbl_name, None)

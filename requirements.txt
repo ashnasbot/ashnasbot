@@ -1,4 +1,5 @@
 aiohttp==3.7.4
+cryptography
 bleach==3.3.0
 dataset==1.4.1
 requests==2.25.0

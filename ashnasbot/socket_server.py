@@ -60,7 +60,8 @@ def pubsub_filter(event):
     ext = event.get("extra", {})
 
     if "pubsub" in ext:
-        return True
+        if event.get("type", None) in ["SUB", "RAID", "HOSTED"]:
+            return True
     return False
 
 
@@ -232,20 +233,21 @@ class SocketServer():
                 await asyncio.sleep(80 + randrange(20))
                 continue
 
-            for nickname in recent_followers:
-                # TODO: Create_event()
-                evt_msg = {
-                    'nickname': nickname,
-                    'type' : "FOLLOW",
-                    'channel': channel,
-                    "id": str(uuid.uuid4()),
-                    'tags': {
-                        'system-msg': f"{nickname} followed the channel",
-                        'tmi-sent-ts': str(int(time.time())) + "000",
-                        'display-name': nickname
+            if channel not in self.pubsub_clients:
+                for nickname in recent_followers:
+                    # TODO: Create_event()
+                    evt_msg = {
+                        'nickname': nickname,
+                        'type' : "FOLLOW",
+                        'channel': channel,
+                        "id": str(uuid.uuid4()),
+                        'tags': {
+                            'system-msg': f"{nickname} followed the channel",
+                            'tmi-sent-ts': str(int(time.time())) + "000",
+                            'display-name': nickname
+                        }
                     }
-                }
-                await self.add_alert(evt_msg)
+                    await self.add_alert(evt_msg)
 
             # Don't spam api
             await asyncio.sleep(80 + randrange(20))

@@ -1,13 +1,11 @@
 import bisect
 import copy
 import html
-import json
+from itertools import chain
 import logging
 import re
 from requests.exceptions import ConnectionError
-import sys
 import time
-import uuid
 
 import bleach
 
@@ -115,15 +113,29 @@ async def get_channel_badges(channel):
     return ret
 
 CHEERMOTES = {}
-async def load_cheermotes():
-    global CHEERMOTES 
-    if API_CLIENT:
-        CHEERMOTES = await API_CLIENT.get_cheermotes()
+CCHEERMOTES = {}
+async def load_cheermotes(channel=None):
+    global CHEERMOTES, CCHEERMOTES 
+    add_cheer = False
 
-def get_cheermotes(cheer, value):
+    if channel and channel not in CCHEERMOTES:
+        CCHEERMOTES[channel] = await API_CLIENT.get_cheermotes(channel=channel)
+        add_cheer = True
+
+    if API_CLIENT and not CHEERMOTES:
+        CHEERMOTES = await API_CLIENT.get_cheermotes()
+        add_cheer = True
+
+    if not db.exists("cheermotes") or db.expired("cheermotes"):
+        db.create("cheermotes", ["cheer", "value"])
+        add_cheer = True
+    
+    if not add_cheer:
+        return
+
     data = []
 
-    for p,v in CHEERMOTES.items():
+    for p,v in chain(CHEERMOTES.items(), CCHEERMOTES[channel].items()):
         for i,u in v.items():
             data.append({
                 "cheer": p,
@@ -131,12 +143,11 @@ def get_cheermotes(cheer, value):
                 "url": u
             })
 
-    if not db.exists("cheermotes"):
-        db.create("cheermotes", ["cheer", "value"])
-
     for record in data:
         db.update("cheermotes", record, ["cheer", "value"])
 
+
+def get_cheermote(cheer, value):
     return db.find("cheermotes", cheer=cheer, value=value)
 
 def get_le(collection, val):
@@ -176,9 +187,9 @@ async def render_badges(channel, badges):
 
     return rendered
 
-async def render_bits(message, bits):
+async def render_bits(message, channel, bits):
     if not CHEERMOTES or db.expired("cheermotes"):
-        await load_cheermotes()
+        await load_cheermotes(channel)
 
     total = 0
 
@@ -195,10 +206,10 @@ async def render_bits(message, bits):
 
         bits_value, color = BITS_COLORS[bisect.bisect_right(BITS_INDICIES, int(real_value)) - 1]
         total += int(real_value)
-        cheermote = get_cheermotes(emote_name, bits_value)
+        cheermote = get_cheermote(emote_name, bits_value)
         if cheermote == None:
-            logger.info("Channel specific emote not found: %s", emote_name)
-            cheermote = get_cheermotes("Cheer", bits_value)
+            logger.info("Channel specific cheermote not found: %s", emote_name)
+            cheermote = get_cheermote("Cheer", bits_value)
 
         res = CHEERMOTE_URL_TEMPLATE.format(alt=emote_name, url=cheermote["url"]) + \
               CHEERMOTE_TEXT_TEMPLATE.format(color=color, text=real_value)
@@ -231,10 +242,15 @@ async def render_clips(message):
         logger.error("Failed to get clip")
         return message
 
+    if "data" not in details or len(details["data"]) < 1:
+        logger.error("Failed to get clip")
+        return message
+
     def render(match):
-        thumbnail = details["thumbnails"]["small"]
-        title = details["title"]
-        clipped_by = f'Clipped by {details["curator"]["display_name"]}'
+        clip = details["data"][0]
+        thumbnail = clip["thumbnail_url"]
+        title = clip["title"]
+        clipped_by = f'Clipped by {clip["creator_name"]}'
         return f'''{match.group(0)}</br>
             <div class="inner_frame clip"><img src="{thumbnail}"/>
             <span class="title">{title}</span>
@@ -305,7 +321,7 @@ async def handle_message(event):
     message = bleach.linkify(message)
 
     if "bits" in etags:
-        message, bits = await render_bits(message, etags["bits"])
+        message, bits = await render_bits(message, event.channel, etags["bits"])
         logger.info("BITS %s cheered %d", etags['display-name'], bits)
 
     return {

@@ -131,18 +131,18 @@ def handle_other_commands(event):
             logger.warn("Twitch chat is going down")
             ret_event['message'] = "Twitch chat is going down"
             return ret_event
-        elif event._command == "HOSTTARGET":
-            ret_event = ResponseEvent()
-            if event.message.startswith("- "):
-                ret_event['message'] = "Stopped hosting"
-            else:
-                print(event.message)
-                logger.debug(event.message)
-                channel = re.search(r"(\w+)\s[\d-]+", event.message).group(1)
-                ret_event['message'] = channel
-                ret_event['type'] = "HOST"
-            logger.info("HOST %s", ret_event['message'])
-            return ret_event
+        #elif event._command == "HOSTTARGET":
+        #    ret_event = ResponseEvent()
+        #    if event.message.startswith("- "):
+        #        ret_event['message'] = "Stopped hosting"
+        #    else:
+        #        print(event.message)
+        #        logger.debug(event.message)
+        #        channel = re.search(r"(\w+)\s[\d-]+", event.message).group(1)
+        #        ret_event['message'] = channel
+        #        ret_event['type'] = "HOST"
+        #    logger.info("HOST %s", ret_event['message'])
+        #    return ret_event
 
     except Exception as e:
         logger.warn(e)
@@ -168,7 +168,7 @@ def gameinfo_cmd(event, *args):
     return event
 
 def mantras_cmd(event, *args):
-    event["message"] = """Wrong game! this is Pokemon, but the mantras are here: https://pad.riseup.net/p/GUZZZVN-xPDnUJv-pEzM-keep"""
+    event["message"] = """Wrong game! this is Final Fantasy, but the mantras are here: https://pad.riseup.net/p/GUZZZVN-xPDnUJv-pEzM-keep"""
     return event
 
 def approve_cmd(event, *args):
@@ -183,6 +183,14 @@ def win_cmd(event, *args):
     else:
         event["message"] = f"{caller} wins {val} points"
     return event
+
+def save_cmd(event, *args):
+    if random.randint(1, 10) == 1:
+        event["message"] = f"But did you Dave?"
+    else:
+        event["message"] = "But did you save?"
+    return event
+
 
 def hello_cmd(event, *args):
     who = event.tags['caller']
@@ -210,7 +218,16 @@ def uptime(event, *args):
     event["message"] = f"You're late, darkshoxx!"
     return event
 
-def pokedex_cmd(event, num_or_name, *args):
+def pokedex_cmd(event, *args):
+    if not args:
+        player = event["channel"]
+        dex = pokedex.get_player_pokedex(player)
+        num = len([row for row in dex if row['caught']])
+        event["message"] = f"{player} has caught {num}/151 Pokémon"
+
+        return event
+
+    num_or_name = args[0]
     pokemon = pokedex.get_pokemon(num_or_name)
     if pokemon:
         caughtby = json.loads(pokemon["caughtby"])
@@ -237,6 +254,8 @@ def pokedex_cmd(event, num_or_name, *args):
 def catch_pokemon_cmd(event, num_or_name, *args):
     if event.priv < PRIV.VIP:
         return
+    event["message"] = f"This isn't Pokémon"
+    return event
 
     pokemon = pokedex.get_pokemon(num_or_name)
 
@@ -261,7 +280,7 @@ def poke_info_cmd(event, *args):
     return event
 
 def uncatch_pokemon_cmd(event, num, *args):
-    if event.priv < PRIV.MOD:
+    if event.priv < PRIV.VIP:
         return
 
     pokedex.player_pokedex_catch(event["channel"], num, False)
@@ -440,4 +459,5 @@ COMMANDS = {
     '!approve': approve_cmd,
     '!beta': beta_cmd,
     '!win': win_cmd,
+    '!save': save_cmd,
 }

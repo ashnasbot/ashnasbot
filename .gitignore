@@ -18,3 +18,4 @@ twitchdata.db-wal
 
 build/*
 dist/*
+venv

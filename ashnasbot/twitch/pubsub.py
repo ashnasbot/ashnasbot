@@ -180,13 +180,13 @@ def handle_pubsub(message):
             data["extra"] = extra
             return data
 
-    elif evt_type == "RESPONSE":
-        message = "Connected to websocket"
-        if event["error"]:
-            message = event["error"]
-        logging.info(f"PUBSUB: {message}")
-        data = make_message("SYSTEM", message)
-        return data
+    #elif evt_type == "RESPONSE":
+    #    message = "Connected to websocket"
+    #    if event["error"]:
+    #        message = event["error"]
+    #    logging.info(f"PUBSUB: {message}")
+    #    data = make_message("SYSTEM", message)
+    #    return data
 
 def make_message(type, message=""):
     return {

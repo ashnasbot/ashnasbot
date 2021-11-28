@@ -11,7 +11,7 @@ import bleach
 
 from .api_client import TwitchClient
 from ..config import Config
-from .data import EMOTE_URL_TEMPLATE, SUB_TIERS, BADGES, BADGE_URL_TEMPLATE, BITS_COLORS, BITS_INDICIES
+from .data import EMOTE_URL_TEMPLATE, SUB_TIERS, BADGE_URL_TEMPLATE, BITS_COLORS, BITS_INDICIES
 from .data import CHEERMOTE_TEXT_TEMPLATE, CHEERMOTE_URL_TEMPLATE
 from . import commands
 from . import db
@@ -19,7 +19,9 @@ from . import bttv
 
 # TODO: move to data
 CHEER_REGEX = re.compile(r"((?<=^)|(?<=\s))(?P<emotename>[a-zA-Z]+)(\d+)(?=(\s|$))", flags=re.IGNORECASE)
-URL_REGEX = re.compile(r"(http(s)?://)?(clips.twitch.tv/(\w+)|www.twitch.tv/\w+/clip/(\w+))([?][=0-9a-zA-Z])?", flags=re.IGNORECASE)
+URL_REGEX = re.compile(
+    r"(http(s)?://)?(clips.twitch.tv/(\w+)|www.twitch.tv/\w+/clip/(\w+))([?][=0-9a-zA-Z])?",
+    flags=re.IGNORECASE)
 TEIRED_BADGES = ['bits', 'bits-leader', 'sub-gifter', 'sub-gift-leader']
 
 CHEERMOTES = {}
@@ -43,6 +45,8 @@ while API_CLIENT is None:
         if retry < 1:
             break
         time.sleep(2)
+
+BADGES = None
 
 
 async def render_emotes(message, emotes, bttv_channel=None):
@@ -141,8 +145,8 @@ async def load_cheermotes(channel=None):
 
     data = []
 
-    for p,v in chain(CHEERMOTES.items(), CCHEERMOTES[channel].items()):
-        for i,u in v.items():
+    for p, v in chain(CHEERMOTES.items(), CCHEERMOTES[channel].items()):
+        for i, u in v.items():
             data.append({
                 "cheer": p,
                 "value": i,
@@ -163,8 +167,12 @@ def get_le(collection, val):
 
 
 async def render_badges(channel, badges):
-    channel_badges = await get_channel_badges(channel)
+    global BADGES
+    if not BADGES:
+        BADGES = await API_CLIENT.get_global_badges()
+
     rendered = []
+    channel_badges = await get_channel_badges(channel)
     for badgever in badges.split(','):
         if "/" in badgever:
             badge, val = badgever.split('/')

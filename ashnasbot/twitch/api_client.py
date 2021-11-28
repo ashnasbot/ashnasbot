@@ -27,6 +27,7 @@ class TwitchClient():
 
         self.target_user = target_user
         self.channel_id = None
+        self.global_badges = {}
 
         if not token:
             logger.warning("No token - retriving new token")
@@ -106,9 +107,14 @@ class TwitchClient():
             await self.get_channel_id()
             emit = False
 
-        url = f"/kraken/channels/{self.channel_id}/follows"
+        url = "/helix/users/follows"
 
-        recent_followers = await self._make_api_request(url, {'limit': 10})
+        recent_followers = await self._make_api_request(
+            url,
+            {
+                'limit': 10,
+                'to_id': self.channel_id
+            })
         new_follows = []
 
         tbl_name = self.target_user + "_follows"
@@ -120,12 +126,11 @@ class TwitchClient():
         tbl = db.get(tbl_name)
         existing_follows = [e["id"] for e in tbl]
 
-        for follower in recent_followers['follows']:
-            user = follower['user']
-            if int(user["_id"]) not in existing_follows:
-                new_follows.append({"username": user['display_name'], "id": user["_id"]})
+        for user in recent_followers['data']:
+            if int(user["from_id"]) not in existing_follows:
+                new_follows.append({"username": user['from_name'], "id": user["from_id"]})
                 if emit:
-                    logger.info("FOLLOW %s is a new follower", user['display_name'], )
+                    logger.info("FOLLOW %s is a new follower", user['from_name'], )
 
         if new_follows:
             db.update_multi(tbl_name, new_follows, primary="username", keys=["username"])
@@ -142,26 +147,44 @@ class TwitchClient():
             return {}
 
         logger.debug("Getting badges for %s", channel_id)
-        url = f"/kraken/chat/{channel_id}/badges"
+        url = "/helix/chat/badges"
 
+        resp = await self._make_api_request(url, {"broadcaster_id": channel_id})
+
+        badges = {}
+
+        for badge in resp["data"]:
+            name = badge["set_id"]
+            if len(badge["versions"]) > 1:
+                for ver in badge["versions"]:
+                    fullname = name + str(ver["id"])
+                    badges[fullname] = ver["image_url_2x"]
+            else:
+                badges[badge["set_id"]] = badge["versions"][0]["image_url_2x"]
+
+        return badges
+
+    async def get_global_badges(self):
+        logger.debug("Getting global badges")
+        if self.global_badges:
+            return self.global_badges
+
+        url = "/helix/chat/badges/global"
         resp = await self._make_api_request(url)
 
         badges = {}
 
-        for name, urls in resp.items():
-            if urls:
-                badges[name] = urls["image"]
+        for badge in resp["data"]:
+            name = badge["set_id"]
+            if len(badge["versions"]) > 1:
+                for ver in badge["versions"]:
+                    fullname = name + str(ver["id"])
+                    badges[fullname] = ver["image_url_2x"]
+            else:
+                badges[badge["set_id"]] = badge["versions"][0]["image_url_2x"]
 
-        if badges:
-            sub_badges = {}
-            url = f"https://badges.twitch.tv/v1/badges/channels/{channel_id}/display"
-            sub_badges = await self._make_api_request(url)
-
-            if sub_badges and "badge_sets" in sub_badges:
-                for badge_set in sub_badges["badge_sets"]:
-                    for val, urls in sub_badges["badge_sets"][badge_set]["versions"].items():
-                        badges[f"{badge_set}{val}"] = urls["image_url_2x"]
-
+        # Set the cache
+        self.global_badges = badges
         return badges
 
     async def get_cheermotes(self, channel=None):

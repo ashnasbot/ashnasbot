@@ -1,6 +1,7 @@
 import logging
 import functools
 from concurrent.futures import Future
+import time
 
 import asyncio
 from twitchobserver import Observer
@@ -19,7 +20,16 @@ class ChatBot():
         self.channels = set()
         self.observer = Observer(bot_user, oauth)
         self.observer._inbound_poll_interval = 0
-        self.observer.start()
+        retry = 5
+        while retry:
+            try:
+                self.observer.start()
+                break
+            except Exception as e:
+                print(e)
+                time.sleep(2)
+                retry -= 1
+                continue
         self.loop = loop
 
         self.chat_queue = asyncio.Queue(maxsize=100, loop=loop)
@@ -90,12 +100,15 @@ class ChatBot():
                 logger.info(f"SUB {evt.tags['display-name']} subscribed")
             elif msg_id == "resub":
                 evt.type = "SUB"
-                logger.info(f"SUB {evt.tags['display-name']} subscribed for {evt.tags['msg-param-cumulative-months']} months")
+                logger.info(f"SUB {evt.tags['display-name']} subscribed for "
+                            f"{evt.tags['msg-param-cumulative-months']} months")
             elif msg_id == "subgift":
-                logger.info(f"SUB {evt.tags['display-name']} gifted a subscription to {evt.tags['msg-param-recipient-display-name']}")
+                logger.info(f"SUB {evt.tags['display-name']} gifted a subscription to "
+                            f"{evt.tags['msg-param-recipient-display-name']}")
                 evt.type = "SUBGIFT"
             elif msg_id == "raid":
-                logger.info(f"RAID {evt.tags['display-name']} is raiding with a party of {evt.tags['msg-param-viewerCount']}")
+                logger.info(f"RAID {evt.tags['display-name']} is raiding with a party of "
+                            f"{evt.tags['msg-param-viewerCount']}")
                 evt.type = "RAID"
             elif msg_id in ["host", "host_success", "host_success_viewers"]:
                 evt.type = "HOST"

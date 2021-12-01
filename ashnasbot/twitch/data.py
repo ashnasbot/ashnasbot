@@ -63,9 +63,9 @@ BADGES = {
 SUB_TIERS = [0, 3, 6, 9, 12, 18, 24, 30]
 
 EMOTE_URL_TEMPLATE = "<img src=\"" + STATIC_CDN + \
-   """emoticons/v1/{eid}/2.0" class="emote" 
-alt="{alt}"
-title="{alt}"
+   """emoticons/v2/{eid}/default/dark/2.0" class="emote"
+ alt="{alt}"
+ title="{alt}"
 />"""
 
 CHEERMOTE_URL_TEMPLATE = "<img src=\"{url}\" class=\"emote\"" + \

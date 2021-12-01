@@ -2,7 +2,6 @@ from enum import Enum, auto
 import json
 import logging
 import random
-import re
 import time
 import uuid
 
@@ -14,7 +13,7 @@ from .. import config
 logger = logging.getLogger(__name__)
 
 # TODO: load from gameinfo.txt
-GAMEINFO = "Final Fantasy 3 is the third one Kappa"
+GAMEINFO = "Final Fantasy 4 (SNES)"
 # TODO: command cooldown (per channel)
 
 
@@ -137,18 +136,18 @@ def handle_other_commands(event):
             logger.warn("Twitch chat is going down")
             ret_event['message'] = "Twitch chat is going down"
             return ret_event
-        #elif event._command == "HOSTTARGET":
-        #    ret_event = ResponseEvent()
-        #    if event.message.startswith("- "):
-        #        ret_event['message'] = "Stopped hosting"
-        #    else:
-        #        print(event.message)
-        #        logger.debug(event.message)
-        #        channel = re.search(r"(\w+)\s[\d-]+", event.message).group(1)
-        #        ret_event['message'] = channel
-        #        ret_event['type'] = "HOST"
-        #    logger.info("HOST %s", ret_event['message'])
-        #    return ret_event
+        # elif event._command == "HOSTTARGET":
+        #     ret_event = ResponseEvent()
+        #     if event.message.startswith("- "):
+        #         ret_event['message'] = "Stopped hosting"
+        #     else:
+        #         print(event.message)
+        #         logger.debug(event.message)
+        #         channel = re.search(r"(\w+)\s[\d-]+", event.message).group(1)
+        #         ret_event['message'] = channel
+        #         ret_event['type'] = "HOST"
+        #     logger.info("HOST %s", ret_event['message'])
+        #     return ret_event
 
     except Exception as e:
         logger.warn(e)
@@ -204,6 +203,11 @@ def save_cmd(event, *args):
         event["message"] = "But did you Dave?"
     else:
         event["message"] = "But did you save?"
+    return event
+
+
+def drink_cmd(event, *args):
+    event["message"] = "Every time a character could have explained something but instead says 'nothing', we take a drink."
     return event
 
 
@@ -492,4 +496,5 @@ COMMANDS = {
     '!beta': beta_cmd,
     '!win': win_cmd,
     '!save': save_cmd,
+    '!drink': drink_cmd,
 }

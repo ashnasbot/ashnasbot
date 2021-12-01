@@ -27,6 +27,7 @@ class TwitchClient():
 
         self.target_user = target_user
         self.channel_id = None
+        self.channel_emotes_cache = {}
         self.global_badges = {}
 
         if not token:
@@ -218,3 +219,35 @@ class TwitchClient():
         params = {'id': clip}
         logger.debug("Getting clip details for slug: %s", clip)
         return await self._make_api_request(url, params=params)
+
+    async def get_channel_emotes(self, channel):
+        if channel in self.channel_emotes_cache:
+            return self.channel_emotes_cache[channel]
+
+        url = "/helix/chat/emotes"
+        logger.debug("Getting channel emotes for %s", channel)
+        params = {
+            "broadcaster_id": await self.get_channel_id(channel)
+        }
+
+        emotes = {}
+        resp = await self._make_api_request(url, params)
+
+        try:
+            for emote in resp["data"]:
+                name = emote["prefix"]
+                res = {
+                    "id": emote["id"],
+                    "format": emote["format"][-1],
+                    "theme_mode": "dark",
+                    "scale": "2.0"
+                }
+
+                emote[name] = "https://static-cdn.jtvnw.net/emoticons/v2/{{id}}/{{format}}/{{theme_mode}}/{{scale}}".format(**res)
+        except Exception:
+            logger.warning("Failed to get emotes")
+
+        if emotes:
+            self.channel_emotes_cache[channel] = emotes
+
+        return emotes

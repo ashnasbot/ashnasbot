@@ -54,7 +54,13 @@ class PubSubClient():
 
     async def disconnect(self):
         self.refcount -= 1
+        logger.debug(f"decrementing pubsub {self.refcount}")
         if self.refcount < 1:
+            message = {"type": "UNLISTEN", "nonce": str(self.generate_nonce()),
+                       "data": {"topics": self.topics, "auth_token": self.auth_token}}
+            logger.info(message)
+            json_message = json.dumps(message)
+            await self.send_message(json_message)
             self.stop_event.set()
             return True
 
@@ -107,11 +113,11 @@ def handle_pubsub(message):
     event = json.loads(message)
     evt_type = event["type"]
 
-    logger.debug(event)
     if evt_type == "PONG":
         return
 
     # TODO: SUBs
+    logger.debug(event)
     if evt_type == "MESSAGE":
         data = event["data"]
         message = json.loads(data["message"])
@@ -168,7 +174,8 @@ def handle_pubsub(message):
                 orig_message = message["channel_points_user_input"]
             msg_type = "REDEMPTION"
             tags = {
-                "system-msg": f"{nickname} redeemed {title}"
+                "system-msg": f"{nickname} redeemed {title}",
+                "reward-title": title
             }
 
         if msg_type:
@@ -181,13 +188,11 @@ def handle_pubsub(message):
             data["extra"] = extra
             return data
 
-    #elif evt_type == "RESPONSE":
-    #    message = "Connected to websocket"
-    #    if event["error"]:
-    #        message = event["error"]
-    #    logging.info(f"PUBSUB: {message}")
-    #    data = make_message("SYSTEM", message)
-    #    return data
+    elif evt_type == "RESPONSE" and event["error"]:
+        message = event["error"]
+        logging.info(f"PUBSUB: {message}")
+        data = make_message("SYSTEM", message)
+        return data
 
 
 def make_message(type, message=""):

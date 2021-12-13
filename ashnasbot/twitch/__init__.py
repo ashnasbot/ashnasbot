@@ -323,7 +323,7 @@ async def handle_message(event):
         badges = await render_badges(event.channel, etags['badges'])
 
     temotes = 'emotes' in etags and etags["emotes"]
-    bemotes = etags["room-id"] if "bttv" in config and config["bttv"] else None
+    bemotes = etags["room-id"] if "bttv" in config and config["bttv"] and "room-id" in etags else None
     if temotes or bemotes:
         message = await render_emotes(raw_msg, temotes, bemotes)
     else:

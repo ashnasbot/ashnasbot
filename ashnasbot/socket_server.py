@@ -270,8 +270,9 @@ class SocketServer():
 
                 if channel:
                     self.channels[channel] = [s for s in self.channels[channel] if not s["socket"].closed]
-                    if pubsub_filter(event):
-                        continue  # Discard pubsub duplicated messages
+                    if channel in self.pubsub_clients:
+                        if pubsub_filter(event):
+                            continue  # Discard pubsub duplicated messages
 
                     for s in self.channels[channel]:
                         await s["socket"].send(json.dumps(event))
@@ -392,7 +393,7 @@ class SocketServer():
         logger.info("Starting socket server")
         self.loop = asyncio.new_event_loop()
         self.loop.set_default_executor(ThreadPoolExecutor(max_workers=5))
-        self._event_queue = asyncio.Queue(loop=self.loop)
+        self._event_queue = asyncio.Queue()
         asyncio.set_event_loop(self.loop)
         self.loop.set_debug(enabled=False)
         start_server = websockets.serve(self.handle_connect, '0.0.0.0', 8765)

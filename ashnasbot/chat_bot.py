@@ -32,7 +32,7 @@ class ChatBot():
                 continue
         self.loop = loop
 
-        self.chat_queue = asyncio.Queue(maxsize=100, loop=loop)
+        self.chat_queue = asyncio.Queue(maxsize=100)
         self.observer.subscribe(self.handle_event)
 
     def subscribe(self, channel):

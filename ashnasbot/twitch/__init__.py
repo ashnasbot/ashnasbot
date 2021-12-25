@@ -339,6 +339,9 @@ async def handle_message(event):
         message, bits = await render_bits(message, event.channel, etags["bits"])
         logger.info("BITS %s cheered %d", etags['display-name'], bits)
 
+    if "id" not in etags:
+        etags["id"] = uuid4()
+
     return {
             'badges': badges,
             'nickname': nickname,

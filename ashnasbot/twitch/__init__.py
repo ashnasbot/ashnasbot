@@ -4,6 +4,7 @@ import html
 from itertools import chain
 import logging
 import re
+from uuid import uuid4
 from requests.exceptions import ConnectionError
 import time
 

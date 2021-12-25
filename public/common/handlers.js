@@ -206,25 +206,29 @@ new Vue({
                 if (this.config["sound"] && this.$refs.soundhandler) {
                     this.$refs.soundhandler.do_alert(msg);
                 }
+                if (this.$refs.alerthandler) {
+                    this.$refs.alerthandler.do_alert(msg);
+                }
                 switch(msg.type) {
                     case "BANNED":
                         alert("Banned from " + msg.channel)
                         this.chatsocket.onclose = null;
                         this.chatsocket.close();
                         break;
+                    case "REDEMPTION":
+                        if (msg.type == "REDEMPTION")
+                        {
+                            if (this.$refs.alerthandler) {
+                                this.$refs.alerthandler.do_alert(msg);
+                            }
+                        }
                     case "BITS":
                         if (msg.type == "BITS") { msg.type = "TWITCHCHATMESSAGE" }
                     case "HOSTED":
                     case "RAID":
-                        if (["RAID", "HOSTED"].includes(msg.type)){
-                            if (this.$refs.raidhandler) {
-                                this.$refs.raidhandler.do_alert(msg);
-                            }
-                        }
                     case "FOLLOW":
                     case "SUBGIFT":
                     case "SUB":
-                    case "REDEMPTION":
                     case "TWITCHCHATUSERNOTICE":
                         if (!this.config["alert"]) {
                             console.log(msg);

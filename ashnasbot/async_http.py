@@ -75,6 +75,7 @@ class WebServer(object):
         self.app.router.add_get('/api/config', self.get_config)
         self.app.router.add_get('/api/views', self.get_views)
         self.app.router.add_get('/res/{view}/sound/{event}', self.get_sound)
+        self.app.router.add_get('/res/{view}/image/{name}', self.get_image)
         self.app.router.add_post('/api/config', self.post_config)
         self.app.router.add_post('/api/shutdown', self.post_shutdown)
         self.app.router.add_post('/replay_event', self.post_replay)
@@ -110,7 +111,6 @@ class WebServer(object):
             config = json.load(config)
             del config["secret"]
             return web.json_response(config)
-        return web.FileResponse('config.json')
 
     @staticmethod
     async def get_views(request):
@@ -151,6 +151,26 @@ class WebServer(object):
         fallback_match = list(Path("public/audio").glob(event + ".*"))
         for match in fallback_match:
             if match.suffix in self.AUDIO_FILETYPES:
+                return web.FileResponse(fallback_match[0])
+
+        return web.HTTPNotFound()
+
+    IMAGE_FILETYPES = [".png"]
+
+    async def get_image(self, request):
+        view = request.match_info['view']
+        name = request.match_info['name']
+
+        views_path = os.path.join('views', view)
+        views_match = list(Path(views_path).glob(name + ".*"))
+
+        for match in views_match:
+            if match.suffix in self.IMAGE_FILETYPES:
+                return web.FileResponse(views_match[0])
+
+        fallback_match = list(Path("public/images").glob(name + ".*"))
+        for match in fallback_match:
+            if match.suffix in self.IMAGE_FILETYPES:
                 return web.FileResponse(fallback_match[0])
 
         return web.HTTPNotFound()

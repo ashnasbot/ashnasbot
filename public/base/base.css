@@ -99,3 +99,7 @@ img.emote {
   clear: both;
   margin-right: 1ex;
 }
+
+canvas {
+  pointer-events: none;
+}

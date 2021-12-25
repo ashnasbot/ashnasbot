@@ -52,6 +52,9 @@ Vue.component('sound-handler', {
 				case "HOSTED":
 				    path = `/res/${this.view}/sound/host`;
 					break;
+				case "REDEMPTION":
+				    path = `/res/${this.view}/sound/${msg.tags["reward-title"]}`;
+					break;
 				default:
 					return;
 			}

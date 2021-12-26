@@ -4,6 +4,7 @@ import logging
 from threading import Event
 import uuid
 import websockets
+import websockets.client
 
 from ..config import Config
 

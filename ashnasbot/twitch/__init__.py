@@ -341,7 +341,7 @@ async def handle_message(event):
         logger.info("BITS %s cheered %d", etags['display-name'], bits)
 
     if "id" not in etags:
-        etags["id"] = uuid4()
+        etags["id"] = str(uuid4())
 
     return {
             'badges': badges,

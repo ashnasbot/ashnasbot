@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import glob
 import logging
 import os.path
 import shutil
@@ -11,7 +10,8 @@ def patch_crypto():
     # This is needed to help pyinstaller find the right backend
     from cryptography.hazmat import backends
     from cryptography.hazmat.backends.openssl.backend import backend as be_cc
-    backends._available_backends_list =[be_cc]
+    backends._available_backends_list = [be_cc]
+
 
 def copy_resources():
     # pylint: disable=maybe-no-member
@@ -44,7 +44,7 @@ if __name__ == '__main__':
         lvl = cfg["log_level"].upper()
         log_level = getattr(logging, lvl)
         print("Log level set to:", lvl)
-    except:
+    except Exception:
         print("Log level not set, defaulting to INFO")
         log_level = logging.INFO
     # set up logging to file and screen

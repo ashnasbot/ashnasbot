@@ -21,7 +21,8 @@ from . import bttv
 # TODO: move to data
 CHEER_REGEX = re.compile(r"((?<=^)|(?<=\s))(?P<emotename>[a-zA-Z]+)(\d+)(?=(\s|$))", flags=re.IGNORECASE)
 URL_REGEX = re.compile(
-    r"(http(s)?://)?(clips.twitch.tv/(\w+)|www.twitch.tv/\w+/clip/(\w+))([?][=0-9a-zA-Z])?",
+    r"""(http(s)?://)?(clips\.twitch\.tv/(\w+)
+|www\.twitch\.tv/\w+/clip/(\w+))(-[a-zA-Z0-9_]*)?([?][=0-9a-zA-Z]*)?""",
     flags=re.IGNORECASE)
 TEIRED_BADGES = ['bits', 'bits-leader', 'sub-gifter', 'sub-gift-leader']
 

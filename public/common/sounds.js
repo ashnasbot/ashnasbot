@@ -1,5 +1,10 @@
-// Load at startup, this is done async (we should use window.speechSynthesis.onvoiceschanged)
+// Load at startup, this is done async
 var synth = window.speechSynthesis;
+var voice;
+synth.getVoices();
+window.speechSynthesis.onvoiceschanged = function() {
+	voice = synth.getVoices()[0].name;
+};
 
 
 Vue.component('sound-handler', {
@@ -12,7 +17,7 @@ Vue.component('sound-handler', {
 	},
 	data: function () {
         var urlChunks = location.pathname.split('/');
-        return {view: urlChunks[urlChunks.length - 2], audio: null};
+        return {view: urlChunks[urlChunks.length - 2], audio: null, playqueue: []};
 	},
     methods: {
         do_alert: function (msg) {
@@ -27,10 +32,13 @@ Vue.component('sound-handler', {
 			var speech = msg.orig_message;
 			switch (msg.type) {
 				case "BITS":
-					re = /(\w*Cheer\d+\(s+|$)+/i
+					re = /^(\w*Cheer\d+\(s+|$)+/i
 					if (msg.orig_message.match(re)) {
 						// Skip messages that are just bits
 					    speech = "";
+					} else {
+						// a little over zealous
+						speech = msg.orig_message.replace(/\w+\d+/, "");
 					}
 					ammount = msg.tags["bits"]
 					path = `/res/${this.view}/sound/bits?value=${ammount}`;
@@ -59,30 +67,50 @@ Vue.component('sound-handler', {
 					return;
 			}
 			audio = new Audio(path);
-			if (this.audio && !this.audio.paused) {
-				this.audio.addEventListener("ended", function () {
+			this.playqueue.push([audio, speech]);
+			if (this.playqueue.length == 1)
+			{
+				this.play();
+			}
+		},
+		play: function() {
+			if (this.playqueue.length > 0){
+				data = this.playqueue[0];
+				audio = data[0];
+				speech = data[1];
+				if (this.audio && !this.audio.paused) {
+					this.audio.addEventListener("ended", function () {
+						this.audio = audio;
+						audio.play().then( resp => {
+							this.do_tts(audio, speech);
+						}).catch(error => {
+							console.error(error)
+							this.playqueue.shift();
+						})
+					}.bind(this))
+				} else {
 					audio.play().then( resp => {
+						this.audio = audio;
 						this.do_tts(audio, speech);
 					}).catch(error => {
-						console.error(error)
+						console.error(error);
+						this.playqueue.shift();
 					})
-				}.bind(this))
-			} else {
-				audio.play().then( resp => {
-					this.do_tts(audio, speech);
-				}).catch(error => {
-					console.error(error)
-				})
+				}
 			}
-			this.audio = audio;
 		},
 		do_tts: function(audio, msg) {
-			if (this.tts) {
+			if (this.tts && voice) {
 				audio.addEventListener("ended", function () {
-					voice = synth.getVoices()[0].name;
 					var utterThis = new SpeechSynthesisUtterance(msg);
 					synth.speak(utterThis);
+					utterThis.onend = function() {
+						this.playqueue.shift();
+						this.play();
+					}.bind(this)
 				});
+			} else {
+				this.playqueue.shift();
 			}
 		}
     }

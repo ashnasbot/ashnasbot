@@ -1,3 +1,5 @@
+//import eventBus from "./eventBus";
+
 /* 
  * Max messages before several will be deleted per batch
  * Helps with high loads
@@ -122,6 +124,21 @@ new Vue({
                 clientConfig["auth"] = this.token;
             }
             return JSON.stringify(clientConfig);
+        },
+        created: function() {
+                //eventBus.$on("clear", () => {
+                //    this.clear();
+                //});
+        },
+        clear: function(id, user, room) {
+            if (id) {
+                this.chat = this.chat.filter(m => m.id != msg.id);
+            } else if (user) {
+                this.chat = this.chat.filter(m => m["tags"]["user-id"] != user || m["tags"]["room-id"] != room);
+            } else {
+                /* If no user, clear all */
+                this.chat = [];
+            }
         },
         loadData: function(event) {
             if (event.data == "ping") {
@@ -267,14 +284,13 @@ new Vue({
                         );
                         break;
                     case "CLEARMSG":
-                        this.chat = this.chat.filter(m => m.id != msg.id);
+                        this.clear(msg.id);
                         break;
                     case "CLEARCHAT":
                         if (msg["user"]) {
-                            this.chat = this.chat.filter(m => m["tags"]["user-id"] != msg["user"] || m["tags"]["room-id"] != msg["room"]);
+                            this.clear(null, msg["user"], msg["room"])
                         } else {
-                            /* If no user, clear all */
-                            this.chat = [];
+                            this.clear();
                         }
                         break;
                     case "HOST":

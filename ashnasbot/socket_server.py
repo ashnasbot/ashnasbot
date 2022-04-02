@@ -59,11 +59,13 @@ def allowed_content(event, commands=False, **kwargs):
 
 
 def pubsub_filter(event):
-    ext = event.get("extra", {})
+    if hasattr(event, "extra"):
+        ext = event.get("extra", {})
 
-    if "pubsub" in ext:
-        if event.get("type", None) in ["SUB", "RAID", "HOSTED"]:
-            return True
+        if "pubsub" in ext:
+            if hasattr(event, "type"):
+                if event.type in ["SUB", "RAID", "HOSTED"]:
+                    return True
     return False
 
 
@@ -88,62 +90,72 @@ class SocketServer():
         self.recent_events = deque([], 20)
         self.replay_queue = Queue()
 
+    async def broadcast(self, msg):
+        for c in self.channels:
+            for s in self.channels[c]:
+                await s["socket"].send(json.dumps(msg))
+
+    async def handle_content(self, channel, content):
+        if "tags" in content:
+            if "bits" in content["tags"]:
+                bits_evt = get_bits(content)
+                self.recent_events.append(bits_evt)
+            if any([s.get("images", None) for s in self.channels[channel]]):
+                if self.users:
+                    content['logo'] = await self.users.get_picture(content['tags']['user-id'])
+            if 'response' in content['tags']:
+                self.chatbot.send_message(content['message'], channel)
+
     async def chat(self):
-        queue = None
+        while not self.chatbot:
+            await asyncio.sleep(1)
+            continue
+        queue = self.chatbot.chat()
+        processing = False
         while not self.shutdown_event.is_set():
             try:
-                processing = False
-                if not self.chatbot:
-                    await asyncio.sleep(1)
-                    continue
-
-                queue = self.chatbot.chat()
                 event = await queue.get()
                 if event is None:
                     return
                 processing = True
                 channel = event.channel
-                if channel and channel not in self.channels:
+                content = await handle_message(event)
+                if not channel:
+                    await self.broadcast(content)
+                    continue
+
+                if channel not in self.channels:
                     logger.error(f"Message for channel '{channel}' but no socket")
                     self.chatbot.unsubscribe(channel)
-                if event and channel and any([allowed_content(event, **s) for s in self.channels[channel]]):
-                    content = await handle_message(event)
+                    continue
+
+                if any([allowed_content(event, **s) for s in self.channels[channel]]):
                     if event.type != 'TWITCHCHATMESSAGE':
                         self.recent_events.append(content)
-                    if content:
-                        if "tags" in content:
-                            if "bits" in content["tags"]:
-                                bits_evt = get_bits(content)
-                                self.recent_events.append(bits_evt)
-                            if any([s.get("images", None) for s in self.channels[channel]]):
-                                if self.users:
-                                    content['logo'] = await self.users.get_picture(content['tags']['user-id'])
-                            if 'response' in content['tags']:
-                                self.chatbot.send_message(content['message'], channel)
-                        self.channels[channel] = [s for s in self.channels[channel] if not s["socket"].closed]
-                        for s in self.channels[channel]:
-                            if filter_output(content, **s):
-                                await s["socket"].send(json.dumps(content))
-                elif not channel:
-                    content = await handle_message(event)
-                    for c in self.channels:
-                        for s in self.channels[c]:
+                    await self.handle_content(channel, content)
+
+                    self.channels[channel] = [s for s in self.channels[channel] if not s["socket"].closed]
+                    if channel in self.pubsub_clients:
+                        if pubsub_filter(event):
+                            continue  # Discard pubsub duplicated messages
+                    for s in self.channels[channel]:
+                        if filter_output(content, **s):
                             await s["socket"].send(json.dumps(content))
 
             except websockets.exceptions.ConnectionClosed as e:
                 logger.info(f"Connection closed {e.code}")
 
             except BannedException as e:
-                logger.warning("We have been banned from this channel")
+                logger.warning("Account has been banned from this channel")
                 if not db.exists("banned"):
                     db.create("banned", primary=["name"])
                 db.update("banned", {"name": e.channel}, ["name"])
                 self.chatbot.unsubscribe(channel)
 
-            except Exception:
-                import traceback
-                err = traceback.format_exc()
-                logger.debug(err)
+            except Exception as e:
+                print(e)
+                print(f"Error handling message: '{event}'")
+
             finally:
                 if processing:
                     processing = False
@@ -159,7 +171,6 @@ class SocketServer():
                     for s in self.channels[channel]:
                         await s["socket"].send(json.dumps(event))
                 else:
-                    # Don't add_event as we've seen it before
                     await self._event_queue.put(event)
             except Empty:
                 await asyncio.sleep(1)
@@ -263,26 +274,18 @@ class SocketServer():
                 if event is None:
                     logger.info("No more alerts")
                     return
-                try:
-                    channel = event['channel']
-                except KeyError:
-                    channel = event.channel
+                channel = event['channel']
 
-                if channel:
-                    self.channels[channel] = [s for s in self.channels[channel] if not s["socket"].closed]
-                    if channel in self.pubsub_clients:
-                        if pubsub_filter(event):
-                            continue  # Discard pubsub duplicated messages
+                if not channel:
+                    self.broadcast(event)
 
-                    for s in self.channels[channel]:
-                        await s["socket"].send(json.dumps(event))
-                elif channel is None:
-                    # This is a broadcast
-                    for c in self.channels:
-                        for s in self.channels[c]:
-                            await s["socket"].send(json.dumps(event))
-                else:
-                    logger.error("No channel for alert")
+                self.channels[channel] = [s for s in self.channels[channel] if not s["socket"].closed]
+                if channel in self.pubsub_clients:
+                    if pubsub_filter(event):
+                        continue  # Discard pubsub duplicated messages
+
+                for s in self.channels[channel]:
+                    await s["socket"].send(json.dumps(event))
             except Exception as e:
                 logger.error(e)
             finally:

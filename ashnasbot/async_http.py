@@ -28,6 +28,8 @@ redirect_uri = "http://localhost:8080/authorize"
 
 os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
 
+LOG_FORMAT = "%s %r %a"
+
 
 class WebServer(object):
     def __init__(self, reload_evt=None, address='0.0.0.0', port=8080, loop=None, shutdown_evt=None,
@@ -52,7 +54,7 @@ class WebServer(object):
         secret_key = base64.urlsafe_b64decode(fernet_key)
         setup(self.app, EncryptedCookieStorage(secret_key))
         self.setup_routes()
-        self.runner = web.AppRunner(self.app, access_log=None)
+        self.runner = web.AppRunner(self.app, access_log_format=LOG_FORMAT)
         await self.runner.setup()
         self.site = web.TCPSite(self.runner, self.address, self.port)
         await self.site.start()
@@ -84,12 +86,12 @@ class WebServer(object):
         try:
             self.app.router.add_static('/static', path="public/")
         except Exception:
-            logging.error("No Static dir")
+            logger.error("No Static dir")
 
         try:
             self.app.router.add_static('/views', path="views/")
         except Exception:
-            logging.warning("No views installed")
+            logger.warning("No views installed")
 
         # This is very important
         self.app.router.add_get('/favicon.ico', self.get_favicon)
@@ -136,10 +138,10 @@ class WebServer(object):
     async def get_sound(self, request):
         view = request.match_info['view']
         event = request.match_info['event']
-        # TODO: This
-        query = request.query_string
-        if query:
-            logger.error(query)
+        # # TODO: This
+        # query = request.query_string
+        # if query:
+        #    logger.error(query)
 
         views_path = os.path.join('views', view)
         views_match = list(Path(views_path).glob(event + ".*"))

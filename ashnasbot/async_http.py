@@ -1,10 +1,12 @@
 import aiohttp
 import asyncio
+import bisect
 import json
 import logging
 import dataset
 import os
 from pathlib import Path
+import re
 from requests_oauthlib import OAuth2Session
 
 import base64
@@ -142,18 +144,55 @@ class WebServer(object):
         # query = request.query_string
         # if query:
         #    logger.error(query)
-
         views_path = os.path.join('views', view)
-        views_match = list(Path(views_path).glob(event + ".*"))
 
-        for match in views_match:
-            if match.suffix in self.AUDIO_FILETYPES:
-                return web.FileResponse(views_match[0])
+        query = request.query
+        if query and "value" in query:
+            ammt = query["value"]
 
-        fallback_match = list(Path("public/audio").glob(event + ".*"))
-        for match in fallback_match:
-            if match.suffix in self.AUDIO_FILETYPES:
-                return web.FileResponse(fallback_match[0])
+            # find exact
+            views_match = list(Path(views_path).glob(event + ammt + ".*"))
+            for match in views_match:
+                if match.suffix in self.AUDIO_FILETYPES:
+                    return web.FileResponse(views_match[0])
+
+            fallback_match = list(Path("public/audio").glob(event + ammt + ".*"))
+            for match in fallback_match:
+                if match.suffix in self.AUDIO_FILETYPES:
+                    return web.FileResponse(fallback_match[0])
+
+            # find closest
+            views_match = list(Path(views_path).glob(event))
+            candidates = []
+            for match in views_match:
+                if match.suffix in self.AUDIO_FILETYPES:
+                    m = re.search(r'\d+$', match.stem)
+                    if m:
+                        candidates.append((m.group(), match))
+            if candidates:
+                match = bisect.bisect_right(candidates, ammt)
+                return web.FileResponse(candidates[0])
+
+            fallback_match = list(Path("public/audio").glob(event))
+            for match in fallback_match:
+                if match.suffix in self.AUDIO_FILETYPES:
+                    m = re.search(r'\d+$', match.stem)
+                    if m:
+                        candidates.append((m.group(), match))
+            if candidates:
+                match = bisect.bisect_right(candidates, ammt)
+                return web.FileResponse(candidates[0])
+
+        else:
+            views_match = list(Path(views_path).glob(event + ".*"))
+            for match in views_match:
+                if match.suffix in self.AUDIO_FILETYPES:
+                    return web.FileResponse(views_match[0])
+
+            fallback_match = list(Path("public/audio").glob(event + ".*"))
+            for match in fallback_match:
+                if match.suffix in self.AUDIO_FILETYPES:
+                    return web.FileResponse(fallback_match[0])
 
         return web.HTTPNotFound()
 

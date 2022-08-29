@@ -104,6 +104,11 @@ Vue.component('event-create', {
             value: '',
             forEvents: ['SUB'],
           },
+          value: {
+            type: 'number',
+            value: '100',
+            forEvents: ['BITS'],
+          },
           viewers: {
             type: 'number',
             value: '50',
@@ -189,7 +194,28 @@ Vue.component('event-create', {
             "quoted"
           ]
         }
-      }
+      },
+      BITS: function() {
+        let ts = Date.now()
+
+        return {
+          type: "BITS",
+          nickname: `${this.options.who.value}`,
+          value: `${this.options.value.value}`,
+          channel: `${this.options.channel.value}`,
+          message: `Cheer${this.options.value.value}`,
+          orig_message: `Cheer${this.options.value.value}`,
+          id: "xxx",
+          tags: {
+            "display-name": `${this.options.who.value}`,
+            "id": "zzz",
+            "bits": `${this.options.value.value}`,
+          },
+          extra: [
+            "quoted"
+          ]
+        }
+      },
     },
     template: `
     <div class="uk-card uk-card-body">

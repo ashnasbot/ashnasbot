@@ -233,12 +233,6 @@ new Vue({
                         this.chatsocket.close();
                         break;
                     case "REDEMPTION":
-                        if (msg.type == "REDEMPTION")
-                        {
-                            if (this.$refs.alerthandler) {
-                                this.$refs.alerthandler.do_alert(msg);
-                            }
-                        }
                     case "BITS":
                         if (msg.type == "BITS") { msg.type = "TWITCHCHATMESSAGE" }
                     case "HOSTED":

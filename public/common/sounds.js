@@ -108,7 +108,7 @@ Vue.component('sound-handler', {
 						this.playqueue.shift();
 						this.play();
 					}.bind(this)
-				});
+				}).bind(this);
 			} else {
 				this.playqueue.shift();
 			}

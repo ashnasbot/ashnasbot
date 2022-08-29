@@ -168,20 +168,20 @@ class WebServer(object):
                 if match.suffix in self.AUDIO_FILETYPES:
                     m = re.search(r'\d+$', match.stem)
                     if m:
-                        candidates.append((m.group(), match))
+                        candidates.append((int(m.group()), match))
             if candidates:
-                match = bisect.bisect_right(candidates, ammt)
-                return web.FileResponse(candidates[0])
+                match = bisect.bisect_right(candidates, (int(ammt), None)) - 1
+                return web.FileResponse(candidates[match][1])
 
-            fallback_match = list(Path("public/audio").glob(event))
+            fallback_match = list(Path("public/audio").glob(event + r"[123456789][1234567890]*"))
             for match in fallback_match:
                 if match.suffix in self.AUDIO_FILETYPES:
                     m = re.search(r'\d+$', match.stem)
                     if m:
-                        candidates.append((m.group(), match))
+                        candidates.append((int(m.group()), match))
             if candidates:
-                match = bisect.bisect_right(candidates, ammt)
-                return web.FileResponse(candidates[0])
+                match = bisect.bisect_right(candidates, (int(ammt), None)) - 1
+                return web.FileResponse(candidates[match][1])
 
         else:
             views_match = list(Path(views_path).glob(event + ".*"))

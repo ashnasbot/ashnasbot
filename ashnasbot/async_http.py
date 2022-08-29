@@ -246,9 +246,10 @@ class WebServer(object):
 
     async def begin_auth(self, request):
         # Step 1
-        scope = []
+        scope = ["channel:read:redemptions", "channel:read:subscriptions"]
         oauth = OAuth2Session(client_id=self.client_id, redirect_uri=redirect_uri, scope=scope)
         authorization_url, state = oauth.authorization_url(auth_base_url, force_verify=True)
+        oauth.close()
         return_channel = request.query.get("channel", None)
         return_theme = request.query.get("theme", "noir")
 
@@ -276,6 +277,7 @@ class WebServer(object):
         twitch = OAuth2Session(client_id=self.client_id, state=state)
         code = request.query['code']
         token = twitch.fetch_token(token_url, code=code, body=body)
+        twitch.close()
 
         # At this point you can fetch protected resources, lets save the token
         session['token'] = token

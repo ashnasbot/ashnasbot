@@ -88,8 +88,10 @@ class TwitchClient():
         url = "/helix/users"
         if not user:
             return {}
-        if user.isnumeric():
+        if isinstance(user, int):
             params = {'id': user}
+        elif user.isnumeric():
+            params = {'id': int(user)}
         else:
             params = {'login': user}
 

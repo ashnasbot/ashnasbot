@@ -98,7 +98,6 @@ new Vue({
         chat: [],
         config: {},
         alert: "",
-        ping: null,
         channel: getChannel(),
         theme: getTheme(),
         curChannel: "",
@@ -141,10 +140,6 @@ new Vue({
             }
         },
         loadData: function(event) {
-            if (event.data == "ping") {
-                this.chatsocket.send("pong");
-                return;
-            }
             if (!Array.isArray(this.incoming)) {
                 this.incoming = [];
             }
@@ -170,24 +165,9 @@ new Vue({
             this.chatsocket.send(this.getClientConfig());
             this.chatsocket.onmessage = this.loadData;
             this.chatsocket.onclose = this.socket_close;
-            if (this.ping) {
-                clearInterval(this.ping);
-            }
-            this.ping = setInterval(function(){
-                if (this.chatsocket.readystate == "OPEN") {
-                    this.chatsocket.send("ping");
-                } else {
-                    clearInterval(this.ping);
-                    this.ping = null;
-                }
-            }.bind(this), 20000);
         },
         socket_close: function () {
-            if (this.ping) {
-                clearInterval(this.ping);
-                this.ping = null;
-            }
-            this.connect();
+            setInterval(this.connect(), 2000);
         },
         connect: function() {
             var boundReconnect = this.connect.bind(this);

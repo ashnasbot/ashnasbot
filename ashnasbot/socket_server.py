@@ -193,8 +193,6 @@ class SocketServer():
     async def disconnect_listener(self, ws, channel_client):
         await ws.wait_closed()
         logger.info("WS client disconnected")
-        if "heartbeat" in channel_client:
-            channel_client["heartbeat"].cancel()
         if "alert" in channel_client:
             if hasattr(channel_client["alert"], "cancel"):
                 channel_client["alert"].cancel()
@@ -220,16 +218,6 @@ class SocketServer():
         logger.debug("Remaining Tasks: %d", len(remaining_tasks))
         for t in remaining_tasks:
             logger.debug("               : %s", t)
-
-    async def heartbeat(self, ws_in):
-        try:
-            while not self.shutdown_event.is_set():
-                await asyncio.sleep(20)
-                if ws_in.closed:
-                    return
-                await ws_in.ping()
-        except CancelledError:
-            pass
 
     async def followers(self, channel):
         await asyncio.sleep(10)
@@ -347,9 +335,6 @@ class SocketServer():
             tasks.append(alert_task)
             self.chatbot.subscribe(channel)
 
-        heartbeat_task = self.make_task(self.heartbeat(ws_in), name=f"{channel}_hb")
-        tasks.append(heartbeat_task)
-        channel_client["heartbeat"] = heartbeat_task
         channel_client["channel"] = channel
         if channel in self.channels:
             self.channels[channel].append(channel_client)

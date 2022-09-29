@@ -19,3 +19,7 @@ twitchdata.db-wal
 build/*
 dist/*
 venv
+chatlogs
+trained_model
+aitextgen.tokenizer.json
+chatbot

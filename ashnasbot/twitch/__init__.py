@@ -12,8 +12,8 @@ import bleach
 
 from .api_client import TwitchClient
 from ..config import Config
-from .data import EMOTE_URL_TEMPLATE, SUB_TIERS, BADGE_URL_TEMPLATE, BITS_COLORS, BITS_INDICIES
-from .data import CHEERMOTE_TEXT_TEMPLATE, CHEERMOTE_URL_TEMPLATE
+from .data import EMOTE_FULL_TEMPLATE, EMOTE_IMG_TEMPLATE, SUB_TIERS, BADGE_URL_TEMPLATE, BITS_COLORS
+from .data import CHEERMOTE_TEXT_TEMPLATE, CHEERMOTE_URL_TEMPLATE, BITS_INDICIES
 from . import commands
 from . import db
 from . import bttv
@@ -50,6 +50,30 @@ while API_CLIENT is None:
 
 BADGES = None
 
+OWN_EMOTES = {}  # emoteName : (url, emoteset)
+
+
+async def render_own_emotes(message, emotesets):
+
+    if len(emotesets) > 25:
+        raise ValueError("Too many subs, multiple requests needed")
+
+    # filter to allowed emotesets
+    sets = [s[1] for s in OWN_EMOTES.values()]
+    missing = [s for s in emotesets if s not in sets]
+    if missing:
+        OWN_EMOTES.update(await API_CLIENT.get_emotes_for_sets(missing))
+    emotes = {k: v for k, v in OWN_EMOTES.items() if v[1] in emotesets}
+
+    for token in message.split():
+        if token in emotes:
+            message = re.sub(
+                rf"\b{re.escape(token)}\b",
+                EMOTE_FULL_TEMPLATE.format(url=emotes[token][0], alt=token),
+                message)
+
+    return message
+
 
 async def render_emotes(message, emotes, bttv_channel=None):
     """Render emotes into message
@@ -71,7 +95,7 @@ async def render_emotes(message, emotes, bttv_channel=None):
                 # Grab the 1st occurance, as we'll replace the rest inplace with regex.
                 start, end = occurances[0].split('-')
                 substr = message[int(start):int(end) + 1]
-                replace_str = EMOTE_URL_TEMPLATE.format(eid=eid, alt=substr)
+                replace_str = EMOTE_IMG_TEMPLATE.format(eid=eid, alt=substr)
 
                 replacements[substr] = replace_str
 
@@ -361,3 +385,10 @@ def create_event(from_evt, message):
     new_evt = copy.copy(from_evt)
     new_evt.message = message
     return new_evt
+
+
+async def cleanup():
+    if API_CLIENT:
+        await API_CLIENT.close()
+
+    await bttv.close()

@@ -4,6 +4,7 @@ import bisect
 import json
 import logging
 import dataset
+import mimetypes
 import os
 from pathlib import Path
 import re
@@ -19,8 +20,10 @@ from aiohttp_session.cookie_storage import EncryptedCookieStorage
 from ashnasbot.twitch import pokedex
 
 logger = logging.getLogger(__name__)
+logging.getLogger("aiohttp.access").setLevel(logging.ERROR)
 
 db = dataset.connect('sqlite:///ashnasbot.db')
+mimetypes.add_type('image/webp', '.webp')  # add webp support as an image type for serving
 
 # OAuth Details
 auth_base_url = 'https://id.twitch.tv/oauth2/authorize'
@@ -48,9 +51,9 @@ class WebServer(object):
         self.secret = secret
         self.events = events
         self.replay_queue = replay
-        loop.create_task(self.start())
 
     async def start(self):
+        logger.info('Starting webserver')
         self.app = web.Application(loop=self.loop, logger=logger)
         fernet_key = fernet.Fernet.generate_key()
         secret_key = base64.urlsafe_b64decode(fernet_key)
@@ -60,7 +63,13 @@ class WebServer(object):
         await self.runner.setup()
         self.site = web.TCPSite(self.runner, self.address, self.port)
         await self.site.start()
-        logger.info('------ serving on %s:%d ------' % (self.address, self.port))
+        logger.info('Serving on %s:%d' % (self.address, self.port))
+    
+    async def stop(self):
+        if self.runner:
+            logger.info('Stopping webserver')
+            await self.runner.cleanup()
+
 
     @staticmethod
     async def get_dashboard(request):
@@ -80,6 +89,7 @@ class WebServer(object):
         self.app.router.add_get('/api/views', self.get_views)
         self.app.router.add_get('/res/{view}/sound/{event}', self.get_sound)
         self.app.router.add_get('/res/{view}/image/{name}', self.get_image)
+        self.app.router.add_get('/res/{view}/media/{name}', self.get_media)
         self.app.router.add_post('/api/config', self.post_config)
         self.app.router.add_post('/api/shutdown', self.post_shutdown)
         self.app.router.add_post('/replay_event', self.post_replay)
@@ -140,10 +150,6 @@ class WebServer(object):
     async def get_sound(self, request):
         view = request.match_info['view']
         event = request.match_info['event']
-        # # TODO: This
-        # query = request.query_string
-        # if query:
-        #    logger.error(query)
         views_path = os.path.join('views', view)
 
         query = request.query
@@ -173,7 +179,7 @@ class WebServer(object):
                 match = bisect.bisect_right(candidates, (int(ammt), None)) - 1
                 return web.FileResponse(candidates[match][1])
 
-            fallback_match = list(Path("public/audio").glob(event + r"[123456789][1234567890]*"))
+            fallback_match = list(Path("public/audio").glob(event + r"[123456789]*"))
             for match in fallback_match:
                 if match.suffix in self.AUDIO_FILETYPES:
                     m = re.search(r'\d+$', match.stem)
@@ -213,6 +219,64 @@ class WebServer(object):
         for match in fallback_match:
             if match.suffix in self.IMAGE_FILETYPES:
                 return web.FileResponse(fallback_match[0])
+
+        return web.HTTPNotFound()
+
+    MEDIA_FILETYPES = [".mp4", ".gif", ".webp"]
+
+    async def get_media(self, request):
+        view = request.match_info['view']
+        event = request.match_info['name']
+        views_path = os.path.join('views', view)
+
+        query = request.query
+        # TODO: Refactor to generic handler
+        if query and "value" in query:
+            ammt = query["value"]
+
+            # find exact
+            views_match = list(Path(views_path).glob(event + ammt + ".*"))
+            for match in views_match:
+                if match.suffix in self.MEDIA_FILETYPES:
+                    return web.FileResponse(views_match[0])
+
+            fallback_match = list(Path("public/media").glob(event + ammt + ".*"))
+            for match in fallback_match:
+                if match.suffix in self.MEDIA_FILETYPES:
+                    return web.FileResponse(fallback_match[0])
+
+            # find closest
+            views_match = list(Path(views_path).glob(event))
+            candidates = []
+            for match in views_match:
+                if match.suffix in self.MEDIA_FILETYPES:
+                    m = re.search(r'\d+$', match.stem)
+                    if m:
+                        candidates.append((int(m.group()), match))
+            if candidates:
+                match = bisect.bisect_right(candidates, (int(ammt), None)) - 1
+                return web.FileResponse(candidates[match][1])
+
+            fallback_match = list(Path("public/media").glob(event + r"[123456789]*"))
+            for match in fallback_match:
+                if match.suffix in self.MEDIA_FILETYPES:
+                    m = re.search(r'\d+$', match.stem)
+                    if m:
+                        candidates.append((int(m.group()), match))
+            if candidates:
+                match = bisect.bisect_right(candidates, (int(ammt), None)) - 1
+                return web.FileResponse(candidates[match][1])
+
+        else:
+            views_match = list(Path(views_path).glob(event + ".*"))
+            for match in views_match:
+                if match.suffix in self.MEDIA_FILETYPES:
+                    return web.FileResponse(views_match[0])
+
+            fallback_match = list(Path("public/media").glob(event + ".*"))
+            for match in fallback_match:
+                if match.suffix in self.MEDIA_FILETYPES:
+                    return web.FileResponse(fallback_match[0])
 
         return web.HTTPNotFound()
 
@@ -285,6 +349,7 @@ class WebServer(object):
         return_channel = state.split(";")[1]
         return_theme = state.split(";")[2]
 
+        # TODO: Redirect to original location (e.g. alertsoverlay vs chat)
         resp = aiohttp.web.HTTPFound(f'/views/{return_theme}/chat.html?channel={return_channel}')
         resp.cookies['token'] = token["access_token"]
         return resp

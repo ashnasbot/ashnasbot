@@ -1,7 +1,5 @@
 STATIC_CDN = "https://static-cdn.jtvnw.net/"
 
-ACTION = "action"
-
 BADGES = {
     'admin': STATIC_CDN + "chat-badges/admin-alpha.png",
     "bits1": STATIC_CDN + "/badges/v1/73b5c3fb-24f9-4a82-a852-2f475b59411c/2",
@@ -62,11 +60,18 @@ BADGES = {
 
 SUB_TIERS = [0, 3, 6, 9, 12, 18, 24, 30]
 
-EMOTE_URL_TEMPLATE = "<img src=\"" + STATIC_CDN + \
+EMOTE_URL_TEMPLATE = STATIC_CDN + "/emoticons/v2/{{id}}/{{format}}/{{theme_mode}}/{{scale}}"
+
+EMOTE_IMG_TEMPLATE = "<img src=\"" + STATIC_CDN + \
    """emoticons/v2/{eid}/default/dark/2.0" class="emote"
  alt="{alt}"
  title="{alt}"
 />"""
+
+EMOTE_FULL_TEMPLATE = """<img class="emote" src="{url}"
+ alt="{alt}"
+ title="{alt}"
+\\>"""
 
 CHEERMOTE_URL_TEMPLATE = "<img src=\"{url}\" class=\"emote\"" + \
     """alt="{alt}"

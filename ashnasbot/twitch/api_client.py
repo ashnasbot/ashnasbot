@@ -5,13 +5,14 @@ import aiohttp
 from oauthlib.oauth2 import BackendApplicationClient
 from requests_oauthlib import OAuth2Session
 
+from ashnasbot.twitch.data import EMOTE_URL_TEMPLATE
+
 from . import db
 from .. import config
 
 API_BASE = "https://api.twitch.tv"
+TOKEN_CACHE = {}
 logger = logging.getLogger(__name__)
-
-token = None
 
 
 class TwitchClient():
@@ -20,27 +21,44 @@ class TwitchClient():
     __sessions = {}
 
     def __init__(self, client_id=None, target_user=None):
-        global token
         cfg = config.Config()
-        self.client_id = cfg["client_id"]
+        if client_id:
+            self.client_id = client_id
+        else:
+            self.client_id = cfg["client_id"]
         logger.debug(f"Creating twitch API client for {self.client_id} {target_user}")
 
         self.target_user = target_user
         self.channel_id = None
         self.channel_emotes_cache = {}
         self.global_badges = {}
+        self.oauth = None
 
-        if not token:
-            logger.warning("No token - retriving new token")
-            body = urllib.parse.urlencode({'client_id': self.client_id, 'client_secret': cfg["secret"]})
-            client = BackendApplicationClient(client_id=cfg["client_id"])
-            oauth = OAuth2Session(client=client)
-            try:
-                token = oauth.fetch_token(token_url='https://id.twitch.tv/oauth2/token', body=body)
-            except Exception:
-                raise ValueError("OAuth: failed to get token")
+    def get_token(self):
+        if self.oauth is None:
+            if self.client_id in TOKEN_CACHE:
+                logger.debug("Using cached API auth token")
+                token = TOKEN_CACHE[self.client_id]
+            else:
+                cfg = config.Config()
+                logger.info("Retrieving API auth token")
+                body = urllib.parse.urlencode({'client_id': self.client_id, 'client_secret': cfg["secret"]})
+                client = BackendApplicationClient(client_id=cfg["client_id"])
+                oauth = OAuth2Session(client=client)
+                try:
+                    token = oauth.fetch_token(token_url='https://id.twitch.tv/oauth2/token', body=body)
+                    TOKEN_CACHE[self.client_id] = token
+                except Exception:
+                    self.oauth = ''
+                    raise ValueError("OAuth: failed to get token")
 
-        self.oauth = token["access_token"]
+            self.oauth = token["access_token"]
+
+    async def close(self):
+        logger.info("Closing client API sessions")
+        for c, s in self.__sessions.items():
+            logger.debug("Cleaning up client session for client %s", c)
+            await s.close()
 
     async def _make_api_request(self, url, params=None):
         headers = {
@@ -49,6 +67,8 @@ class TwitchClient():
         }
 
         if "helix" in url:
+            if not self.oauth:
+                self.get_token()
             headers["Authorization"] = f"Bearer {self.oauth}"
 
         session = self.__sessions.get(self.client_id, None)
@@ -223,6 +243,7 @@ class TwitchClient():
         return await self._make_api_request(url, params=params)
 
     async def get_channel_emotes(self, channel):
+        # NOTE: Unused, may be broken
         if channel in self.channel_emotes_cache:
             return self.channel_emotes_cache[channel]
 
@@ -245,11 +266,39 @@ class TwitchClient():
                     "scale": "2.0"
                 }
 
-                emote[name] = "https://static-cdn.jtvnw.net/emoticons/v2/{{id}}/{{format}}/{{theme_mode}}/{{scale}}".format(**res)
+                emotes[name] = EMOTE_URL_TEMPLATE.format(**res)
         except Exception:
             logger.warning("Failed to get emotes")
 
         if emotes:
             self.channel_emotes_cache[channel] = emotes
+
+        return emotes
+
+    async def get_emotes_for_sets(self, sets):
+        url = '/helix/chat/emotes/set'
+
+        params = [('emote_set_id', s) for s in sets]
+        encoded_params = urllib.parse.urlencode(params)
+        emotes = {}
+        logger.debug("Getting channel emote sets for %s", sets)
+
+        try:
+            resp = await self._make_api_request(url, encoded_params)
+            for emote in resp["data"]:
+                name = emote["name"]
+                info = {
+                    "id": emote["id"],
+                    "format": emote["format"][-1],
+                    "theme_mode": "dark",
+                    "scale": "2.0"
+                }
+                emotes[name] = (resp["template"].format().format(**info), emote["emote_set_id"])
+
+        except Exception as e:
+            import traceback
+            print(e)
+            traceback.print_tb()
+            logger.warning("Failed to get own emotes")
 
         return emotes

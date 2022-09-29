@@ -1,17 +1,23 @@
 Vue.component('chase', {
-	template: '<canvas ref="screen" width=640 height=480></canvas>',
+	template: `<div>
+	<canvas ref="screen" width=640 height=480></canvas>
+	<banner v-if="alert !== null" v-bind="alert"></banner>
+	</div>`,
 	props: {
 		rate: {  // Number of chocos on screen at once
 			type: Number,
 			default: 32,
-		}
+		},
+		alert: Object
 	},
 	data: function() {
         var urlChunks = location.pathname.split('/');
 		return {
 			canvas: null,
 			sprites: [],
-			view: urlChunks[urlChunks.length - 2], audio: null
+			view: urlChunks[urlChunks.length - 2],
+			audio: null,
+			alert: null
 		}
 	},
     mounted: function () {
@@ -69,7 +75,7 @@ Vue.component('chase', {
 			that.x = options.x;
 			that.y = options.y;
 			that.speed = options.speed;
-			if (typeof that.x == undefined) {
+			if (typeof that.x == 'undefined') {
 				if (options.id < this.rate) {
 					that.x = options.context.canvas.width + ((options.context.canvas.width / this.rate) * options.id );
 				} else {
@@ -205,9 +211,47 @@ Vue.component('chase', {
 				this.sprites.push(newsprite)
 			});
 		},
+		create_banner(msg) {
+			var media;
+			var text = msg.message;
+			if (!text) {
+				text = msg.tags['system-msg'];
+			}
+
+			switch (msg.type) {
+				case "FOLLOW":
+					media = `/res/${this.view}/media/follow`;
+					break;
+
+				case "BITS":
+					re = /^(\w*Cheer\d+\(s+|$)+/i
+					if (msg.orig_message.match(re)) {
+						// Skip messages that are just bits
+					    speech = "";
+					} else {
+						// a little over zealous
+						speech = msg.orig_message.replace(/\w+\d+/, "");
+					}
+					ammount = msg.tags["bits"]
+					media = `/res/${this.view}/media/bits?value=${ammount}`;
+					break
+			}
+
+			if (media) {
+				this.alert = {
+					type: undefined,
+					media: media,
+					user: msg.nickname,
+					message: text,
+					done: false,
+					id: msg.id
+				}
+			}
+		},
         do_alert(msg) {
 			try {
-				// TODO: Handle event while sprites still running
+				this.create_banner(msg);
+				// TODO: Handle event while previous event still running
 				if (msg.type == "FOLLOW") {
 					this.createsprites(1, "follow");
 				}
@@ -232,3 +276,70 @@ Vue.component('chase', {
 		}
     }
 });
+
+Vue.component('banner', {
+	template: `
+	<transition mode="out-in">
+	<div v-show="!done" id="alertbox">
+	<div v-show="type=='video'">
+	    <video ref="media" autoplay="true">
+		    <source :src="media" v-if="type=='video'">
+		</video>
+	</div>
+	<div v-if="type=='gif'">
+	    <img :src="media"/> 
+	</div>
+
+	<p>{{message}}</p>
+	</div>
+	</transition>
+	`,
+	props: {
+		type: String,
+		media: String,
+		user: String,
+		message: String,
+		done: Boolean,
+		id: String
+	},
+	watch: {
+		id: async function(newVal, oldVal) {
+			let response = await fetch(this.media)
+			var ct = response.headers.get("content-type", {method: "HEAD"});
+			if (ct.startsWith("image")){
+				this.type = "gif";
+			} else {
+				this.type = "video";
+			}
+			console.log(`new ${this.type}!`)
+			if (this.type == "video") {
+				if (this.$refs.media) {
+					if (!self.flag) {
+						// fist time, set listener
+						this.$refs.media.addEventListener('ended', this.setdone, false);
+						self.flag = true;
+					} else {
+						// other time reset time
+						this.$refs.media.currentTime = 0;
+						this.$refs.media.play();
+					}
+				}
+			} else {
+				window.setTimeout(this.setdone, 5000);
+			}
+		},
+	},
+	methods: {
+		setdone: function(event) {
+			console.log("done!")
+			this.done = true;
+		}
+	}
+}
+);
+
+function uuidv4() {
+  return ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c =>
+    (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
+  );
+}

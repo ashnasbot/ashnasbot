@@ -11,15 +11,14 @@ logger = logging.getLogger(__name__)
 
 class ChatBot():
     evt_filter = ["TWITCHCHATJOIN", "TWITCHCHATMODE", "TWITCHCHATMESSAGE",
-                  "TWITCHCHATUSERSTATE", "TWITCHCHATROOMSTATE", "TWITCHCHATLEAVE"]
-    evt_types = ["TWITCHCHATMESSAGE"]
+                  "TWITCHCHATROOMSTATE", "TWITCHCHATLEAVE"]
     handled_commands = ["CLEARMSG", "RECONNECT", "HOSTTARGET", "CLEARCHAT"]
 
     def __init__(self, loop, bot_user, oauth):
-        self.notifications = []
         self.channels = set()
         self.observer = Observer(bot_user, oauth)
         self.observer._inbound_poll_interval = 0
+        self.emotesets = set()
         retry = 5
         while retry:
             try:
@@ -47,13 +46,14 @@ class ChatBot():
             self.observer.join_channel(channel)
             self.channels.add(channel)
         else:
+            # Expected when joining for chat and alerts
             logger.debug(f"Already subbed to channel: {channel}")
 
     def unsubscribe(self, channel):
-        logger.debug(f"unsubscribe: {channel}")
+        logger.debug(f"Unsubscribe: {channel}")
         self.observer.leave_channel(channel)
         if channel not in self.channels:
-            logger.debug(f"unsubscribing from channel not subbed: {channel}")
+            logger.debug(f"Unsubscribing from channel not subbed: {channel}")
         else:
             logger.info(f"Leaving channel: {channel}")
             self.channels.remove(channel)
@@ -125,6 +125,9 @@ class ChatBot():
             if evt._command in self.handled_commands:
                 logger.debug(evt._command)
                 self.add_task(self.chat_queue.put(evt))
+        elif evt.type == "TWITCHCHATUSERSTATE":
+            self.emotesets = set(evt.tags["emote-sets"].split(","))
+            self.badges = evt.tags["badges"]  # no split, handled by renderer
 
     def send_message(self, message, channel):
         if not message:
@@ -140,6 +143,6 @@ class ChatBot():
 
     def close(self):
         for c in self.channels:
-            logger.info(f"closing chat {c}")
+            logger.info(f"Closing chat {c}")
             self.observer.leave_channel(c)
         self.observer.stop()

@@ -1,5 +1,3 @@
-//import eventBus from "./eventBus";
-
 /* 
  * Max messages before several will be deleted per batch
  * Helps with high loads
@@ -28,6 +26,7 @@ function getAuth() {
     var auth = null;
     var token_channel = null;
     var oauth;
+
     try {
         oauth = cookies
             .split('; ')
@@ -44,8 +43,15 @@ function getAuth() {
             .split('=')[1];
     } catch { }
 
-    if (channel == token_channel) {
-        return (new Promise(oauth => {return oauth}));
+    channel = this.getChannel();
+    if (token_channel) {
+        if (channel == token_channel) {
+            return (new Promise(oauth => {return oauth}));
+        } else {
+            // TODO: Reauth method (aka logout button)
+            console.warn("token not for channel")
+            return
+        }
     }
 
     return fetch('https://id.twitch.tv/oauth2/validate', {headers: {'Authorization': 'OAuth ' + oauth}})
@@ -57,7 +63,6 @@ function getAuth() {
         })
         .then(authStatus => {
             token_channel = authStatus["login"];
-            channel = this.getChannel();
             if (channel == token_channel) {
                 console.log(`OAuth Token valid for ${channel}`);
                 document.cookie = `user=${channel};path=/`;
@@ -91,7 +96,7 @@ function getChannel() {
 
 new Vue({
     el: '#app',
-    props: ['client', 'incoming'],
+    props: ['client', 'incoming', 'backoff'],
     data: {
         auth: getAuth(),
         token: null,
@@ -122,12 +127,8 @@ new Vue({
             if (this.token) {
                 clientConfig["auth"] = this.token;
             }
+            clientConfig["for"] = document.title;
             return JSON.stringify(clientConfig);
-        },
-        created: function() {
-                //eventBus.$on("clear", () => {
-                //    this.clear();
-                //});
         },
         clear: function(id, user, room) {
             if (id) {
@@ -141,9 +142,10 @@ new Vue({
         },
         loadData: function(event) {
             if (!Array.isArray(this.incoming)) {
-                this.incoming = [];
+                this.incoming = [event];
+            } else {
+                this.incoming.push(event);
             }
-            this.incoming.push(event);
         },
         store_chat: function(event) {
             save = {
@@ -161,26 +163,42 @@ new Vue({
             }
         },
         socket_open: function () {
-            console.log("Connected")
+            console.log("Connected to backend")
+            this.backoff = 1000;
             this.chatsocket.send(this.getClientConfig());
             this.chatsocket.onmessage = this.loadData;
             this.chatsocket.onclose = this.socket_close;
         },
         socket_close: function () {
-            setInterval(this.connect(), 2000);
+            setTimeout(this.connect(), 2000);
         },
         connect: function() {
+            if (!Number.isInteger(this.backoff)) {
+                this.backoff = 1000;
+            } else {
+                this.backoff *= 1.5
+            }
             var boundReconnect = this.connect.bind(this);
+            if (this.chatsocket) {
+                if (this.chatsocket.readyState <= 1 /* connecting or open */) {
+                    console.warn("Connect called while already connected");
+                    return;
+                }
+            }
+
             try {
                 this.chatsocket = new WebSocket(websocketLocation);
                 this.chatsocket.onerror = function() {
-                        setTimeout(boundReconnect, 5000);
+                        setTimeout(boundReconnect, this.backoff);
                 };
                 this.chatsocket.onopen = this.socket_open
             }
             catch(error) {
-                console.log(error);
-                setTimeout(boundReconnect, 1000);
+                if (this.backoff == 1000) {
+                    console.log("Failed to connect - retrying");
+                    console.log(error);
+                }
+                setTimeout(boundReconnect, this.backoff);
             }
         }
     },
@@ -283,7 +301,7 @@ new Vue({
                         console.log(msg);
                 };
             }
-            this.incoming = [];
+            this.incoming.length = 0;
             this.store_chat();
         }
     },
@@ -427,10 +445,6 @@ function checkOverflow(el)
 
     return isOverflowing;
 }
-
-setInterval(function() {
-
-}, 500)
 
 window.onresize = function(event) {
     max_messages = Math.floor(window.innerHeight / (msg_size * scale_factor) ) + 1;

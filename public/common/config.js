@@ -10,6 +10,7 @@ Vue.component('config-menu', {
             this.hosts = config.hosts;
             this.menu = config.menu;
             this.pubsub = config.pubsub;
+            this.chatbot = config.chatbot;
         }
     },
     methods: {
@@ -27,7 +28,8 @@ Vue.component('config-menu', {
         tts: false,
         hosts: false,
         menu: true,
-        pubsub: false
+        pubsub: false,
+        chatbot: false
       }
     },
     watch: {
@@ -39,6 +41,7 @@ Vue.component('config-menu', {
         hosts(n) { this.handleInput(); },
         menu(n) { this.handleInput(); },
         pubsub(n) { this.handleInput(); },
+        chatbot(n) { this.handleInput(); },
     },
     template: `
     <div class="popout">
@@ -69,6 +72,9 @@ Vue.component('config-menu', {
 
     <input type="checkbox" id="menuChk8" v-model="pubsub" >
     <label for="menuChk8" name="pubsub">Show alerts from PubSub (requires auth)</label>
+
+    <input type="checkbox" id="menuChk9" v-model="chatbot" >
+    <label for="menuChk9" name="Chatbot">Respond in chat</label>
     </fieldset>
 
     </div>

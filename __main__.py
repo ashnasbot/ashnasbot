@@ -34,37 +34,42 @@ def copy_resources():
 if __name__ == '__main__':
     copy_resources()
 
-    # These must only be imported after the resources are in place
-    from ashnasbot import socket_server
-    from ashnasbot import config
-
-    print("Loading config")
-    cfg = config.Config()
-    try:
-        lvl = cfg["log_level"].upper()
-        log_level = getattr(logging, lvl)
-        print("Log level set to:", lvl)
-    except Exception:
-        print("Log level not set, defaulting to INFO")
-        log_level = logging.INFO
     # set up logging to file and screen
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.DEBUG)
     patch_crypto()
 
     console = logging.StreamHandler()
-    console.setLevel(log_level)
-    formatter = logging.Formatter('%(name)-30s: %(levelname)-6s %(message)s')
+    formatter = logging.Formatter('%(name)-32s: %(levelname)-7s %(message)s')
+    console.setLevel(logging.INFO)
     console.setFormatter(formatter)
     root_logger.addHandler(console)
 
     logfile = logging.FileHandler('debug.log', 'w', 'utf-8')
     logfile.setLevel(logging.DEBUG)
-    formatter = logging.Formatter('%(asctime)s %(name)-30s %(levelname)-6s %(message)s', "%H:%M:%S")
+    formatter = logging.Formatter('%(asctime)s %(name)-32s %(levelname)-7s %(message)s', "%H:%M:%S")
     logfile.setFormatter(formatter)
     root_logger.addHandler(logfile)
 
+    # These must only be imported after the resources are in place
+    # ...and post logging config
+    from ashnasbot import socket_server
+    from ashnasbot import config
+
+    logging.info("Loading configuration")
+    cfg = config.Config()
+    try:
+        lvl = cfg["log_level"].upper()
+        log_level = getattr(logging, lvl)
+        logging.info("Log level set to: %s", lvl)
+    except Exception:
+        logging.info("Log level not set, defaulting to INFO")
+        log_level = logging.INFO
+
+    console.setLevel(log_level)
+
     socket_thread = socket_server.SocketServer()
     signal.signal(signal.SIGINT, socket_thread.stop)
+    signal.signal(signal.SIGTERM, socket_thread.stop)
     # blocks forever
     socket_thread.run()

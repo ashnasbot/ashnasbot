@@ -1,9 +1,12 @@
 from enum import Enum, auto
 import json
 import logging
+from pathlib import Path
 import random
 import time
 import uuid
+
+from aitextgen import aitextgen
 
 from . import db
 from . import pokedex
@@ -11,9 +14,14 @@ from . import pokedex
 from .. import config
 
 logger = logging.getLogger(__name__)
+logging.getLogger("aitextgen").setLevel(logging.WARN)
 
-# TODO: load from gameinfo.txt
-GAMEINFO = "Final Fantasy 4 (SNES)"
+GAMEINFO = ""
+CHATMODEL = None
+
+if Path("gameinfo.txt").is_file():
+    with open("gameinfo.txt") as f:
+        GAMEINFO = f.readline()
 # TODO: command cooldown (per channel)
 
 
@@ -76,10 +84,12 @@ class PRIV(str, OrderedEnum):
 def handle_command(event):
     etags = event.tags
     raw_msg = event.message
-    logger.info(f"{etags['display-name']} COMMAND: {raw_msg}")
+    logger.debug(f"{etags['display-name']} COMMAND: {raw_msg}")
     args = raw_msg.split(" ")
     command = args.pop(0).lower()
     cmd = COMMANDS.get(command, None)
+    if not cmd:
+        return
 
     ret_event = ResponseEvent()
     ret_event.channel = event.channel
@@ -100,9 +110,9 @@ def handle_command(event):
 
     ret_event.priv = priv_level
     ret_event.tags['response'] = True
-    if callable(cmd):
+    if callable(cmd[1]):
         try:
-            ret_event = cmd(ret_event, *args)
+            ret_event = cmd[1](ret_event, *args)
             ret_event.priv = ""
             return ret_event
         except Exception:
@@ -136,18 +146,6 @@ def handle_other_commands(event):
             logger.warn("Twitch chat is going down")
             ret_event['message'] = "Twitch chat is going down"
             return ret_event
-        # elif event._command == "HOSTTARGET":
-        #     ret_event = ResponseEvent()
-        #     if event.message.startswith("- "):
-        #         ret_event['message'] = "Stopped hosting"
-        #     else:
-        #         print(event.message)
-        #         logger.debug(event.message)
-        #         channel = re.search(r"(\w+)\s[\d-]+", event.message).group(1)
-        #         ret_event['message'] = channel
-        #         ret_event['type'] = "HOST"
-        #     logger.info("HOST %s", ret_event['message'])
-        #     return ret_event
 
     except Exception as e:
         logger.warn(e)
@@ -234,9 +232,9 @@ def so_cmd(event, who, *args):
     return event
 
 
-def uptime(event, *args):
-    if event.tags['caller'].lower() != 'darkshoxx':
-        return
+def uptime(event, who, *args):
+    if who.lower() != 'darkshoxx':
+        return event
 
     event["message"] = "You're late, darkshoxx!"
     return event
@@ -334,6 +332,7 @@ PRAISE_ENDINGS = [
     "P R A I S E",
     "GDPR compliant",
     "Euclidian",
+    "Hyperspectral",
     "Non-Euclidian",
     "Tubular",
     "Uninflammable",
@@ -383,7 +382,13 @@ PRAISE_ENDINGS = [
     "12/10",
     "better than a bucket of steam",
     "can be worn as a hat",
-    "available in all good toystores"
+    "available in all good toystores",
+    "58 varieties",
+    "banned in most states",
+    "dummy thicc",
+    "not just a lot of hot air",
+    "it's super effective",
+    "Ironmon champion"
 ]
 
 CALM = [
@@ -446,7 +451,7 @@ def death_cmd(event, *args):
 
     if update:
         data["deaths"] = DEATHS
-        # TODO: logger
+        logger.info(f"Updated deaths counter: {data}")
         db.update("channel", data, ["channel"])
 
     times = "times"
@@ -467,34 +472,107 @@ def discord_cmd(event, *args):
     return event
 
 
+def chat_cmd(event, *args):
+    global CHATMODEL
+    prompt = ""
+    if args:
+        prompt = " ".join(args)
+
+    if CHATMODEL is None:
+        try:
+            logger.info("Loading chat textgen")
+            # TODO: test model='gpt2-medium'
+            CHATMODEL = aitextgen(model_folder="trained_model",
+                                  tokenizer_file="aitextgen.tokenizer.json")
+            logger.info("Textgen available - chatbot capable")
+        except Exception:
+            CHATMODEL = False
+            logger.info("Textgen NOT available - not chatbot capable")
+
+    if CHATMODEL:
+        # Try a few times to generate a text, but not just the input
+        for _ in range(10):
+            msg = CHATMODEL.generate_one(prompt=prompt, top_k=50, repetition_penalty=1.01,
+                                         top_p=0.95, min_length=3, max_length=100)
+            if msg == prompt:
+                continue
+            break
+
+        # Failed to come up with anything original, just chat randomly
+        if msg == prompt:
+            msg = CHATMODEL.generate_one(prompt='', top_k=50, repetition_penalty=1.01,
+                                         top_p=0.95, min_length=3, max_length=100)
+
+        if "\r\n" in msg:
+            event["message"] = msg.replace('\r\n', ' ')
+        else:
+            event["message"] = msg
+    else:
+        event["message"] = "durr"
+    return event
+
+
+def chat_how_cmd(event, *args):
+    event["message"] = "GPT-2 powered by https://docs.aitextgen.io and recent vod chat."
+    return event
+
+
+def break_cmd(event, *args):
+    event["message"] = f"While {event['channel']} is away, get up and have a stretch, make a drink or have a snack, we'll be back shortly!"
+    return event
+
+
+def commands_cmd(event, *args):
+    cmds = {k: c for k, c in COMMANDS.items() if c[0]}
+    event["message"] = ", ".join(cmds.keys())
+    return event
+
+
+def good_cmd(event, *args):
+    event["message"] = ":D"
+    return event
+
+
+def bad_cmd(event, *args):
+    event["message"] = ":("
+    return event
+
+
 COMMANDS = {
-    '!goawayashnasbot': goaway_cmd,
-    '!no': no_cmd,
-    '!so': so_cmd,
-    '!bs': bs_cmd,
-    '!dq': discord_cmd,
-    '!discord': discord_cmd,
-    '!ashnasbot': hello_cmd,
-    '!backseat': bs_cmd,
-    '!praise': praise_cmd,
-    '!calm': calm_cmd,
-    '!deaths': death_cmd,
-    '!uptime': uptime,
-    '!proffer': proffer_cmd,
+    # Command          Show   Func
+    '!goawayashnasbot': (0, goaway_cmd),
+    '!no':              (1, no_cmd),
+    '!so':              (1, so_cmd),
+    '!bs':              (0, bs_cmd),
+    '!dq':              (0, discord_cmd),
+    '!discord':         (1, discord_cmd),
+    '!ashnasbot':       (1, hello_cmd),
+    '!backseat':        (1, bs_cmd),
+    '!praise':          (1, praise_cmd),
+    '!calm':            (1, calm_cmd),
+    '!deaths':          (1, death_cmd),
+    '!uptime':          (0, uptime),
+    '!chat':            (1, chat_cmd),
+    '!chat_how':        (1, chat_how_cmd),
+    '!proffer':         (0, proffer_cmd),
+    '!commands':        (1, commands_cmd),
+    '!breaktime':       (1, break_cmd),
+    '!good_bot':        (0, good_cmd),
+    '!bad_bot':         (0, bad_cmd),
     # Poke
-    '!pokedex': pokedex_cmd,
-    '!catch': catch_pokemon_cmd,
-    '!uncatch': uncatch_pokemon_cmd,
-    '!151': poke_info_cmd,
-    '!red': red_cmd,
-    '!blue': blue_cmd,
-    '!green': green_cmd,
+    '!pokedex':         (0, pokedex_cmd),
+    '!catch':           (0, catch_pokemon_cmd),
+    '!uncatch':         (0, uncatch_pokemon_cmd),
+    '!151':             (0, poke_info_cmd),
+    '!red':             (0, red_cmd),
+    '!blue':            (0, blue_cmd),
+    '!green':           (0, green_cmd),
     # meme
-    '!gameinfo': gameinfo_cmd,
-    '!mantras': mantras_cmd,
-    '!approve': approve_cmd,
-    '!beta': beta_cmd,
-    '!win': win_cmd,
-    '!save': save_cmd,
-    '!drink': drink_cmd,
+    '!gameinfo':        (1, gameinfo_cmd),
+    '!mantras':         (0, mantras_cmd),
+    '!approve':         (1, approve_cmd),
+    '!beta':            (1, beta_cmd),
+    '!win':             (1, win_cmd),
+    '!save':            (1, save_cmd),
+    '!drink':           (1, drink_cmd),
 }

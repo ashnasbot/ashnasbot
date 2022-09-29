@@ -18,7 +18,7 @@ PUBSUB_MESSAGE_TYPES = [
     # "HOSTED",
     # "FOLLOW",
     "REDEMPTION",
-]
+]  # see handlers at end of file
 
 
 class PubSubClient():
@@ -56,7 +56,7 @@ class PubSubClient():
 
     async def disconnect(self):
         self.refcount -= 1
-        logger.debug(f"decrementing pubsub {self.refcount}")
+        logger.debug(f"Decrementing pubsub {self.refcount}")
         if self.refcount < 1:
             message = {"type": "UNLISTEN", "nonce": str(self.generate_nonce()),
                        "data": {"topics": self.topics, "auth_token": self.auth_token}}
@@ -64,6 +64,7 @@ class PubSubClient():
             logger.info("Disconnected from pubsub")
             json_message = json.dumps(message)
             await self.send_message(json_message)
+            await asyncio.sleep(1)
             self.stop_event.set()
             return True
 
@@ -91,21 +92,23 @@ class PubSubClient():
                     evt["channel"] = self.channel
                     await self.add_event(evt)
             except websockets.exceptions.ConnectionClosed:
-                logging.warning('Connection with pubsub server closed')
+                logger.warning('Connection with pubsub server closed')
                 break
             except Exception as e:
-                logging.error("Pubsub failure: %s", e)
+                logger.error("Pubsub failure: %s", e)
+                import traceback
+                traceback.print_exc()
 
     async def heartbeat(self, connection):
         """Send heartbeat to server every minute."""
         while not self.stop_event.is_set():
             try:
-                data_set = {"type": "PING"}
+                data_set = MSG_PING
                 json_request = json.dumps(data_set)
                 await connection.send(json_request)
                 await asyncio.sleep(60 + random())
             except websockets.exceptions.ConnectionClosed:
-                logging.error('Connection with pubsub server closed')
+                logger.error('Connection with pubsub server closed')
                 evt = make_message("SYSTEM", "PubSub Disconnected")
                 evt["channel"] = self.channel
                 await self.add_event(evt)
@@ -119,7 +122,6 @@ def handle_pubsub(message):
     if evt_type == "PONG":
         return
 
-    # TODO: SUBs
     logger.debug(event)
 
     if evt_type == "MESSAGE":
@@ -171,14 +173,16 @@ def handle_pubsub(message):
 
     elif evt_type == "RESPONSE" and event["error"]:
         message = event["error"]
-        logging.info(f"PUBSUB: {message}")
+        logger.info(f"PUBSUB: {message}")
         data = make_message("SYSTEM", message)
         return data
+
 
 def handle_sub(message):
     msg_type = "SUB"
     plans = {
         "1": "Twitch Prime",
+        "Prime": "Twitch Prime",
         "1000": "a tier 1 sub",
         "2000": "a tier 2 sub",
         "3000": "a tier 3 sub",
@@ -215,7 +219,7 @@ def handle_sub(message):
     if message["sub_message"]["message"]:
         orig_message = message["sub_message"]["message"]
         tags["emotes"] = message["sub_message"]["emotes"]  # TODO: render emotes
-    
+
     data = make_message(msg_type)
     data["nickname"] = nickname
     data["message"] = text
@@ -223,14 +227,15 @@ def handle_sub(message):
         data["orig_message"] = orig_message
     data["tags"] = tags
     data["extra"].append("quoted")
-    logging.info(f"PUBSUB: {text}")
+    logger.info(f"PUBSUB: {text}")
     return data
+
 
 def handle_redemption(message):
     if message["type"] != "reward-redeemed":
         return
     content = message["data"]
-    
+
     msg_type = "REDEMPTION"
     if "redemption" not in content:
         return
@@ -251,7 +256,7 @@ def handle_redemption(message):
     orig_message = ""
     if reward["is_user_input_required"]:
         orig_message = redemption["user_input"]
-    
+
     data = make_message(msg_type)
     data["nickname"] = nickname
     if orig_message:
@@ -262,7 +267,7 @@ def handle_redemption(message):
     if reward["image"]:
         data["logo"] = reward["image"]["url_2x"]
 
-    logging.info(f"PUBSUB: {tags['system-msg']}")
+    logger.info(f"PUBSUB: {tags['system-msg']}")
     return data
 
 
@@ -278,6 +283,7 @@ def make_message(type, message=""):
         'channel': None,
         'extra': ["pubsub"]
     }
+
 
 TOPICS = {
     "SUB": ("channel-subscribe-events-v1.{channel_id}", handle_sub),

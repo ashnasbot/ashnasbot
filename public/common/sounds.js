@@ -79,6 +79,7 @@ Vue.component('sound-handler', {
 				audio = data[0];
 				speech = data[1];
 				if (this.audio && !this.audio.paused) {
+					/* another audio is playing, queue for after */
 					this.audio.addEventListener("ended", function () {
 						this.audio = audio;
 						audio.play().then( resp => {
@@ -89,6 +90,7 @@ Vue.component('sound-handler', {
 						})
 					}.bind(this))
 				} else {
+					/* no audio is playing, play */
 					audio.play().then( resp => {
 						this.audio = audio;
 						this.do_tts(audio, speech);
@@ -105,7 +107,9 @@ Vue.component('sound-handler', {
 					var utterThis = new SpeechSynthesisUtterance(msg);
 					synth.speak(utterThis);
 					utterThis.onend = function() {
+						/* unshift needs to wait until the end */
 						this.playqueue.shift();
+						/* play next queue item, if any */
 						this.play();
 					}.bind(this)
 				}).bind(this);

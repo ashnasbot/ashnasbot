@@ -10,7 +10,7 @@ BTTV_EMOTE_URL_TEMPLATE = """<img src=\"https://cdn.betterttv.net/emote/{id}/2x\
                              class="emote" alt=\"{name}\" title=\"{name}\" />"""
 
 SESSION = None
-EMOTES = {}
+EMOTES = {} # channel : {code : id}
 REGEX = {}
 
 
@@ -64,10 +64,6 @@ async def get_global_emotes():
     return {emote["code"]: emote["id"] for emote in emotes}
 
 
-def get_emote(code, idx):
-    return BTTV_EMOTE_URL_TEMPLATE.format(name=code, id=idx)
-
-
 async def get_emotes(channel):
     if channel not in REGEX:
         await get_emotes_for_channel(channel)
@@ -76,10 +72,11 @@ async def get_emotes(channel):
     return REGEX[channel]
 
 
-def get_pattern_old(message, channel):
-    return REGEX[channel].sub(lambda match: BTTV_EMOTE_URL_TEMPLATE.format(
-        name=match.group(0), id=EMOTES[channel][match.group(0)]), message)
-
-
 def emotes():
     return EMOTES
+
+
+async def close():
+    if SESSION:
+        logger.info("Closing BTTV API session")
+        await SESSION.close()

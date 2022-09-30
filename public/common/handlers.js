@@ -46,7 +46,7 @@ function getAuth() {
     channel = this.getChannel();
     if (token_channel) {
         if (channel == token_channel) {
-            return (new Promise(oauth => {return oauth}));
+            return Promise.resolve(oauth);
         } else {
             // TODO: Reauth method (aka logout button)
             console.warn("token not for channel")

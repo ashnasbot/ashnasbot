@@ -1,3 +1,9 @@
+import time
+import uuid
+
+from twitchobserver import Event as Message
+
+
 STATIC_CDN = "https://static-cdn.jtvnw.net/"
 
 BADGES = {
@@ -93,3 +99,58 @@ BITS_COLORS = [
     (10000, 'red'),
 ]
 BITS_INDICIES = [1, 100, 1000, 5000, 10000]
+
+OUTPUT_MESSAGE_TEMPLATE = {
+    'badges': [],
+    'nickname': "",
+    'message': "",
+    'orig_message': "",
+    'id': str(uuid.uuid4()),
+    'tags': {},
+    'type': "SYSTEM",
+    'channel': "",
+    'extra': []
+}
+
+
+class OutputMessage(dict):
+    def __init__(self, *args):
+        data = OUTPUT_MESSAGE_TEMPLATE.copy()
+        data.update(*args)
+        super().__init__(data)
+
+    @classmethod
+    def from_event(cls, event):
+        return cls({
+            "badges": event.badges if hasattr(event, "badges") else {},
+            "nickname": event.nickname if hasattr(event, "nickname") else "",
+            "message": event.message if hasattr(event, "message") else "",
+            "orig_message": event.message if hasattr(event, "message") else "",
+            "id": event.id if hasattr(event, "id") else str(uuid.uuid4()),
+            "tags": event.tags if hasattr(event, "tags") else {},
+            "type": event.type if hasattr(event, "type") else "SYSTEM",
+            "channel": event.channel if hasattr(event, "") else "",
+        })
+
+
+def create_follower(nickname, channel):
+    evt = Message(channel)
+    evt.type = "FOLLOW"
+    evt.nickname = nickname
+    evt.tags = {
+            'system-msg': f"{nickname} followed the channel",
+            'tmi-sent-ts': str(int(time.time())) + "000",
+            'display-name': nickname
+        }
+    return evt
+
+
+def create_event(type, message=""):
+    evt = Message(channel=None, command=type, message=message)
+    evt.type = type  # override default type handling
+    evt.nickname = None
+    evt.badges = []
+    evt.id = str(uuid.uuid4())
+    evt.tags = {}
+    evt.extra = ["pubsub"]
+    return evt

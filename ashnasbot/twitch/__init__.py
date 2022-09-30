@@ -13,7 +13,7 @@ import bleach
 from .api_client import TwitchClient
 from ..config import Config
 from .data import EMOTE_FULL_TEMPLATE, EMOTE_IMG_TEMPLATE, SUB_TIERS, BADGE_URL_TEMPLATE, BITS_COLORS
-from .data import CHEERMOTE_TEXT_TEMPLATE, CHEERMOTE_URL_TEMPLATE, BITS_INDICIES
+from .data import CHEERMOTE_TEXT_TEMPLATE, CHEERMOTE_URL_TEMPLATE, BITS_INDICIES, OutputMessage
 from . import commands
 from . import db
 from . import bttv
@@ -368,7 +368,7 @@ async def handle_message(event):
     if "id" not in etags:
         etags["id"] = str(uuid4())
 
-    return {
+    return OutputMessage({
             'badges': badges,
             'nickname': nickname,
             'message': message,
@@ -378,7 +378,7 @@ async def handle_message(event):
             'type': msg_type,
             'channel': event.channel,
             'extra': extra
-            }
+            })
 
 
 def create_event(from_evt, message):

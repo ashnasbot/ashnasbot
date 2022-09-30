@@ -153,8 +153,10 @@ class SocketServer():
                         # also split rendering with populating OWN_EMOTES
                         if not OWN_EMOTES:
                             await render_own_emotes("", self.chatbot.emotesets)
+                        
                         cid = self.channels[channel][0]["channel_id"]
-                        await self.chatter.handle_message(event, cid)
+                        if cid:
+                            await self.chatter.handle_message(event, cid)
 
                 if any([allowed_content(event, **s) for s in self.channels[channel]]):
                     if event.type != 'TWITCHCHATMESSAGE':
@@ -343,7 +345,12 @@ class SocketServer():
         channel = commands["channel"]
         if channel not in self.http_clients:
             self.http_clients[channel] = TwitchClient(self.config["client_id"], channel)
-        channel_id = await self.http_clients[channel].get_channel_id(channel)
+
+        try:
+            channel_id = await self.http_clients[channel].get_channel_id(channel)
+        except:
+            channel_id = ""
+
         channel_client["channel_id"] = channel_id
 
         if "chat" in commands:
@@ -353,7 +360,7 @@ class SocketServer():
                 await ws_in.send(json.dumps(resp))
                 return
             self.chatbot.subscribe(channel)
-        if "auth" in commands:
+        if "auth" in commands and channel_id:
             try:
                 if channel in self.pubsub_clients:
                     pubsub = self.pubsub_clients[channel]

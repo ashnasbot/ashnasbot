@@ -82,17 +82,17 @@ Vue.component('sound-handler', {
 					/* another audio is playing, queue for after */
 					this.audio.addEventListener("ended", function () {
 						this.audio = audio;
-						audio.play().then( resp => {
+						audio.play().then(function(resp) {
 							this.do_tts(audio, speech);
-						}).catch(error => {
+						}).catch(function(error) {
 							console.error(error)
 							this.playqueue.shift();
 						})
 					}.bind(this))
 				} else {
 					/* no audio is playing, play */
-					audio.play().then( resp => {
-						this.audio = audio;
+					this.audio = audio;
+					audio.play().then(function(resp) {
 						this.do_tts(audio, speech);
 					}).catch(error => {
 						console.error(error);
@@ -115,6 +115,7 @@ Vue.component('sound-handler', {
 				}).bind(this);
 			} else {
 				this.playqueue.shift();
+				this.play();
 			}
 		}
     }

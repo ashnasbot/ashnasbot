@@ -6,11 +6,12 @@ import json
 import logging
 from queue import Queue, Empty
 from random import randrange
-import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 
 import websockets
+
+from ashnasbot.twitch.data import OutputMessage, create_follower
 
 from .async_http import WebServer
 from .chat_bot import ChatBot
@@ -60,11 +61,11 @@ def allowed_content(event, commands=False, **kwargs):
 
 def pubsub_filter(event):
     if hasattr(event, "extra"):
-        ext = event.get("extra", {})
+        ext = event.extra
 
         if "pubsub" in ext:
             if hasattr(event, "type"):
-                if event["type"] in ["SUB", "RAID", "HOSTED"]:
+                if event.type in ["SUB", "RAID", "HOSTED"]:
                     return True
     return False
 
@@ -130,15 +131,8 @@ class SocketServer():
                 if event is None:
                     return
                 processing = True
-                channel = None
-                content = None
-                try:
-                    # event is already 'content'
-                    channel = event["channel"]
-                    content = event
-                except TypeError:
-                    content = await handle_message(event)
-                    channel = event.channel
+                content = await handle_message(event)
+                channel = event.channel
 
                 if not content:
                     continue
@@ -156,6 +150,7 @@ class SocketServer():
                     # this didn't come from us - maybe respond to it
                     if any(["chatbot" in c and c["chatbot"] for c in self.channels[channel]]):
                         # TODO: this is a hack, when should we initialise this? add a watcher?
+                        # also split rendering with populating OWN_EMOTES
                         if not OWN_EMOTES:
                             await render_own_emotes("", self.chatbot.emotesets)
                         cid = self.channels[channel][0]["channel_id"]
@@ -198,11 +193,12 @@ class SocketServer():
         while not self.shutdown_event.is_set():
             try:
                 event = self.replay_queue.get_nowait()
-                event["id"] = str(uuid.uuid4())  # Reset the id
-                if event["type"] == 'TWITCHCHATMESSAGE':
-                    channel = event["channel"]
+                event.id = str(uuid.uuid4())  # Reset the id
+                if event.type == 'TWITCHCHATMESSAGE':
+                    channel = event.channel
+                    output = handle_message(event)
                     for s in self.channels[channel]:
-                        await s["socket"].send(json.dumps(event))
+                        await s["socket"].send(json.dumps(output))
                 else:
                     await self._event_queue.put(event)
             except Empty:
@@ -274,19 +270,8 @@ class SocketServer():
                     continue
 
                 for nickname in recent_followers:
-                    # TODO: Create_event()
-                    evt_msg = {
-                        'nickname': nickname,
-                        'type': "FOLLOW",
-                        'channel': channel,
-                        "id": str(uuid.uuid4()),
-                        'tags': {
-                            'system-msg': f"{nickname} followed the channel",
-                            'tmi-sent-ts': str(int(time.time())) + "000",
-                            'display-name': nickname
-                        }
-                    }
-                    await self.add_alert(evt_msg)
+                    follower = create_follower(nickname=nickname, channel=channel)
+                    await self.add_alert(follower)
 
                 # Don't spam api
                 await asyncio.sleep(80 + randrange(20))
@@ -298,7 +283,8 @@ class SocketServer():
         await self._event_queue.put(evt)
 
     async def add_chat(self, evt):
-        await self.chatbot.chat().put(evt)  # TODO: is this threadsafe?
+        # this is threadsafe as we own the queue
+        await self.chatbot.chat().put(evt)
 
     async def alerts(self):
         while not self.shutdown_event.is_set():
@@ -307,7 +293,7 @@ class SocketServer():
                 if event is None:
                     logger.info("No more alerts")
                     return
-                channel = event['channel']
+                channel = event.channel
 
                 if not channel:
                     self.broadcast(event)
@@ -317,10 +303,14 @@ class SocketServer():
                     if pubsub_filter(event):
                         continue  # Discard pubsub duplicated messages
 
+                output = OutputMessage.from_event(event)
+
                 for s in self.channels[channel]:
-                    await s["socket"].send(json.dumps(event))
+                    await s["socket"].send(json.dumps(output))
             except Exception as e:
                 logger.error(e)
+                import traceback
+                traceback.print_exc()
             finally:
                 self._event_queue.task_done()
 

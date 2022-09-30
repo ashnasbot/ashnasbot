@@ -7,6 +7,7 @@ import uuid
 import websockets
 import websockets.client
 
+from .data import create_event
 from ..config import Config
 
 MSG_PING = {"type": "PING"}
@@ -26,15 +27,18 @@ class PubSubClient():
     def __init__(self, channel, channel_id, token, add_event):
         self.config = Config()
         self.add_event = add_event
-        self.topics = [t[0].format(channel_id=channel_id) for t in TOPICS.values()]
+        self.topics = [t[0].format(channel_id=channel_id) for t in self.TOPICS.values()]
         self.channel = channel
         self.auth_token = token
         self.stop_event = Event()
         self.connection = None
 
+        self.receive_task = None
+        self.heartbeat_task = None
+
         self.refcount = 0
 
-    async def connect(self):
+    async def connect(self) -> websockets.WebSocketClientProtocol:
         """Connect to webSocket server.
 
         websockets.client.connect returns a WebSocketClientProtocol,
@@ -66,6 +70,8 @@ class PubSubClient():
             await self.send_message(json_message)
             await asyncio.sleep(1)
             self.stop_event.set()
+            await self.connection.close()
+            await self.connection.wait_closed()
             return True
 
     @property
@@ -84,12 +90,12 @@ class PubSubClient():
 
     async def receive_message(self, connection):
         """Receive & process server messages."""
+        self.receive_task = asyncio.current_task()
         while not self.stop_event.is_set():
             try:
                 message = await connection.recv()
-                evt = handle_pubsub(message)
+                evt = self.handle_pubsub(message)
                 if evt:
-                    evt["channel"] = self.channel
                     await self.add_event(evt)
             except websockets.exceptions.ConnectionClosed:
                 logger.warning('Connection with pubsub server closed')
@@ -101,6 +107,7 @@ class PubSubClient():
 
     async def heartbeat(self, connection):
         """Send heartbeat to server every minute."""
+        self.heartbeat_task = asyncio.current_task()
         while not self.stop_event.is_set():
             try:
                 data_set = MSG_PING
@@ -109,184 +116,137 @@ class PubSubClient():
                 await asyncio.sleep(60 + random())
             except websockets.exceptions.ConnectionClosed:
                 logger.error('Connection with pubsub server closed')
-                evt = make_message("SYSTEM", "PubSub Disconnected")
-                evt["channel"] = self.channel
+                evt = create_event("SYSTEM", "PubSub Disconnected")
+                evt.channel = self.channel
                 await self.add_event(evt)
                 break
 
+    def handle_pubsub(self, message):
+        event = json.loads(message)
+        evt_type = event["type"]
 
-def handle_pubsub(message):
-    event = json.loads(message)
-    evt_type = event["type"]
+        if evt_type == "PONG":
+            return
 
-    if evt_type == "PONG":
-        return
+        logger.debug(event)
 
-    logger.debug(event)
+        if evt_type == "MESSAGE":
+            data = event["data"]
+            inner_msg = json.loads(data["message"])
+            topic = data["topic"].rsplit(".", 1)[0]
+            res = None
 
-    if evt_type == "MESSAGE":
-        data = event["data"]
-        inner_msg = json.loads(data["message"])
-        topic = data["topic"].rsplit(".", 1)[0]
-        res = None
+            if topic in self.TOPIC_HANDLERS:
+                handler_func = self.TOPIC_HANDLERS[topic]
+                res = handler_func(self, inner_msg)
+            else:
+                logger.warning(f"Received PubSub message for unsupported PubSub topic: {topic}")
 
-        if topic in TOPIC_HANDLERS:
-            handler_func = TOPIC_HANDLERS[topic]
-            res = handler_func(inner_msg)
+            if res:
+                res.channel = self.channel
+                return res
+
+        elif evt_type == "RESPONSE" and event["error"]:
+            message = event["error"]
+            logger.info(f"PUBSUB: {message}")
+            data = create_event("SYSTEM", message)
+            return data
+
+    def handle_sub(self, message):
+        msg_type = "SUB"
+        plans = {
+            "1": "Twitch Prime",
+            "Prime": "Twitch Prime",
+            "1000": "a tier 1 sub",
+            "2000": "a tier 2 sub",
+            "3000": "a tier 3 sub",
+        }
+        plan = plans[message["sub_plan"]]
+        user = ""
+        if "display_name" in message:
+            user = message['display_name']
         else:
-            logger.warning(f"Received PubSub message for unsuppoerted PubSub topic: {topic}")
+            user = "An anonymous gifter"
 
-        # if event_type == "raiding":
-        #     nickname = message["raider"]["display_name"]
-        #     viewers = int(message["raiding_viewer_count"])
-        #     msg_type = "RAID"
-        #     tags = {
-        #         "display-name": nickname,
-        #         "msg-id": "raid",
-        #         "msg-param-viewerCount": viewers,
-        #         "system-msg": f"{nickname} is raiding with a party of {viewers}",
-        #     }
-        #     extra.append("quoted")
-        # elif event_type == "host_start":
-        #     nickname = message["host"]["display_name"]
-        #     viewers = int(message["hosting_viewer_count"])
-        #     msg_type = "HOSTED"
-        #     tags = {
-        #         "display-name": nickname,
-        #         "msg-id": "host",
-        #         "msg-param-viewerCount": "viewers",
-        #         "system-msg": f"{nickname} is hosting for {viewers} viewers",
-        #     }
-        #     extra.append("quoted")
-        # elif event_type == "follow":
-        #     nickname = message["follower"]["display_name"]
-        #     msg_type = "FOLLOW"
-        #     tags = {
-        #         "display-name": nickname,
-        #         "msg-id": "follow",
-        #         "system-msg": f"{nickname} is following the channel",
-        #     }
-        #     extra.append("quoted")
+        months = "the first time"
+        if "cumulative_months" in message:
+            months = f"{message['cumulative_months']} months"
+        elif "months" in message:
+            months = f"{message['months']} months"
 
-        if res:
-            return res
+        if message["is_gift"]:
+            nickname = message["recipient_display_name"]
+            text = f"{user} just gifted {plan} to {message['recipient_display_name']}!"
+        else:
+            nickname = user
+            text = f"{message['display_name']} just subscribed with {plan} for {months}!"
+            if "streak_months" in message:
+                streak_months = int(message["streak_months"])
+                if streak_months > 1:
+                    text += f" and is on a {streak_months} streak!"
+        tags = {
+            "display-name": nickname,
+            "msg-id": "follow",
+            "system-msg": f"{nickname} is following the channel",
+        }
+        orig_message = ""
+        if message["sub_message"]["message"]:
+            orig_message = message["sub_message"]["message"]
+            tags["emotes"] = message["sub_message"]["emotes"]  # TODO: render emotes
 
-    elif evt_type == "RESPONSE" and event["error"]:
-        message = event["error"]
-        logger.info(f"PUBSUB: {message}")
-        data = make_message("SYSTEM", message)
-        return data
+        out_msg = create_event(msg_type)
+        out_msg.nickname = nickname
+        out_msg.message = text
+        if orig_message:
+            out_msg.orig_message = orig_message
+        out_msg.tags = tags
+        out_msg.extra.append("quoted")
+        logger.info(f"PUBSUB: {text}")
+        return out_msg
 
+    def handle_redemption(self, message):
+        if message["type"] != "reward-redeemed":
+            return
+        content = message["data"]
 
-def handle_sub(message):
-    msg_type = "SUB"
-    plans = {
-        "1": "Twitch Prime",
-        "Prime": "Twitch Prime",
-        "1000": "a tier 1 sub",
-        "2000": "a tier 2 sub",
-        "3000": "a tier 3 sub",
+        msg_type = "REDEMPTION"
+        if "redemption" not in content:
+            return
+        redemption = content["redemption"]
+        reward = redemption["reward"]
+
+        color = reward["background_color"]
+        cost = reward["cost"]
+        nickname = redemption["user"]["display_name"]
+        title = reward["title"]
+
+        tags = {
+            "color": color,
+            "cost": cost,
+            "reward-title": title,
+            "system-msg": f"{nickname} redeemed {title}"
+        }
+        orig_message = ""
+        if reward["is_user_input_required"]:
+            orig_message = redemption["user_input"]
+
+        out_msg = create_event("REDEMPTION", msg_type)
+        out_msg.nickname = nickname
+        if orig_message:
+            out_msg.orig_message = orig_message
+        else:
+            del out_msg.orig_message
+        out_msg.tags = tags
+        out_msg.extra.append("quoted")
+
+        if reward["image"]:
+            out_msg.logo = reward["image"]["url_2x"]
+
+        logger.info(f"PUBSUB: {tags['system-msg']}")
+        return out_msg
+
+    TOPICS = {
+        "SUB": ("channel-subscribe-events-v1.{channel_id}", handle_sub),
+        "REDEMPTION": ("channel-points-channel-v1.{channel_id}", handle_redemption)
     }
-    plan = plans[message["sub_plan"]]
-    user = ""
-    if "display_name" in message:
-        user = message['display_name']
-    else:
-        user = "An anonymous gifter"
-
-    months = "the first time"
-    if "cumulative_months" in message:
-        months = f"{message['cumulative_months']} months"
-    elif "months" in message:
-        months = f"{message['months']} months"
-
-    if message["is_gift"]:
-        nickname = message["recipient_display_name"]
-        text = f"{user} just gifted {plan} to {message['recipient_display_name']}!"
-    else:
-        nickname = user
-        text = f"{message['display_name']} just subscribed with {plan} for {months}!"
-        if "streak_months" in message:
-            streak_months = int(message["streak_months"])
-            if streak_months > 1:
-                text += f" and is on a {streak_months} streak!"
-    tags = {
-        "display-name": nickname,
-        "msg-id": "follow",
-        "system-msg": f"{nickname} is following the channel",
-    }
-    orig_message = ""
-    if message["sub_message"]["message"]:
-        orig_message = message["sub_message"]["message"]
-        tags["emotes"] = message["sub_message"]["emotes"]  # TODO: render emotes
-
-    data = make_message(msg_type)
-    data["nickname"] = nickname
-    data["message"] = text
-    if orig_message:
-        data["orig_message"] = orig_message
-    data["tags"] = tags
-    data["extra"].append("quoted")
-    logger.info(f"PUBSUB: {text}")
-    return data
-
-
-def handle_redemption(message):
-    if message["type"] != "reward-redeemed":
-        return
-    content = message["data"]
-
-    msg_type = "REDEMPTION"
-    if "redemption" not in content:
-        return
-    redemption = content["redemption"]
-    reward = redemption["reward"]
-
-    color = reward["background_color"]
-    cost = reward["cost"]
-    nickname = redemption["user"]["display_name"]
-    title = reward["title"]
-
-    tags = {
-        "color": color,
-        "cost": cost,
-        "reward-title": title,
-        "system-msg": f"{nickname} redeemed {title}"
-    }
-    orig_message = ""
-    if reward["is_user_input_required"]:
-        orig_message = redemption["user_input"]
-
-    data = make_message(msg_type)
-    data["nickname"] = nickname
-    if orig_message:
-        data["orig_message"] = orig_message
-    data["tags"] = tags
-    data["extra"].append("quoted")
-
-    if reward["image"]:
-        data["logo"] = reward["image"]["url_2x"]
-
-    logger.info(f"PUBSUB: {tags['system-msg']}")
-    return data
-
-
-def make_message(type, message=""):
-    return {
-        'badges': [],
-        'nickname': "System",
-        'message': message,
-        'orig_message': "",
-        'id':  str(uuid.uuid4()),
-        'tags': {},
-        'type': type,
-        'channel': None,
-        'extra': ["pubsub"]
-    }
-
-
-TOPICS = {
-    "SUB": ("channel-subscribe-events-v1.{channel_id}", handle_sub),
-    "REDEMPTION": ("channel-points-channel-v1.{channel_id}", handle_redemption)
-}
-TOPIC_HANDLERS = {t[0].rsplit(".", 1)[0]: t[1] for t in TOPICS.values()}
+    TOPIC_HANDLERS = {t[0].rsplit(".", 1)[0]: t[1] for t in TOPICS.values()}

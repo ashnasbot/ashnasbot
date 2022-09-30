@@ -8,6 +8,8 @@ import uuid
 
 from aitextgen import aitextgen
 
+from ashnasbot.twitch.data import OutputMessage
+
 from . import db
 from . import pokedex
 
@@ -91,10 +93,22 @@ def handle_command(event):
     if not cmd:
         return
 
-    ret_event = ResponseEvent()
-    ret_event.channel = event.channel
-    ret_event.tags['caller'] = event.tags['display-name']
-    ret_event.tags['user-type'] = event.tags['user-type']
+    cfg = config.Config()
+    name = cfg['displayname'] if 'displayname' in cfg else cfg['username']
+
+    ret_event = OutputMessage({
+        "type": "TWITCHCHATMESSAGE",
+        "nickname": "Ashnasbot",
+        "tags": {
+            'display-name': name,
+            'user-id': cfg["user_id"],
+            'caller': event.tags['display-name'],
+            'user-type': event.tags['user-type']
+        },
+        "extra": ['quoted'],
+        "priv": PRIV.COMMON,
+        "channel": event.channel
+    })
 
     priv_level = PRIV.COMMON
     if 'staff' in event.tags['badges']:
@@ -108,12 +122,12 @@ def handle_command(event):
     elif 'subscriber' in event.tags['badges']:
         priv_level = PRIV.SUB
 
-    ret_event.priv = priv_level
-    ret_event.tags['response'] = True
+    ret_event["priv"] = priv_level
+    ret_event["tags"]['response'] = True
     if callable(cmd[1]):
         try:
             ret_event = cmd[1](ret_event, *args)
-            ret_event.priv = ""
+            del ret_event["priv"]
             return ret_event
         except Exception:
             return
@@ -153,7 +167,7 @@ def handle_other_commands(event):
 
 
 def goaway_cmd(event, *args):
-    if event.priv < PRIV.MOD:
+    if event["priv"] < PRIV.MOD:
         event["message"] = "Only a mod or the broadcaster can remove me"
         return event
     raise BannedException(event["channel"])
@@ -188,7 +202,7 @@ def approve_cmd(event, *args):
 
 def win_cmd(event, *args):
     val = random.randint(30, 2000)
-    caller = event.tags['caller']
+    caller = event["tags"]['caller']
     if random.randint(1, 10) == 1:
         event["message"] = f"{caller} looses"
     else:
@@ -210,7 +224,7 @@ def drink_cmd(event, *args):
 
 
 def hello_cmd(event, *args):
-    who = event.tags['caller']
+    who = event["tags"]['caller']
     event["message"] = who
     return event
 
@@ -222,7 +236,7 @@ def bs_cmd(event, *args):
 
 
 def so_cmd(event, who, *args):
-    if event.priv < PRIV.VIP:
+    if event["priv"] < PRIV.VIP:
         return
 
     if who.lower() == "theadrain":
@@ -274,7 +288,7 @@ def pokedex_cmd(event, *args):
 
 
 def catch_pokemon_cmd(event, num_or_name, *args):
-    if event.priv < PRIV.VIP:
+    if event["priv"] < PRIV.VIP:
         return
     event["message"] = "This isn't Pokémon"
     return event
@@ -305,7 +319,7 @@ def poke_info_cmd(event, *args):
 
 
 def uncatch_pokemon_cmd(event, num, *args):
-    if event.priv < PRIV.VIP:
+    if event["priv"] < PRIV.VIP:
         return
 
     pokedex.player_pokedex_catch(event["channel"], num, False)
@@ -420,7 +434,7 @@ def calm_cmd(event, *args):
 
 
 def death_cmd(event, *args):
-    if event.priv < PRIV.VIP:
+    if event["priv"] < PRIV.VIP:
         return
 
     if not db.exists("channel"):

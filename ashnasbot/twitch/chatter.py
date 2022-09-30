@@ -2,12 +2,11 @@ import asyncio
 import logging
 import random
 import string
-import uuid
 
 from . import bttv
 from . import commands
 from . import OWN_EMOTES
-from .data import EMOTE_FULL_TEMPLATE
+from .data import EMOTE_FULL_TEMPLATE, create_event
 
 logger = logging.getLogger(__name__)
 
@@ -34,9 +33,8 @@ class ChatChatter():
     async def handle_message(self, event, cid=None):
         if event.message in OWN_EMOTES:
             emote = event.message
-            evt = self.make_message()
+            evt = self.make_message(emote)
             url = OWN_EMOTES[emote][1]
-            evt["message"] = emote
             evt["orig_message"] = EMOTE_FULL_TEMPLATE.format(url=url, alt=emote)
             evt["channel"] = event.channel
             await self.add_event(evt)
@@ -46,9 +44,8 @@ class ChatChatter():
         bttv_emotes = await bttv.get_emotes(cid)
         if event.message in bttv_emotes:
             emote = event.message
-            evt = self.make_message()
+            evt = self.make_message(emote)
             url = bttv_emotes[emote]
-            evt["message"] = emote
             evt["orig_message"] = url
             evt["channel"] = event.channel
             await self.add_event(evt)
@@ -59,7 +56,7 @@ class ChatChatter():
         if random.randint(1, 30) == 1:
             evt = self.make_message()
             evt["channel"] = event.channel
-            wordlist = event.message.translate(str.maketrans('','',string.punctuation)).split(" ")
+            wordlist = event.message.translate(str.maketrans('', '', string.punctuation)).split(" ")
             shortlist = [i for i in wordlist if len(i) > 3]
             if not shortlist:
                 shortlist = wordlist
@@ -69,17 +66,6 @@ class ChatChatter():
             logger.debug("RESPONSE %s %s", evt["message"], evt)
             return
 
-    def make_message(self, type="TWITCHCHATMESSAGE", message=""):
-        msg = IntrEvent({
-            'badges': [],
-            'nickname': "AshnasBot",
-            'message': message,
-            'orig_message': "",
-            'id':  str(uuid.uuid4()),
-            'tags': {'response':True},
-            'type': type,
-            'channel': None,
-            'extra': []
-        })
-        msg.type = type
-        return msg
+    def make_message(self, message=""):
+        msg = create_event('TWITCHCHATMESSAGE', message)
+        msg.nickname = "AshnasBot"

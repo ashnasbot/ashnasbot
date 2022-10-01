@@ -115,10 +115,19 @@ class SocketServer():
     def filter_closed_connections(self, channel):
         self.channels[channel] = [s for s in self.channels[channel] if not s["socket"].closed]
 
-    async def chat(self):
-        while not self.chatbot:
-            await asyncio.sleep(1)
+    async def handle_chatbot(self, event):
+        channel = event.channel
+        if any(["chatbot" in c and c["chatbot"] for c in self.channels[channel]]):
+            # TODO: this is a hack, when should we initialise this? add a watcher?
+            # also split rendering with populating OWN_EMOTES
+            if not OWN_EMOTES:
+                await render_own_emotes("", self.chatbot.emotesets)
 
+                cid = self.channels[channel][0]["channel_id"]
+                if cid:
+                    await self.chatter.handle_message(event, cid)
+
+    async def chat(self):
         self.chatter = ChatChatter(self.add_chat)
 
         # self.make_task(self.chatter.timer(), name="chatty")
@@ -147,16 +156,8 @@ class SocketServer():
                     continue
 
                 if 'response' not in content['tags']:
-                    # this didn't come from us - maybe respond to it
-                    if any(["chatbot" in c and c["chatbot"] for c in self.channels[channel]]):
-                        # TODO: this is a hack, when should we initialise this? add a watcher?
-                        # also split rendering with populating OWN_EMOTES
-                        if not OWN_EMOTES:
-                            await render_own_emotes("", self.chatbot.emotesets)
-                        
-                        cid = self.channels[channel][0]["channel_id"]
-                        if cid:
-                            await self.chatter.handle_message(event, cid)
+                    # This message didn't come from us - maybe respond to it
+                    await self.handle_chatbot(event)
 
                 if any([allowed_content(event, **s) for s in self.channels[channel]]):
                     if event.type != 'TWITCHCHATMESSAGE':
@@ -252,10 +253,7 @@ class SocketServer():
                 del self.http_clients[channel]
             # TODO: cleanup API_CLIENT session
         logger.debug("ws client disconnect cleanup complete")
-        remaining_tasks = [task for task in asyncio.all_tasks(self.loop) if not task.done()]
-        logger.debug("Remaining Tasks: %d", len(remaining_tasks))
-        for t in remaining_tasks:
-            logger.debug("               : %s", t)
+        self.debug_remaining_tasks()
 
     async def followers(self, channel):
         try:
@@ -348,7 +346,8 @@ class SocketServer():
 
         try:
             channel_id = await self.http_clients[channel].get_channel_id(channel)
-        except:
+        except Exception as e:
+            logger.error("Failed to retrieve channel_id: %s", e)
             channel_id = ""
 
         channel_client["channel_id"] = channel_id
@@ -437,6 +436,15 @@ class SocketServer():
         except TypeError:
             return self.loop.create_task(func)
 
+    def debug_remaining_tasks(self):
+        remaining_tasks = [task for task in asyncio.all_tasks(self.loop) if not task.done()]
+        if len(remaining_tasks):
+            logger.warning("Remaining Tasks: %d", len(remaining_tasks))
+            for t in remaining_tasks:
+                logger.info("               : %s", t)
+        else:
+            logger.info("No remaining tasks")
+
     def run(self):
         logger.info("Starting socket server")
         self.loop = asyncio.new_event_loop()
@@ -496,12 +504,6 @@ class SocketServer():
         tasks.append(self.make_task(cleanup(), "shutdown_api"))
 
         self.loop.run_until_complete(asyncio.gather(*tasks))
+        self.debug_remaining_tasks()
 
-        remaining_tasks = [task for task in asyncio.all_tasks(self.loop) if not task.done()]
-        if len(remaining_tasks):
-            logger.error("Remaining Tasks: %d", len(remaining_tasks))
-            for t in remaining_tasks:
-                logger.info("               : %s", t)
-        else:
-            logger.info("No remaining tasks")
         logger.info("Ashnasbot shutdown complete - exiting")

@@ -5,26 +5,22 @@ from itertools import chain
 import logging
 import re
 from uuid import uuid4
-from requests.exceptions import ConnectionError
 import time
+import uuid
 
 import bleach
+from requests.exceptions import ConnectionError
 
 from .api_client import TwitchClient
 from ..config import Config
 from .data import EMOTE_FULL_TEMPLATE, EMOTE_IMG_TEMPLATE, SUB_TIERS, BADGE_URL_TEMPLATE, BITS_COLORS
 from .data import CHEERMOTE_TEXT_TEMPLATE, CHEERMOTE_URL_TEMPLATE, BITS_INDICIES, OutputMessage
+from .data import TEIRED_BADGES, CHEER_REGEX, CLIP_REGEX
 from . import commands
 from . import db
 from . import bttv
 
 # TODO: move to data
-CHEER_REGEX = re.compile(r"((?<=^)|(?<=\s))(?P<emotename>[a-zA-Z]+)(\d+)(?=(\s|$))", flags=re.IGNORECASE)
-URL_REGEX = re.compile(
-    r"""(http(s)?://)?(clips\.twitch\.tv/(\w+)
-|www\.twitch\.tv/\w+/clip/(\w+))(-[a-zA-Z0-9_]*)?([?][=0-9a-zA-Z]*)?""",
-    flags=re.IGNORECASE)
-TEIRED_BADGES = ['bits', 'bits-leader', 'sub-gifter', 'sub-gift-leader']
 
 CHEERMOTES = {}
 CCHEERMOTES = {}
@@ -162,6 +158,7 @@ async def load_cheermotes(channel=None):
         CHEERMOTES = await API_CLIENT.get_cheermotes()
         add_cheer = True
 
+    # TODO: this might be broken, investimagate
     if not db.exists("cheermotes") or db.expired("cheermotes"):
         db.create("cheermotes", ["cheer", "value"])
         add_cheer = True
@@ -270,10 +267,8 @@ async def render_clips(message):
     if not API_CLIENT:
         return message
 
-    match = URL_REGEX.search(message)
-    slug = match.group(4)
-    if slug is None:
-        slug = match.group(5)
+    match = CLIP_REGEX.search(message)
+    slug = match.group("slug")
     if slug is None:
         logger.error("Malformed clip url %s", match.groups())
         return message
@@ -297,7 +292,7 @@ async def render_clips(message):
             <div class="inner_frame clip"><img src="{thumbnail}"/>
             <span class="title">{title}</span>
             <span class="clipper">{clipped_by}</span></div>'''
-    return URL_REGEX.sub(render, message)
+    return CLIP_REGEX.sub(render, message)
 
 
 def get_bits(evt):
@@ -325,7 +320,7 @@ async def handle_message(event):
                               f"{etags['msg-param-viewerCount']} viewers"
 
     if hasattr(event, "_command"):
-        other = commands.handle_other_commands(event)
+        other = handle_system_commands(event)
         if other:
             return other
 
@@ -356,7 +351,7 @@ async def handle_message(event):
         # Render emotes does this as a side-effect
         message = html.escape(raw_msg)
 
-    if re.search(URL_REGEX, message):
+    if re.search(CLIP_REGEX, message):
         message = await render_clips(message)
 
     message = bleach.linkify(message)
@@ -392,3 +387,50 @@ async def cleanup():
         await API_CLIENT.close()
 
     await bttv.close()
+
+
+def handle_system_commands(event):
+    try:
+        if event._command == "PRIVMSG":
+            # not for us
+            return
+
+        if event._command == "CLEARMSG":
+            # Delete a message by id
+            logger.debug("CLEAR: %s", event.tags['target-msg-id'])
+            return {
+                    'nickname': event.tags['login'],
+                    'orig_message': event._params,
+                    'id': event.tags['target-msg-id'],
+                    'type': event._command
+                    }
+        elif event._command == "CLEARCHAT":
+            # Delete all messages
+            user = event.tags.get('target-user-id', "")
+            logger.debug("CLEAR: %s from %s", user, event.tags['room-id'])
+            return {
+                    'id': str(uuid.uuid4()),
+                    'user': user,
+                    'room': event.tags['room-id'],
+                    'type': event._command
+                    }
+        elif event._command == "RECONNECT":
+            # IRC is going to restart
+            # NOTE: We don't actually handle this yet but the notification is useful
+            #       Chatbot needs to reconnect
+            ret_event = OutputMessage({
+                "type": "TWITCHCHATMESSAGE",
+                "nickname": "Ashnasbot",
+                "tags": {
+                    'display-name': "Ashnasbot",
+                },
+                "extra": ['quoted'],
+                "channel": event.channel
+            })
+            logger.warn("Twitch chat is going down")
+            ret_event['message'] = "Twitch chat is going down"
+            return ret_event
+
+    except Exception as e:
+        logger.warn(e)
+        return

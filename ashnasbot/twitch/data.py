@@ -1,3 +1,4 @@
+import re
 import time
 import uuid
 
@@ -90,6 +91,12 @@ BADGE_URL_TEMPLATE = """<img class="badge" src="{url}"
 alt="{alt}"
 title="{alt}"
 />"""
+
+CHEER_REGEX = re.compile(r"((?<=^)|(?<=\s))(?P<emotename>[a-zA-Z]+)(\d+)(?=(\s|$))", flags=re.IGNORECASE)
+CLIP_REGEX = re.compile(
+    r"(http(s)?://)?(clips\.twitch\.tv|www\.twitch\.tv/\w+/clip)/(?P<slug>(\w+)(-\w+)?)([?][=0-9a-zA-Z_&]*)*",
+    flags=re.IGNORECASE)
+TEIRED_BADGES = ['bits', 'bits-leader', 'sub-gifter', 'sub-gift-leader']
 
 BITS_COLORS = [
     (1, 'gray'),

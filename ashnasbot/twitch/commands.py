@@ -133,39 +133,6 @@ def handle_command(event):
             return
 
 
-def handle_other_commands(event):
-    try:
-        if event._command == "PRIVMSG":
-            return
-
-        if event._command == "CLEARMSG":
-            logger.debug("CLEAR: %s", event.tags['target-msg-id'])
-            return {
-                    'nickname': event.tags['login'],
-                    'orig_message': event._params,
-                    'id': event.tags['target-msg-id'],
-                    'type': event._command
-                    }
-        elif event._command == "CLEARCHAT":
-            user = event.tags.get('target-user-id', "")
-            logger.debug("CLEAR: %s from %s", user, event.tags['room-id'])
-            return {
-                    'id': str(uuid.uuid4()),
-                    'user': user,
-                    'room': event.tags['room-id'],
-                    'type': event._command
-                    }
-        elif event._command == "RECONNECT":
-            ret_event = ResponseEvent()
-            logger.warn("Twitch chat is going down")
-            ret_event['message'] = "Twitch chat is going down"
-            return ret_event
-
-    except Exception as e:
-        logger.warn(e)
-        return
-
-
 def goaway_cmd(event, *args):
     if event["priv"] < PRIV.MOD:
         event["message"] = "Only a mod or the broadcaster can remove me"

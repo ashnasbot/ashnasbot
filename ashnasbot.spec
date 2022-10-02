@@ -4,7 +4,7 @@ block_cipher = None
 
 
 a = Analysis(['__main__.py'],
-             pathex=['ashnasbot'],
+             pathex=['ashnasbot', 'venv/Lib/site-packages'],
              binaries=[],
              datas=[
                  ('public', 'public'),
@@ -13,7 +13,7 @@ a = Analysis(['__main__.py'],
              hiddenimports=['cryptography.hazmat.backends.openssl'],
              hookspath=[],
              runtime_hooks=[],
-             excludes=[],
+             excludes=['aitextgen'],
              win_no_prefer_redirects=False,
              win_private_assemblies=False,
              cipher=block_cipher,

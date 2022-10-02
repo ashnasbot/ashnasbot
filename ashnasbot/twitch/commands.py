@@ -6,7 +6,11 @@ import random
 import time
 import uuid
 
-from aitextgen import aitextgen
+try:
+    from aitextgen import aitextgen
+except ImportError:
+    logging.warn("Failed to import aitextgen, text generation unavailable")
+    pass
 
 from ashnasbot.twitch.data import OutputMessage
 
@@ -460,6 +464,9 @@ def chat_cmd(event, *args):
         prompt = " ".join(args)
 
     if CHATMODEL is None:
+        if not aitextgen:
+            return
+
         try:
             logger.info("Loading chat textgen")
             # TODO: test model='gpt2-medium'

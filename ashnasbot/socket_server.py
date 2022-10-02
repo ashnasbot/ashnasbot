@@ -439,9 +439,9 @@ class SocketServer():
     def debug_remaining_tasks(self):
         remaining_tasks = [task for task in asyncio.all_tasks(self.loop) if not task.done()]
         if len(remaining_tasks):
-            logger.warning("Remaining Tasks: %d", len(remaining_tasks))
+            logger.warning("%d Remaining Tasks", len(remaining_tasks))
             for t in remaining_tasks:
-                logger.info("               : %s", t)
+                logger.debug("               : %s", t)
         else:
             logger.info("No remaining tasks")
 

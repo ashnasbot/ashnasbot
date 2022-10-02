@@ -11,6 +11,7 @@ twitchdata.db
 debug.log
 SECRET.txt
 .cache
+.mypy_cache
 
 public/audio/*
 public/images/*

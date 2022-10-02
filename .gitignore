@@ -13,6 +13,9 @@ SECRET.txt
 .cache
 
 public/audio/*
+public/images/*
+public/media/*
+!public/*/.gitkeep
 twitchdata.db-shm
 twitchdata.db-wal
 

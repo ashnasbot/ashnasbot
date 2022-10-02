@@ -62,7 +62,9 @@ BADGES = {
     'partner': STATIC_CDN + "badges/v1/d12a2e27-16f6-41d0-ab77-b780518f00a3/2",
     'premium': STATIC_CDN + "badges/v1/a1dd5073-19c3-4911-8cb4-c464a7bc1510/2",
     'vip': STATIC_CDN + "badges/v1/b817aba4-fad8-49e2-b88a-7cc744dfa6ec/2",
-    'founder': STATIC_CDN + "badges/v1/511b78a9-ab37-472f-9569-457753bbe7d3/2"
+    'founder': STATIC_CDN + "badges/v1/511b78a9-ab37-472f-9569-457753bbe7d3/2",
+    'predictions/blue-1': STATIC_CDN + 'badges/v1/e33d8b46-f63b-4e67-996d-4a7dcec0ad33/2',
+    'predictions/pink-2': STATIC_CDN + 'badges/v1/4b76d5f2-91cc-4400-adf2-908a1e6cfd1e/2',
 }
 
 SUB_TIERS = [0, 3, 6, 9, 12, 18, 24, 30]

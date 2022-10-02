@@ -6,6 +6,8 @@ import random
 import time
 import uuid
 
+from ashnasbot.twitch.data.verbs import VERBS
+
 try:
     from aitextgen import aitextgen
 except ImportError:
@@ -214,6 +216,15 @@ def so_cmd(event, who, *args):
         event["message"] = f"Shoutout to {who} at https://twitch.tv/{who.lower()} - they are the best egg <3"
     else:
         event["message"] = f"Shoutout to {who} at https://twitch.tv/{who.lower()} - they are a good egg <3"
+    return event
+
+
+def go_cmd(event, what="King", *args):
+    if event["priv"] < PRIV.COMMON:
+        return
+
+    event["message"] = f"Go {random.sample(VERBS, 1)[0]} the {what}"
+
     return event
 
 
@@ -531,6 +542,7 @@ COMMANDS = {
     '!goawayashnasbot': (0, goaway_cmd),
     '!no':              (1, no_cmd),
     '!so':              (1, so_cmd),
+    '!go':              (1, go_cmd),
     '!bs':              (0, bs_cmd),
     '!dq':              (0, discord_cmd),
     '!discord':         (1, discord_cmd),

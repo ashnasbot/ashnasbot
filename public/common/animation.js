@@ -1,7 +1,8 @@
+/* TODO: combine .done with sounds component so both finish at same time */
 Vue.component('chase', {
 	template: `<div>
 	<canvas ref="screen" width=640 height=480></canvas>
-	<banner v-if="alert !== null" v-bind="alert"></banner>
+	<banner v-if="alert !== null" v-bind="alert" @finished="makeready"></banner>
 	</div>`,
 	props: {
 		rate: {  // Number of chocos on screen at once
@@ -17,7 +18,9 @@ Vue.component('chase', {
 			sprites: [],
 			view: urlChunks[urlChunks.length - 2],
 			audio: null,
-			alert: null
+			alert: null,
+			queue: [],
+			ready: true,
 		}
 	},
     mounted: function () {
@@ -27,9 +30,32 @@ Vue.component('chase', {
 		this.canvas.height = window.innerHeight;
 
 		this.mainLoop()
-		
     },
+	watch: {
+		queue: function(content) {
+            if (content.length == 0) {
+                return;
+            }
+			if (this.ready) {
+				this.ready = false;
+				this.alert = this.queue.shift();
+			}
+		},
+		ready: function(val) {
+			if (val) {
+				if (this.queue.length > 0) {
+					this.ready = false;
+					setTimeout(function () {
+						this.alert = this.queue.shift();
+					}.bind(this), 1000);
+				}
+			}
+		}
+	},
     methods: {
+		makeready() {
+			this.ready = true;
+		},
 		mainLoop: function() {
 		
 			window.requestAnimationFrame(this.mainLoop);
@@ -238,14 +264,13 @@ Vue.component('chase', {
 			}
 
 			if (media) {
-				this.alert = {
+				this.queue.push({
 					type: undefined,
 					media: media,
 					user: msg.nickname,
 					message: text,
-					done: false,
 					id: msg.id
-				}
+				})
 			}
 		},
         do_alert(msg) {
@@ -299,8 +324,10 @@ Vue.component('banner', {
 		media: String,
 		user: String,
 		message: String,
-		done: Boolean,
 		id: String
+	},
+	data() {
+		return { "done": true }
 	},
 	watch: {
 		id: async function(newVal, oldVal) {
@@ -312,6 +339,7 @@ Vue.component('banner', {
 				this.type = "video";
 			}
 			console.log(`new ${this.type}!`)
+			this.done = false;
 			if (this.type == "video") {
 				if (this.$refs.media) {
 					if (!self.flag) {
@@ -319,7 +347,7 @@ Vue.component('banner', {
 						this.$refs.media.addEventListener('ended', this.setdone, false);
 						self.flag = true;
 					} else {
-						// other time reset time
+						// otherwise reset playback time
 						this.$refs.media.currentTime = 0;
 						this.$refs.media.play();
 					}
@@ -333,10 +361,10 @@ Vue.component('banner', {
 		setdone: function(event) {
 			console.log("done!")
 			this.done = true;
+			this.$emit('finished')
 		}
-	}
-}
-);
+	},
+});
 
 function uuidv4() {
   return ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c =>

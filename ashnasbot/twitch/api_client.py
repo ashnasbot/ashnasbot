@@ -81,9 +81,12 @@ class TwitchClient():
         if not url.startswith("http"):
             url = API_BASE + url
 
-        async with session.get(url, params=params, headers=headers) as resp:
-            # TODO: check status (too many requests? etc)
-            return await resp.json()
+        try:
+            async with session.get(url, params=params, headers=headers) as resp:
+                # TODO: check status (too many requests? etc)
+                return await resp.json()
+        except aiohttp.ClientOSError:
+            return
 
     async def get_channel_id(self, channel=None):
         url = "/helix/users"

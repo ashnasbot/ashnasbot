@@ -34,6 +34,8 @@ def copy_resources():
 if __name__ == '__main__':
     copy_resources()
 
+    os.makedirs('db', exist_ok=True)
+
     # set up logging to file and screen
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.DEBUG)

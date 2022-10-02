@@ -2,7 +2,7 @@ import dataset
 import time
 import logging
 
-db = dataset.connect('sqlite:///twitchdata.db')
+db = dataset.connect('sqlite:///db/twitchdata.db')
 tables = {}
 logger = logging.getLogger(__name__)
 

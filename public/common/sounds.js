@@ -13,11 +13,19 @@ Vue.component('sound-handler', {
 		tts: {
 			type: Boolean,
 			default: false,
-		}
+		},
 	},
 	data: function () {
         var urlChunks = location.pathname.split('/');
-        return {view: urlChunks[urlChunks.length - 2], audio: null, playqueue: []};
+        return {view: urlChunks[urlChunks.length - 2], audio: null, playqueue: [], ready: true};
+	},
+	watch: {
+		ready: function(val) {
+			if(val) {
+				this.playqueue.shift();
+				this.play();
+			}
+		}
 	},
     methods: {
         do_alert: function (msg) {
@@ -70,53 +78,39 @@ Vue.component('sound-handler', {
 			this.playqueue.push([audio, speech]);
 			if (this.playqueue.length == 1)
 			{
-				this.play();
+				if (this.ready) {
+					this.play();
+				}
 			}
 		},
 		play: function() {
 			if (this.playqueue.length > 0){
+				this.ready = false;
 				data = this.playqueue[0];
 				audio = data[0];
 				speech = data[1];
-				if (this.audio && !this.audio.paused) {
-					/* another audio is playing, queue for after */
-					this.audio.addEventListener("ended", function () {
-						this.audio = audio;
-						audio.play().then(function(resp) {
-							this.do_tts(audio, speech);
-						}).catch(function(error) {
-							console.error(error)
-							this.playqueue.shift();
-						})
-					}.bind(this))
-				} else {
-					/* no audio is playing, play */
-					this.audio = audio;
-					audio.play().then(function(resp) {
-						this.do_tts(audio, speech);
-					}).catch(error => {
-						console.error(error);
-						this.playqueue.shift();
-					})
-				}
+				this.audio = audio;
+				audio.play().then(function() {
+					this.do_tts(audio, speech);
+				}.bind(this)).catch(function(error) {
+					console.error(error);
+					this.ready = true;
+				}.bind(this))
 			}
 		},
 		do_tts: function(audio, msg) {
-			if (this.tts && voice) {
-				audio.addEventListener("ended", function () {
+			audio.addEventListener("ended", function () {
+				if (this.tts && voice) {
 					var utterThis = new SpeechSynthesisUtterance(msg);
 					synth.speak(utterThis);
 					utterThis.onend = function() {
-						/* unshift needs to wait until the end */
-						this.playqueue.shift();
 						/* play next queue item, if any */
-						this.play();
-					}.bind(this)
-				}).bind(this);
-			} else {
-				this.playqueue.shift();
-				this.play();
-			}
+						this.ready = true;
+					}.bind(this);
+				} else {
+					this.ready = true;
+				}
+			}.bind(this));
 		}
     }
 });

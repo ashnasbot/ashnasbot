@@ -16,6 +16,7 @@ from aiohttp import web
 import urllib.parse
 from aiohttp_session import setup, get_session, new_session
 from aiohttp_session.cookie_storage import EncryptedCookieStorage
+from prometheus_async import aio
 
 from ashnasbot.twitch import pokedex
 
@@ -64,12 +65,11 @@ class WebServer(object):
         self.site = web.TCPSite(self.runner, self.address, self.port)
         await self.site.start()
         logger.info('Serving on %s:%d' % (self.address, self.port))
-    
+
     async def stop(self):
         if self.runner:
             logger.info('Stopping webserver')
             await self.runner.cleanup()
-
 
     @staticmethod
     async def get_dashboard(request):
@@ -118,6 +118,9 @@ class WebServer(object):
 
         # API
         self.app.router.add_get('/dex', self.get_pokedex)
+
+        # Metrics
+        self.app.router.add_get("/metrics", aio.web.server_stats)
 
     @staticmethod
     async def get_config(request):

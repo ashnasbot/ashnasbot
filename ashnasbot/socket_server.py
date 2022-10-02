@@ -10,16 +10,17 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 
 import websockets
+from prometheus_client import Gauge, Counter
+from prometheus_async.aio import track_inprogress
 
-from ashnasbot.twitch.data import OutputMessage, create_follower
 
 from .async_http import WebServer
 from .chat_bot import ChatBot
 from .config import Config
-from .twitch import OWN_EMOTES, db
+from .twitch import OWN_EMOTES, db, handle_message, get_bits, render_own_emotes, render_badges, cleanup
 from .twitch.chatter import ChatChatter
+from .twitch.data import OutputMessage, create_follower
 from .twitch.pubsub import PubSubClient
-from .twitch import handle_message, get_bits, render_own_emotes, render_badges, cleanup
 from .twitch.api_client import TwitchClient
 from .twitch.commands import BannedException
 from .users import Users
@@ -28,6 +29,30 @@ logger = logging.getLogger(__name__)
 
 logging.getLogger("websockets").setLevel(logging.INFO)
 ctx_client_id = contextvars.ContextVar('client_id')
+
+
+# Metrics
+METRIC_CLIENTS = Gauge("clients", "Current client sessions")
+METRIC_MESSAGES = Counter("messages", "Number of messages received", ["channel"])
+METRIC_COMMANDS = Counter("commands", "Number of commands processed", ["channel"])
+METRIC_SUBS = Counter("subscriptions", "Number of subscriptions received", ["channel"])
+METRIC_FOLLOWS = Counter("followers", "Number of new followers received", ["channel"])
+METRIC_REDEMPTION = Counter("redemptions", "Number of redemption messages received", ["channel"])
+METRIC_EMOTES = Counter("emotes", "Number of emotes used in messages", ["channel"])
+
+
+def update_event_metrics(event):
+    c = event.channel
+
+    match event.type:
+        case 'SUB':
+            METRIC_SUBS.labels(c).inc()
+        case 'FOLLOW':
+            METRIC_FOLLOWS.labels(c).inc()
+        case 'REDEMPTION':
+            METRIC_REDEMPTION.labels(c).inc()
+    if "emotes" in event.tags and event.tags["emotes"]:
+        METRIC_EMOTES.labels(c).inc(len(event.tags["emotes"].split(",")))
 
 
 def filter_output(event, commands=False, **kwargs):
@@ -155,8 +180,11 @@ class SocketServer():
                     self.chatbot.unsubscribe(channel)
                     continue
 
+                update_event_metrics(event)
+
                 if 'response' not in content['tags']:
                     # This message didn't come from us - maybe respond to it
+                    METRIC_MESSAGES.labels(channel).inc()
                     await self.handle_chatbot(event)
 
                 if any([allowed_content(event, **s) for s in self.channels[channel]]):
@@ -316,6 +344,7 @@ class SocketServer():
 
             await asyncio.sleep(1)
 
+    @track_inprogress(METRIC_CLIENTS)
     async def handle_connect(self, ws_in, path):
         try:
             command = await ws_in.recv()

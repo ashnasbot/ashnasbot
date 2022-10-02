@@ -226,16 +226,15 @@ class PubSubClient():
             "reward-title": title,
             "system-msg": f"{nickname} redeemed {title}"
         }
-        orig_message = ""
+        user_input = ""
         if reward["is_user_input_required"]:
-            orig_message = redemption["user_input"]
+            user_input = redemption["user_input"]
 
         out_msg = create_event("REDEMPTION", msg_type)
         out_msg.nickname = nickname
-        if orig_message:
-            out_msg.orig_message = orig_message
-        else:
-            del out_msg.orig_message
+        if user_input:
+            out_msg.message = user_input
+
         out_msg.tags = tags
         out_msg.extra.append("quoted")
 

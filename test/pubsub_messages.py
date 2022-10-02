@@ -78,7 +78,7 @@ SUBGIFTANON = {
     }
   }
 }
-SUBMULTIMONTH =  {
+SUBMULTIMONTH = {
    "type": "MESSAGE",
    "data": {
      "topic": "channel-subscribe-events-v1.44322889",
@@ -151,59 +151,59 @@ REDEMPTION2 = {
   'data': {
     'topic': 'channel-points-channel-v1.114409148',
     'message': {
-      "type":"reward-redeemed",
-      "data":{
-        "timestamp":"2022-08-29T13:57:06.244328577Z",
-        "redemption":{
-          "id":"7af66bfa-6708-4c40-98de-3c151f7167e9",
-          "user":{
-            "id":"114409148",
-            "login":"ashnas",
-            "display_name":"Ashnas"
+      "type": "reward-redeemed",
+      "data": {
+        "timestamp": "2022-08-29T13:57:06.244328577Z",
+        "redemption": {
+          "id": "7af66bfa-6708-4c40-98de-3c151f7167e9",
+          "user": {
+            "id": "114409148",
+            "login": "ashnas",
+            "display_name": "Ashnas"
           },
-          "channel_id":"114409148",
-          "redeemed_at":"2022-08-29T13:57:06.244328577Z",
-          "reward":{
-            "id":"ea46d0c8-8a89-4a3d-b719-a8e8eeaaef1f",
-            "channel_id":"114409148",
-            "title":"Roll a d20",
-            "prompt":"Important life decision? Let me roll a completely fair dice for you.",
-            "cost":1500,
-            "is_user_input_required":False,
-            "is_sub_only":False,
-            "image":{
-              "url_1x":"https://static-cdn.jtvnw.net/custom-reward-images/114409148/ea46d0c8-8a89-4a3d-b719-a8e8eeaaef1f/0f24dd4f-3964-467c-90e2-3f5229866626/custom-1.png",
-              "url_2x":"https://static-cdn.jtvnw.net/custom-reward-images/114409148/ea46d0c8-8a89-4a3d-b719-a8e8eeaaef1f/0f24dd4f-3964-467c-90e2-3f5229866626/custom-2.png",
-              "url_4x":"https://static-cdn.jtvnw.net/custom-reward-images/114409148/ea46d0c8-8a89-4a3d-b719-a8e8eeaaef1f/0f24dd4f-3964-467c-90e2-3f5229866626/custom-4.png"
+          "channel_id": "114409148",
+          "redeemed_at": "2022-08-29T13:57:06.244328577Z",
+          "reward": {
+            "id": "ea46d0c8-8a89-4a3d-b719-a8e8eeaaef1f",
+            "channel_id": "114409148",
+            "title": "Roll a d20",
+            "prompt": "Important life decision? Let me roll a completely fair dice for you.",
+            "cost": 1500,
+            "is_user_input_required": False,
+            "is_sub_only": False,
+            "image": {
+              "url_1x": "https://static-cdn.jtvnw.net/custom-reward-images/114409148/ea46d0c8-8a89-4a3d-b719-a8e8eeaaef1f/0f24dd4f-3964-467c-90e2-3f5229866626/custom-1.png",
+              "url_2x": "https://static-cdn.jtvnw.net/custom-reward-images/114409148/ea46d0c8-8a89-4a3d-b719-a8e8eeaaef1f/0f24dd4f-3964-467c-90e2-3f5229866626/custom-2.png",
+              "url_4x": "https://static-cdn.jtvnw.net/custom-reward-images/114409148/ea46d0c8-8a89-4a3d-b719-a8e8eeaaef1f/0f24dd4f-3964-467c-90e2-3f5229866626/custom-4.png"
             },
-            "default_image":{
-              "url_1x":"https://static-cdn.jtvnw.net/custom-reward-images/default-1.png",
-              "url_2x":"https://static-cdn.jtvnw.net/custom-reward-images/default-2.png",
-              "url_4x":"https://static-cdn.jtvnw.net/custom-reward-images/default-4.png"
+            "default_image": {
+              "url_1x": "https://static-cdn.jtvnw.net/custom-reward-images/default-1.png",
+              "url_2x": "https://static-cdn.jtvnw.net/custom-reward-images/default-2.png",
+              "url_4x": "https://static-cdn.jtvnw.net/custom-reward-images/default-4.png"
             },
-            "background_color":"#8205B3",
-            "is_enabled":True,
-            "is_paused":False,
-            "is_in_stock":True,
-            "max_per_stream":{
-              "is_enabled":False,
-              "max_per_stream":0
+            "background_color": "#8205B3",
+            "is_enabled": True,
+            "is_paused": False,
+            "is_in_stock": True,
+            "max_per_stream": {
+              "is_enabled": False,
+              "max_per_stream": 0
             },
-            "should_redemptions_skip_request_queue":False,
-            "template_id":None,
-            "updated_for_indicator_at":"2020-10-14T22:17:36.027705788Z",
-            "max_per_user_per_stream":{
-              "is_enabled":False,
-              "max_per_user_per_stream":0
+            "should_redemptions_skip_request_queue": False,
+            "template_id": None,
+            "updated_for_indicator_at": "2020-10-14T22:17:36.027705788Z",
+            "max_per_user_per_stream": {
+              "is_enabled": False,
+              "max_per_user_per_stream": 0
             },
-            "global_cooldown":{
-              "is_enabled":False,
-              "global_cooldown_seconds":0
+            "global_cooldown": {
+              "is_enabled": False,
+              "global_cooldown_seconds": 0
             },
-            "redemptions_redeemed_current_stream":None,
-            "cooldown_expires_at":None
+            "redemptions_redeemed_current_stream": None,
+            "cooldown_expires_at": None
           },
-          "status":"UNFULFILLED"
+          "status": "UNFULFILLED"
         }
       }
     }

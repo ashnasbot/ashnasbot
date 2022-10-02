@@ -38,26 +38,6 @@ class BannedException(Exception):
         self.channel = channel
 
 
-class ResponseEvent(dict):
-    """Render our own msgs through the bot."""
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.__dict__ = self
-        self.nickname = "Ashnasbot"
-        cfg = config.Config()
-        name = cfg['displayname'] if 'displayname' in cfg else cfg['username']
-        self.tags = {
-            'display-name': name,
-            'badges': [],
-            'emotes': [],
-            'user-id': cfg["user_id"]
-        }
-        self.id = str(uuid.uuid4())
-        self.extra = ['quoted']
-        self.type = 'TWITCHCHATMESSAGE'
-        self.priv = PRIV.COMMON
-
-
 class OrderedEnum(Enum):
     def __ge__(self, other):
         if self.__class__ is other.__class__:
@@ -134,6 +114,7 @@ def handle_command(event):
         try:
             ret_event = cmd[1](ret_event, *args)
             del ret_event["priv"]
+            logger.debug("COMMANDRESPONSE: %s", ret_event)
             return ret_event
         except Exception:
             return

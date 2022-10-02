@@ -164,3 +164,10 @@ def create_event(type, message=""):
     evt.tags = {}
     evt.extra = ["pubsub"]
     return evt
+
+
+def event_from_output(from_evt):
+    out_evt = Message()
+    for prop, val in from_evt.items():
+        setattr(out_evt, prop, val)
+    return out_evt

@@ -19,7 +19,7 @@ from .chat_bot import ChatBot
 from .config import Config
 from .twitch import OWN_EMOTES, db, handle_message, get_bits, render_own_emotes, render_badges, cleanup
 from .twitch.chatter import ChatChatter
-from .twitch.data import OutputMessage, create_follower
+from .twitch.data import OutputMessage, create_follower, event_from_output
 from .twitch.pubsub import PubSubClient
 from .twitch.api_client import TwitchClient
 from .twitch.commands import BannedException
@@ -223,9 +223,10 @@ class SocketServer():
     async def replay(self):
         while not self.shutdown_event.is_set():
             try:
-                event = self.replay_queue.get_nowait()
+                obj = self.replay_queue.get_nowait()
+                event = event_from_output(obj)
                 event.id = str(uuid.uuid4())  # Reset the id
-                if event.type == 'TWITCHCHATMESSAGE':
+                if event.type in ['TWITCHCHATMESSAGE', 'BITS']:
                     channel = event.channel
                     output = handle_message(event)
                     for s in self.channels[channel]:

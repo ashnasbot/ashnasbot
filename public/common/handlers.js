@@ -397,7 +397,9 @@ new Vue({
                     this.chat = save.chat;
                     setTimeout(() => {
                         var container = document.getElementById('chat');
-                        container.scrollTop = container.scrollHeight + 1000;
+                        if (container != null) {
+                            container.scrollTop = container.scrollHeight + 1000;
+                        }
                     }, 100);
                     if(this.chat.length > 0) {
                         alternator = !this.chat[this.chat.length - 1].alternator

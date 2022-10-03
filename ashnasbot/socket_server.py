@@ -148,9 +148,9 @@ class SocketServer():
             if not OWN_EMOTES:
                 await render_own_emotes("", self.chatbot.emotesets)
 
-                cid = self.channels[channel][0]["channel_id"]
-                if cid:
-                    await self.chatter.handle_message(event, cid)
+            cid = self.channels[channel][0]["channel_id"]
+            if cid:
+                await self.chatter.handle_message(event, cid)
 
     async def chat(self):
         self.chatter = ChatChatter(self.add_chat)

@@ -1,11 +1,8 @@
 __pycache__/
 *.pyc
 config.json
-data/followers.json
 .vscode
 *.swp
-data/raid.txt
-bits.json
 debug.log
 SECRET.txt
 .cache
@@ -24,3 +21,9 @@ chatlogs
 trained_model
 aitextgen.tokenizer.json
 chatbot
+
+commands/*
+!commands/__init__.py
+!commands/_template.py
+!commands/_common.py
+!commands/_framework.py

@@ -27,7 +27,7 @@ class ChatChatter():
         while True:
             await asyncio.sleep(random.randint(30, 300) == 10)
             evt = self.make_message()
-            commands.chat_cmd(evt, "test")
+            commands.common.chat_cmd(evt, "test")
             self.add_event(evt)
 
     async def handle_message(self, event, cid=None):
@@ -35,10 +35,10 @@ class ChatChatter():
             emote = event.message
             evt = self.make_message(emote)
             url = OWN_EMOTES[emote][1]
-            evt["orig_message"] = EMOTE_FULL_TEMPLATE.format(url=url, alt=emote)
-            evt["channel"] = event.channel
+            evt.orig_message = EMOTE_FULL_TEMPLATE.format(url=url, alt=emote)
+            evt.channel = event.channel
             await self.add_event(evt)
-            logger.debug("RESPONSE %s %s", evt["message"], evt)
+            logger.debug("RESPONSE %s %s", evt.message, evt)
             return
 
         bttv_emotes = await bttv.get_emotes(cid)
@@ -46,26 +46,28 @@ class ChatChatter():
             emote = event.message
             evt = self.make_message(emote)
             url = bttv_emotes[emote]
-            evt["orig_message"] = url
-            evt["channel"] = event.channel
+            evt.orig_message = url
+            evt.channel = event.channel
             await self.add_event(evt)
-            logger.debug("RESPONSE %s %s", evt["message"], evt)
+            logger.debug("RESPONSE %s %s", evt.message, evt)
             return
 
         # 1/30 borrowed from buttsbot
         if random.randint(1, 30) == 1:
             evt = self.make_message()
-            evt["channel"] = event.channel
+            evt.channel = event.channel
             wordlist = event.message.translate(str.maketrans('', '', string.punctuation)).split(" ")
             shortlist = [i for i in wordlist if len(i) > 3]
             if not shortlist:
                 shortlist = wordlist
             prompt = random.choice(shortlist)
-            commands.chat_cmd(evt, prompt)
+            commands.common.chat_cmd(evt, prompt)
             await self.add_event(evt)
-            logger.debug("RESPONSE %s %s", evt["message"], evt)
+            logger.debug("RESPONSE %s %s", evt.message, evt)
             return
 
     def make_message(self, message=""):
         msg = create_event('TWITCHCHATMESSAGE', message)
         msg.nickname = "AshnasBot"
+        msg.tags["response"] = True
+        return msg

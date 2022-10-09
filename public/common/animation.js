@@ -315,7 +315,7 @@ Vue.component('banner', {
 	    <img :src="media"/> 
 	</div>
 
-	<p>{{message}}</p>
+	<p v-html="message"></p>
 	</div>
 	</transition>
 	`,

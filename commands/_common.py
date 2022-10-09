@@ -6,9 +6,11 @@ try:
     from aitextgen import aitextgen
 except ImportError:
     logger.warn("Failed to import aitextgen, text generation unavailable")
-    pass
 
-
+# TODO: Per channel CHATMODEL?
+# TODO: Training repo
+# TODO: Commands API (i.e. get stream info, etc)
+# TODO: PRIV level on COMMANDS structure
 CHATMODEL = None
 
 

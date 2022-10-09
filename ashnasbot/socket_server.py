@@ -228,7 +228,7 @@ class SocketServer():
                 event.id = str(uuid.uuid4())  # Reset the id
                 if event.type in ['TWITCHCHATMESSAGE', 'BITS']:
                     channel = event.channel
-                    output = handle_message(event)
+                    output = await handle_message(event)
                     for s in self.channels[channel]:
                         await s["socket"].send(json.dumps(output))
                 else:

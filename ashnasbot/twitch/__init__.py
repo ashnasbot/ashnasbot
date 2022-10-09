@@ -358,6 +358,7 @@ async def handle_message(event):
 
     if "bits" in etags:
         message, bits = await render_bits(message, event.channel, etags["bits"])
+        etags["system-msg"] = f"{etags['display-name']} cheered with {bits} bits!"
         logger.info("BITS %s cheered %d", etags['display-name'], bits)
 
     if "id" not in etags:

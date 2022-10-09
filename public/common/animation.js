@@ -239,10 +239,7 @@ Vue.component('chase', {
 		},
 		create_banner(msg) {
 			var media;
-			var text = msg.message;
-			if (!text) {
-				text = msg.tags['system-msg'];
-			}
+			var	text = `${msg.tags['system-msg']}<br/>${msg.message}`;
 
 			switch (msg.type) {
 				case "FOLLOW":
@@ -307,15 +304,15 @@ Vue.component('banner', {
 	<transition mode="out-in">
 	<div v-show="!done" id="alertbox">
 	<div v-show="type=='video'">
-	    <video ref="media" autoplay="true">
+	    <video ref="media" autoplay="true" class="content">
 		    <source :src="media" v-if="type=='video'">
 		</video>
 	</div>
 	<div v-if="type=='gif'">
-	    <img :src="media"/> 
+	    <img :src="media" class="content"/> 
 	</div>
 
-	<p v-html="message"></p>
+	<p v-html="message" class="message"></p>
 	</div>
 	</transition>
 	`,

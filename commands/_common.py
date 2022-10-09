@@ -64,3 +64,13 @@ def go_cmd(event, what="King", *args):
     event["message"] = f"Go {random.sample(VERBS, 1)[0]} the {what}"
 
     return event
+
+
+def good_cmd(event, *args):
+    event["message"] = ":D"
+    return event
+
+
+def bad_cmd(event, *args):
+    event["message"] = ":("
+    return event

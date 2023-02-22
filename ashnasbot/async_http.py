@@ -156,54 +156,12 @@ class WebServer(object):
         views_path = os.path.join('views', view)
 
         query = request.query
+        ammt = 0
         if query and "value" in query:
-            ammt = query["value"]
+            ammt = int(query["value"])
 
-            # find exact
-            views_match = list(Path(views_path).glob(event + ammt + ".*"))
-            for match in views_match:
-                if match.suffix in self.AUDIO_FILETYPES:
-                    return web.FileResponse(views_match[0])
-
-            fallback_match = list(Path("public/audio").glob(event + ammt + ".*"))
-            for match in fallback_match:
-                if match.suffix in self.AUDIO_FILETYPES:
-                    return web.FileResponse(fallback_match[0])
-
-            # find closest
-            views_match = list(Path(views_path).glob(event))
-            candidates = []
-            for match in views_match:
-                if match.suffix in self.AUDIO_FILETYPES:
-                    m = re.search(r'\d+$', match.stem)
-                    if m:
-                        candidates.append((int(m.group()), match))
-            if candidates:
-                match = bisect.bisect_right(candidates, (int(ammt), None)) - 1
-                return web.FileResponse(candidates[match][1])
-
-            fallback_match = list(Path("public/audio").glob(event + r"[123456789]*"))
-            for match in fallback_match:
-                if match.suffix in self.AUDIO_FILETYPES:
-                    m = re.search(r'\d+$', match.stem)
-                    if m:
-                        candidates.append((int(m.group()), match))
-            if candidates:
-                match = bisect.bisect_right(candidates, (int(ammt), None)) - 1
-                return web.FileResponse(candidates[match][1])
-
-        else:
-            views_match = list(Path(views_path).glob(event + ".*"))
-            for match in views_match:
-                if match.suffix in self.AUDIO_FILETYPES:
-                    return web.FileResponse(views_match[0])
-
-            fallback_match = list(Path("public/audio").glob(event + ".*"))
-            for match in fallback_match:
-                if match.suffix in self.AUDIO_FILETYPES:
-                    return web.FileResponse(fallback_match[0])
-
-        return web.HTTPNotFound()
+        return self.glob_var([views_path, "public/audio"], event,
+                             self.AUDIO_FILETYPES, ammt)
 
     IMAGE_FILETYPES = [".png"]
 
@@ -233,55 +191,11 @@ class WebServer(object):
         views_path = os.path.join('views', view)
 
         query = request.query
-        # TODO: Refactor to generic handler
+        ammt = 0
         if query and "value" in query:
-            ammt = query["value"]
-
-            # find exact
-            views_match = list(Path(views_path).glob(event + ammt + ".*"))
-            for match in views_match:
-                if match.suffix in self.MEDIA_FILETYPES:
-                    return web.FileResponse(views_match[0])
-
-            fallback_match = list(Path("public/media").glob(event + ammt + ".*"))
-            for match in fallback_match:
-                if match.suffix in self.MEDIA_FILETYPES:
-                    return web.FileResponse(fallback_match[0])
-
-            # find closest
-            views_match = list(Path(views_path).glob(event))
-            candidates = []
-            for match in views_match:
-                if match.suffix in self.MEDIA_FILETYPES:
-                    m = re.search(r'\d+$', match.stem)
-                    if m:
-                        candidates.append((int(m.group()), match))
-            if candidates:
-                match = bisect.bisect_right(candidates, (int(ammt), None)) - 1
-                return web.FileResponse(candidates[match][1])
-
-            fallback_match = list(Path("public/media").glob(event + r"[123456789]*"))
-            for match in fallback_match:
-                if match.suffix in self.MEDIA_FILETYPES:
-                    m = re.search(r'\d+$', match.stem)
-                    if m:
-                        candidates.append((int(m.group()), match))
-            if candidates:
-                match = bisect.bisect_right(candidates, (int(ammt), None)) - 1
-                return web.FileResponse(candidates[match][1])
-
-        else:
-            views_match = list(Path(views_path).glob(event + ".*"))
-            for match in views_match:
-                if match.suffix in self.MEDIA_FILETYPES:
-                    return web.FileResponse(views_match[0])
-
-            fallback_match = list(Path("public/media").glob(event + ".*"))
-            for match in fallback_match:
-                if match.suffix in self.MEDIA_FILETYPES:
-                    return web.FileResponse(fallback_match[0])
-
-        return web.HTTPNotFound()
+            ammt = int(query["value"])
+        return self.glob_var([views_path, "public/media"], event,
+                             self.MEDIA_FILETYPES, ammt)
 
     async def post_shutdown(self, request):
         if self.shutdown_evt:
@@ -313,14 +227,15 @@ class WebServer(object):
 
     async def begin_auth(self, request):
         # Step 1
-        scope = ["channel:read:redemptions", "channel:read:subscriptions"]
+        scope = ["channel:read:redemptions", "channel:read:subscriptions", "channel:manage:predictions"]
         oauth = OAuth2Session(client_id=self.client_id, redirect_uri=redirect_uri, scope=scope)
         authorization_url, state = oauth.authorization_url(auth_base_url, force_verify=True)
         oauth.close()
+        return_feature = request.query.get("feature", "chat")
         return_channel = request.query.get("channel", None)
         return_theme = request.query.get("theme", "noir")
 
-        state = f"{state};{return_channel};{return_theme}"
+        state = f"{state};{return_feature};{return_channel};{return_theme}"
 
         session = await new_session(request)
         session['state'] = state
@@ -336,7 +251,7 @@ class WebServer(object):
         in the redirect URL. We will use that to obtain an access token.
         """
         session = await get_session(request)
-        state = session['state']
+        state = session['state'] if 'state' in session else None
 
         body = urllib.parse.urlencode({'client_id': self.client_id,
                                        'client_secret': self.secret,
@@ -349,11 +264,11 @@ class WebServer(object):
         # At this point you can fetch protected resources, lets save the token
         session['token'] = token
         state = session['state']
-        return_channel = state.split(";")[1]
-        return_theme = state.split(";")[2]
+        return_feature = state.split(";")[1]
+        return_channel = state.split(";")[2]
+        return_theme = state.split(";")[3]
 
-        # TODO: Redirect to original location (e.g. alertsoverlay vs chat)
-        resp = aiohttp.web.HTTPFound(f'/views/{return_theme}/chat.html?channel={return_channel}')
+        resp = aiohttp.web.HTTPFound(f'/views/{return_theme}/{return_feature}?channel={return_channel}')
         resp.cookies['token'] = token["access_token"]
         return resp
 
@@ -364,3 +279,40 @@ class WebServer(object):
         for row in dex:
             resp[row['id']] = row['caught']
         return web.json_response(resp)
+
+    def glob_var(self, paths, stub, filter, num=0):
+        # Paths = list of locations to check in order of preference
+        logger.debug(f"looking for {stub}{num}{filter} in {paths}")
+        matching_files = []
+        if num == 0:
+            matching_files = [list(Path(path).glob(stub + ".*")) for path in paths]
+        else:
+            # This is a glob, not a regex
+            matching_files = [list(Path(path).glob(stub + r"[123456789]*" + ".*")) for path in paths]
+
+        for mgroup in matching_files:
+            candidates = []
+            for match in mgroup:
+                if match.suffix in filter:
+                    m = re.search(r'\d+$', match.stem)
+                    if m:
+                        candidates.append((int(m.group()), match))
+                    elif num == 0:
+                        candidates.append((0, match))
+
+            if candidates:
+                logger.debug(f"Candidates: {candidates}")
+                match = None
+                try:
+                    # Exact match
+                    match = [y[0] for y in candidates].index(num)
+                    logger.debug(f"Found exact match for glob {num}")
+                except ValueError:
+                    # Find closest
+                    match = bisect.bisect_right(candidates, (num, )) - 1
+                    logger.debug(f"Found closest match for glob {num}")
+                logger.debug(str(candidates[match]))
+                return web.FileResponse(candidates[match][1])
+        logger.debug(f"No Candidates found for {stub}{num}{filter}")
+
+        return web.HTTPNotFound()

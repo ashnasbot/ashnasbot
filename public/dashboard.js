@@ -146,7 +146,7 @@ Vue.component('event-create', {
           nickname: `${this.options.who.value}`,
           channel: `${this.options.channel.value}`,
           audio: "/static/audio/Mana_got_item.wav",
-          id: "zzz",
+          id: uuid4(),
           tags: {
               "system-msg": `${this.options.who.value} followed the channel`,
               "tmi-sent-ts": `${ts}`,
@@ -165,7 +165,7 @@ Vue.component('event-create', {
           id: "xxx",
           tags: {
             "display-name": `${this.options.who.value}`,
-            "id": "zzz",
+            "id": uuid4(),
             "system-msg": `${this.options.who.value} subscribed at Tier ${this.options.tier.value}. They've subscribed for ${this.options.months.value} months!`,
             "tmi-sent-ts": `${ts}`,
           },
@@ -181,7 +181,7 @@ Vue.component('event-create', {
           nickname: `${this.options.who.value}`,
           channel: `${this.options.channel.value}`,
           message: "",
-          id: "zzz",
+          id: uuid4(),
           tags: {
             "color": "#126B00",
             "display-name": `${this.options.who.value}`,
@@ -208,7 +208,7 @@ Vue.component('event-create', {
           id: "xxx",
           tags: {
             "display-name": `${this.options.who.value}`,
-            "id": "zzz",
+            "id": uuid4(),
             "bits": `${this.options.value.value}`,
           },
           extra: [
@@ -249,3 +249,9 @@ Vue.component('event-create', {
 const app = new Vue({
     el:'#app',
 })
+
+function uuid4() {
+  return ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c =>
+    (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
+  );
+}

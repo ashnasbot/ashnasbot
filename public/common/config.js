@@ -7,7 +7,6 @@ Vue.component('config-menu', {
             this.alert = config.alert;
             this.sound = config.sound;
             this.tts = config.tts;
-            this.hosts = config.hosts;
             this.menu = config.menu;
             this.pubsub = config.pubsub;
             this.chatbot = config.chatbot;
@@ -26,7 +25,6 @@ Vue.component('config-menu', {
         alert: true,
         sound: true,
         tts: false,
-        hosts: false,
         menu: true,
         pubsub: false,
         chatbot: false
@@ -38,7 +36,6 @@ Vue.component('config-menu', {
         alert(n) { this.handleInput(); },
         sound(n) { this.handleInput(); },
         tts(n) { this.handleInput(); },
-        hosts(n) { this.handleInput(); },
         menu(n) { this.handleInput(); },
         pubsub(n) { this.handleInput(); },
         chatbot(n) { this.handleInput(); },
@@ -52,29 +49,27 @@ Vue.component('config-menu', {
     <input type="checkbox" id="menuChk1" v-model="commands">
     <label for="menuChk1" name="commands">Allow Commands</label>
 
-    <input type="checkbox" id="menuChk2" v-model="images">
-    <label for="menuChk2" name="images">Pull Avatars</label>
+    <input type="checkbox" id="menuChk2" v-model="chatbot" >
+    <label for="menuChk2" name="Chatbot">Respond in chat</label>
 
-    <input type="checkbox" id="menuChk3" v-model="alert" >
-    <label for="menuChk3" name="alert">Show chat notifications</label>
+    <input type="checkbox" id="menuChk3" v-model="images">
+    <label for="menuChk3" name="images">Pull Avatars</label>
 
-    <input type="checkbox" id="menuChk4" v-model="sound" >
-    <label for="menuChk4" name="sound">Sounds</label>
+    <input type="checkbox" id="menuChk4" v-model="alert" >
+    <label for="menuChk4" name="alert">Show chat notifications</label>
 
-    <input type="checkbox" id="menuChk5" v-model="tts" >
-    <label for="menuChk5" name="tts">Text to speech</label>
+    <input type="checkbox" id="menuChk5" v-model="sound" >
+    <label for="menuChk5" name="sound">Sounds</label>
 
-    <input type="checkbox" id="menuChk6" v-model="hosts" >
-    <label for="menuChk6" name="hosts">Follow hosts</label>
+    <input type="checkbox" id="menuChk6" v-model="tts" >
+    <label for="menuChk6" name="tts">Text to speech</label>
 
-    <input type="checkbox" id="menuChk7" v-model="menu" >
-    <label for="menuChk7" name="menu">Show menu on load</label>
+    <input type="checkbox" id="menuChk7" v-model="pubsub" >
+    <label for="menuChk7" name="pubsub">Show alerts from PubSub (requires auth)</label>
 
-    <input type="checkbox" id="menuChk8" v-model="pubsub" >
-    <label for="menuChk8" name="pubsub">Show alerts from PubSub (requires auth)</label>
+    <input type="checkbox" id="menuChk8" v-model="menu" >
+    <label for="menuChk8" name="menu">Show menu on load</label>
 
-    <input type="checkbox" id="menuChk9" v-model="chatbot" >
-    <label for="menuChk9" name="Chatbot">Respond in chat</label>
     </fieldset>
 
     </div>

@@ -79,6 +79,13 @@ function getAuth() {
         .then((response) => auth);
 }
 
+function getFeature() {
+    // "chat.html"
+    const url = window.location.pathname;
+    var feature = url.split('/')[3]
+    return feature;
+}
+
 function getTheme() {
     const url = window.location.pathname;
     var theme = url.split('/')[2]
@@ -103,6 +110,7 @@ new Vue({
         chat: [],
         config: {},
         alert: "",
+        feature: getFeature(),
         channel: getChannel(),
         theme: getTheme(),
         curChannel: "",
@@ -114,7 +122,7 @@ new Vue({
         },
         getToken: function() {
             // Note: this may not return!
-            document.location = "/user_auth?channel=" + this.channel + "&theme=" + this.theme;
+            document.location = `/user_auth?feature=${this.feature}&channel=${this.channel}&theme=${this.theme}`;
         },
         getClientConfig: function() {
             const channel = getChannel();
@@ -246,7 +254,7 @@ new Vue({
                         // No Break: flow through
                     case "SYSTEM":
                         if (msg.message == "ERR_BADAUTH") {
-                            this.refresh_token()
+                            this.getToken()
                         }
                     case "TWITCHCHATMESSAGE":
                         ts = performance.now();

@@ -325,7 +325,9 @@ class SocketServer():
                 channel = event.channel
 
                 if not channel:
-                    self.broadcast(event)
+                    output = OutputMessage.from_event(event)
+                    await self.broadcast(output)
+                    continue
 
                 self.channels[channel] = [s for s in self.channels[channel] if not s["socket"].closed]
                 if channel in self.pubsub_clients:

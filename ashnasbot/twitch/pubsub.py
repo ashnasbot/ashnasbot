@@ -2,7 +2,6 @@ import asyncio
 import json
 import logging
 from random import random
-from threading import Event
 import uuid
 import websockets
 import websockets.client
@@ -16,7 +15,6 @@ logger = logging.getLogger(__name__)
 PUBSUB_MESSAGE_TYPES = [
     "SUB",
     # "RAID",
-    # "HOSTED",
     # "FOLLOW",
     "REDEMPTION",
 ]  # see handlers at end of file
@@ -30,13 +28,14 @@ class PubSubClient():
         self.topics = [t[0].format(channel_id=channel_id) for t in self.TOPICS.values()]
         self.channel = channel
         self.auth_token = token
-        self.stop_event = Event()
+        self.stop_event = asyncio.Event()
         self.connection = None
+        self.connected_event = asyncio.Event()
 
         self.receive_task = None
         self.heartbeat_task = None
 
-        self.refcount = 0
+        self.__refcount = 0
 
     async def connect(self) -> websockets.WebSocketClientProtocol:
         """Connect to webSocket server.
@@ -44,11 +43,17 @@ class PubSubClient():
         websockets.client.connect returns a WebSocketClientProtocol,
         which is used to send and receive messages.
         """
-        self.refcount += 1
-        if self.connection:
+        self.__refcount += 1
+        logger.debug(f"Incrementing pubsub {self.__refcount}, self.connection {self.connection}")
+
+        if self.connection or self.__refcount > 1:
+            logger.debug(f"{self.__refcount} wait for connect")
+            await self.connected_event.wait()
+            logger.debug(f"{self.__refcount} connect")
             return self.connection
 
         self.connection = await websockets.client.connect('wss://pubsub-edge.twitch.tv')
+        self.connected_event.set()
         if self.connection.open:
             logger.info("Connected to pubsub")
             message = {"type": "LISTEN", "nonce": str(self.generate_nonce()),
@@ -59,9 +64,9 @@ class PubSubClient():
             return self.connection
 
     async def disconnect(self):
-        self.refcount -= 1
-        logger.debug(f"Decrementing pubsub {self.refcount}")
-        if self.refcount < 1:
+        self.__refcount -= 1
+        logger.debug(f"Decrementing pubsub {self.__refcount}")
+        if self.__refcount < 1:
             message = {"type": "UNLISTEN", "nonce": str(self.generate_nonce()),
                        "data": {"topics": self.topics, "auth_token": self.auth_token}}
             logger.info(message)
@@ -186,8 +191,6 @@ class PubSubClient():
                     text += f" and is on a {streak_months} streak!"
         tags = {
             "display-name": nickname,
-            "msg-id": "follow",
-            "system-msg": f"{nickname} is following the channel",
         }
         orig_message = ""
         if message["sub_message"]["message"]:

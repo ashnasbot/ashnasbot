@@ -116,7 +116,7 @@ OUTPUT_MESSAGE_TEMPLATE = {
     'message': "",
     'orig_message': "",
     'id': str(uuid.uuid4()),
-    'tags': {},
+    'tags': {'badges': []},
     'type': "SYSTEM",
     'channel': "",
     'extra': []

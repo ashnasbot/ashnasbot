@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 class ChatBot():
     evt_filter = ["TWITCHCHATJOIN", "TWITCHCHATMODE", "TWITCHCHATMESSAGE",
                   "TWITCHCHATROOMSTATE", "TWITCHCHATLEAVE"]
-    handled_commands = ["CLEARMSG", "RECONNECT", "HOSTTARGET", "CLEARCHAT"]
+    handled_commands = ["CLEARMSG", "RECONNECT", "CLEARCHAT"]
 
     def __init__(self, loop, bot_user, oauth):
         self.channels = set()
@@ -110,9 +110,6 @@ class ChatBot():
                 logger.info(f"RAID {evt.tags['display-name']} is raiding with a party of "
                             f"{evt.tags['msg-param-viewerCount']}")
                 evt.type = "RAID"
-            elif msg_id in ["host", "host_success", "host_success_viewers"]:
-                evt.type = "HOST"
-                logger.info(f"HOST {evt}")
 
             try:
                 self.add_task(self.chat_queue.put(evt))
@@ -120,8 +117,7 @@ class ChatBot():
                 logger.error("Queue full, discarding alert")
 
         elif evt.type == "TWITCHCHATCOMMAND" or \
-                evt.type == "TWITCHCHATCLEARCHAT" or \
-                evt.type == "TWITCHCHATHOSTTARGET":
+                evt.type == "TWITCHCHATCLEARCHAT":
             if evt._command in self.handled_commands:
                 logger.debug(evt._command)
                 self.add_task(self.chat_queue.put(evt))
@@ -129,14 +125,14 @@ class ChatBot():
             self.emotesets = set(evt.tags["emote-sets"].split(","))
             self.badges = evt.tags["badges"]  # no split, handled by renderer
 
-    def send_message(self, message, channel):
+    def send_message(self, message, channel, tags=None):
         if not message:
             return
         if channel not in self.channels:
             logger.warn("Sending a message to a channel we're not in: {channel}")
             self.observer.join_channel(channel)
 
-        self.observer.send_message(message, channel)
+        self.observer.send_message(message, channel, tags)
 
         if channel not in self.channels:
             self.observer.leave_channel(channel)

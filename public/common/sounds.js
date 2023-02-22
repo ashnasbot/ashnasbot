@@ -90,12 +90,16 @@ Vue.component('sound-handler', {
 				audio = data[0];
 				speech = data[1];
 				this.audio = audio;
-				audio.play().then(function() {
-					this.do_tts(audio, speech);
-				}.bind(this)).catch(function(error) {
-					console.error(error);
-					this.ready = true;
+				this.audio.addEventListener("canplaythrough", function() {
+					audio.play().then(function() {
+						this.do_tts(audio, speech);
+					}.bind(this)).catch(function(error) {
+						console.error(error);
+						this.ready = true;
+					}.bind(this))
 				}.bind(this))
+
+				this.audio.load();
 			}
 		},
 		do_tts: function(audio, msg) {

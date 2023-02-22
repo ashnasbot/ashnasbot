@@ -73,7 +73,6 @@ Each session keeps its own config, configured in the browser menu, hit submit co
  -  **Pull Avatars**: Some views show profile picture (Twitch rate-limites API requests so this must be disabled on really busy channels)
  -  **Show Chat Notifications**: Show Sub and other messages in chat
  -  **Sounds**: Play sound effects on e.g. Subs
- -  **Follow Hosts**: Allows the bot to enter host target chats (Do not combine with commands!)
  -  **Show menu on load**: Shows the config menu when the page is loaded - hover over the top of the page to show
  -  **PubSub**: Experimental - uses pubsub api to get events and channel point redemptions
 

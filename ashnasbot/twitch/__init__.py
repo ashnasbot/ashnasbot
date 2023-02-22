@@ -158,7 +158,6 @@ async def load_cheermotes(channel=None):
         CHEERMOTES = await API_CLIENT.get_cheermotes()
         add_cheer = True
 
-    # TODO: this might be broken, investimagate
     if not db.exists("cheermotes") or db.expired("cheermotes"):
         db.create("cheermotes", ["cheer", "value"])
         add_cheer = True
@@ -300,7 +299,7 @@ def get_bits(evt):
     return evt
 
 
-async def handle_message(event):
+async def handle_message(event, auth=None):
     etags = event.tags if hasattr(event, "tags") else {}
     raw_msg = event.message if hasattr(event, "message") else ""
     orig_message = raw_msg
@@ -310,14 +309,11 @@ async def handle_message(event):
     extra = []
 
     if raw_msg.startswith('!'):
-        return commands.handle_command(event)
+        return commands.handle_command(event, auth=auth)
 
     if msg_type == "RAID":
         etags['system-msg'] = f"{etags['msg-param-displayName']} is raiding with a party of " \
                               f"{etags['msg-param-viewerCount']}"
-    if msg_type == "HOST":
-        etags["system-msg"] = f"{etags['msg-param-displayName']} is hosting for " \
-                              f"{etags['msg-param-viewerCount']} viewers"
 
     if hasattr(event, "_command"):
         other = handle_system_commands(event)

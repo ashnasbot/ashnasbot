@@ -6,6 +6,7 @@ import logging
 import re
 from uuid import uuid4
 import time
+import typing
 import uuid
 
 import bleach
@@ -22,8 +23,10 @@ from . import bttv
 
 # TODO: move to data
 
-CHEERMOTES = {}
-CCHEERMOTES = {}
+CHEERMOTES: typing.Dict[str, typing.Dict] = {}
+CHANNEL_CHEERMOTES: typing.Dict[str, typing.Dict] = {}
+BADGES: typing.Dict[str, str] = {}  # id: url
+OWN_EMOTES: typing.Dict[str, typing.Tuple] = {}  # emoteName : (url, emoteset)
 
 logger = logging.getLogger(__name__)
 config = Config()
@@ -43,10 +46,6 @@ while API_CLIENT is None:
         if retry < 1:
             break
         time.sleep(2)
-
-BADGES = None
-
-OWN_EMOTES = {}  # emoteName : (url, emoteset)
 
 
 async def render_own_emotes(message, emotesets):
@@ -147,11 +146,11 @@ async def get_channel_badges(channel):
 
 
 async def load_cheermotes(channel=None):
-    global CHEERMOTES, CCHEERMOTES
+    global CHEERMOTES, CHANNEL_CHEERMOTES
     add_cheer = False
 
-    if channel and channel not in CCHEERMOTES:
-        CCHEERMOTES[channel] = await API_CLIENT.get_cheermotes(channel=channel)
+    if channel and channel not in CHANNEL_CHEERMOTES:
+        CHANNEL_CHEERMOTES[channel] = await API_CLIENT.get_cheermotes(channel=channel)
         add_cheer = True
 
     if API_CLIENT and not CHEERMOTES:
@@ -167,7 +166,7 @@ async def load_cheermotes(channel=None):
 
     data = []
 
-    for p, v in chain(CHEERMOTES.items(), CCHEERMOTES[channel].items()):
+    for p, v in chain(CHEERMOTES.items(), CHANNEL_CHEERMOTES[channel].items()):
         for i, u in v.items():
             data.append({
                 "cheer": p,

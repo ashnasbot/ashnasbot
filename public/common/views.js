@@ -26,6 +26,6 @@ Vue.component('view-select', {
     template: `<select onchange="location.href=this.value">
         <option v-for="view in views"
                 v-bind:value="'/views/' + view + '/chat.html' + search"
-                :selected="view == current">{{view}}</option>
+                :selected="view.toLowerCase() == current.toLowerCase()">{{view}}</option>
     </select>`
   })

@@ -246,6 +246,10 @@ Vue.component('chase', {
 					media = `/res/${this.view}/media/follow`;
 					break;
 
+				case "RAID":
+					media = `/res/${this.view}/media/raid`;
+					break;
+
 				case "BITS":
 					re = /^(\w*Cheer\d+\(s+|$)+/i
 					if (msg.orig_message.match(re)) {
@@ -348,6 +352,11 @@ Vue.component('banner', {
 						this.$refs.media.currentTime = 0;
 						this.$refs.media.play();
 					}
+				}
+				var sources = this.$refs.media.querySelectorAll('source');
+				if (sources.length === 0) {
+					// If no sources, set a timeout (404'd video)
+					window.setTimeout(this.setdone, 5000);
 				}
 			} else {
 				window.setTimeout(this.setdone, 5000);

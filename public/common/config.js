@@ -20,6 +20,7 @@ Vue.component('config-menu', {
     },
     data: function () {
       return {
+        status: "",
         commands: true,
         images: true,
         alert: true,
@@ -31,6 +32,9 @@ Vue.component('config-menu', {
       }
     },
     watch: {
+        status(v) {
+            console.log(v);
+        },
         commands(n) { this.handleInput(); },
         images(n) { this.handleInput(); },
         alert(n) { this.handleInput(); },
@@ -42,6 +46,8 @@ Vue.component('config-menu', {
     },
     template: `
     <div class="popout">
+    <label for="menuStatus">Status</label>
+    <input id="menuStatus" v-model="status" disabled>
     <div class="form">
     <fieldset>
     <legend>Press 'Submit' to set config </legend>

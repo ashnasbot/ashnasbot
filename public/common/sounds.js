@@ -90,7 +90,7 @@ Vue.component('sound-handler', {
 				audio = data[0];
 				speech = data[1];
 				this.audio = audio;
-				this.audio.addEventListener("canplaythrough", function() {
+				this.audio.addEventListener("canplay", function() {
 					audio.play().then(function() {
 						this.do_tts(audio, speech);
 					}.bind(this)).catch(function(error) {

@@ -22,8 +22,10 @@ var channel = "";
 var config = {
 }
 
-function getAuth() {
-    var auth = null;
+function checkToken() {
+    /* token = token
+       null = invalid
+       false = none */
     var token_channel = null;
     var oauth;
 
@@ -34,7 +36,7 @@ function getAuth() {
             .split('=')[1];
     } catch(err) {
         console.log("No auth")
-        return null;
+        return Promise.resolve(false);
     }
     try {
         token_channel = cookies
@@ -49,34 +51,43 @@ function getAuth() {
             return Promise.resolve(oauth);
         } else {
             // TODO: Reauth method (aka logout button)
-            console.warn("token not for channel")
-            return
+            console.warn("Token not for channel")
+            return Promise.resolve(null);
         }
     }
+    return Promise.resolve(oauth);
+}
 
-    return fetch('https://id.twitch.tv/oauth2/validate', {headers: {'Authorization': 'OAuth ' + oauth}})
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('oauth validation failed');
-            }
-            return response.json();
-        })
-        .then(authStatus => {
-            token_channel = authStatus["login"];
-            if (channel == token_channel) {
-                console.log(`OAuth Token valid for ${channel}`);
-                document.cookie = `user=${channel};path=/`;
-                auth = oauth;
-            } else {
-                console.warn(`OAuth Token invalid for ${channel}`);
-                auth = false;
-            }
-        })
-        .catch(error => {
-            console.warn('Failed to authorize token:', error);
-            auth = false;
-        })
-        .then((response) => auth);
+async function getAuth() {
+    const auth = await checkToken().then(oauth => {
+        if (!oauth) {
+            return
+        }
+        return fetch('https://id.twitch.tv/oauth2/validate', {headers: {'Authorization': 'OAuth ' + oauth}})
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('oauth validation failed');
+                }
+                return response.json();
+            })
+            .then(authStatus => {
+                token_channel = authStatus["login"];
+                if (channel == token_channel) {
+                    console.log(`OAuth Token valid for ${channel}`);
+                    this.status
+                    document.cookie = `user=${channel};path=/`;
+                    return oauth;
+                } else {
+                    console.warn(`OAuth Token invalid for ${channel}`);
+                    return false;
+                }
+            })
+            .catch(error => {
+                console.warn('Failed to authorize token:', error);
+                return false;
+            });
+    });
+    return auth;
 }
 
 function getFeature() {
@@ -114,6 +125,7 @@ new Vue({
         channel: getChannel(),
         theme: getTheme(),
         curChannel: "",
+        status: "Unknown",
         scene: null
     },
     methods: {
@@ -122,6 +134,9 @@ new Vue({
         },
         getToken: function() {
             // Note: this may not return!
+            if (checkToken() === null) {
+                return;
+            }
             document.location = `/user_auth?feature=${this.feature}&channel=${this.channel}&theme=${this.theme}`;
         },
         getClientConfig: function() {
@@ -172,12 +187,23 @@ new Vue({
         },
         socket_open: function () {
             console.log("Connected to backend")
+            this.status = "Connected"
+            if (this.config["pubsub"]) {
+                checkToken().then(oauth => {
+                    if (oauth) {
+                        this.status += " (Auth)";
+                    } else {
+                        this.status += " (Auth Failed)";
+                    }
+                });
+            }
             this.backoff = 1000;
             this.chatsocket.send(this.getClientConfig());
             this.chatsocket.onmessage = this.loadData;
             this.chatsocket.onclose = this.socket_close;
         },
         socket_close: function () {
+            this.status = "Reconnecting"
             setTimeout(this.connect(), 2000);
         },
         connect: function() {
@@ -216,6 +242,11 @@ new Vue({
                 localStorage.config = JSON.stringify(newConfig);
             },
             deep: true
+        },
+        status(value) {
+            if (this.$refs.menu) {
+                this.$refs.menu.status = value;
+            }
         },
         incoming(events) {
             if (events.length == 0) {
@@ -335,8 +366,11 @@ new Vue({
         }
         if (this.config["pubsub"]) {
             if (!this.auth) {
-                this.config["pubsub"] = false;
-                this.getToken();
+                checkToken().then(oauth => {
+                    if (oauth === false) {
+                        this.getToken();
+                    }
+                });
             } else {
                 this.auth.then( auth => {
 
@@ -344,13 +378,13 @@ new Vue({
                         this.token = auth;
                         this.connect();
                     } else {
-                        // TODO: Display feedback that auth failed
                         if (auth == null) {
                             console.log("No auth for channel")
+                            this.status = "Connecting"
                             this.connect();
                         } else {
                             console.log("Auth invalid, aquiring new token")
-                            this.config["pubsub"] = false;
+                            this.status = "Invalid Auth"
                             this.getToken();
                         }
                     }

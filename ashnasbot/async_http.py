@@ -290,29 +290,30 @@ class WebServer(object):
             # This is a glob, not a regex
             matching_files = [list(Path(path).glob(stub + r"[123456789]*" + ".*")) for path in paths]
 
+        candidates = []
         for mgroup in matching_files:
-            candidates = []
             for match in mgroup:
                 if match.suffix in filter:
                     m = re.search(r'\d+$', match.stem)
                     if m:
-                        candidates.append((int(m.group()), match))
+                        if not any([True for x in candidates if x[0] == m.group()]):
+                            candidates.append((int(m.group()), match))
                     elif num == 0:
                         candidates.append((0, match))
 
-            if candidates:
-                logger.debug(f"Candidates: {candidates}")
-                match = None
-                try:
-                    # Exact match
-                    match = [y[0] for y in candidates].index(num)
-                    logger.debug(f"Found exact match for glob {num}")
-                except ValueError:
-                    # Find closest
-                    match = bisect.bisect_right(candidates, (num, )) - 1
-                    logger.debug(f"Found closest match for glob {num}")
-                logger.debug(str(candidates[match]))
-                return web.FileResponse(candidates[match][1])
-        logger.debug(f"No Candidates found for {stub}{num}{filter}")
+        if not candidates:
+            logger.debug(f"No Candidates found for {stub}{num}{filter}")
+            return web.HTTPNotFound()
 
-        return web.HTTPNotFound()
+        logger.debug(f"Candidates: {candidates}")
+        match = None
+        try:
+            # Exact match
+            match = [y[0] for y in candidates].index(num)
+            logger.debug(f"Found exact match for glob {num}")
+        except ValueError:
+            # Find closest
+            match = bisect.bisect_right(candidates, (num, )) - 1
+            logger.debug(f"Found closest match for glob {num}")
+        logger.debug(str(candidates[match]))
+        return web.FileResponse(candidates[match][1])

@@ -1,9 +1,12 @@
 """Useful/required stuff to import for commands."""
-from enum import Enum, auto
+from enum import Enum, auto, Flag
+import functools
 import logging
 
+from ashnasbot.config import Config
+from ashnasbot.twitch import db, api_client
+from ashnasbot.twitch.data import create_event
 from ashnasbot.twitch.data.verbs import VERBS
-from ashnasbot.twitch import db
 
 logger = logging.Logger('framework', logging.NOTSET)
 
@@ -38,5 +41,47 @@ class PRIV(str, OrderedEnum):
     OWNER = auto()
     STAFF = auto()
 
+class VISIBILITY(Flag):
+    VISIBLE = True
+    NOT_VISIBLE = False
 
-__all__ = ["PRIV", "VERBS", "db", "logger"]
+
+API_CLIENT = api_client.TwitchClient()
+
+
+def make_message(channel, message=""):
+    msg = create_event('TWITCHCHATMESSAGE', message)
+    username = Config()["username"]
+    msg.channel = channel
+    msg.nickname = username
+    msg.tags["display-name"] = username
+    msg.tags["response"] = True
+    return msg
+
+
+async def send_message(event, message):
+    msg = make_message(event["channel"], message)
+    await event["reply"](msg)
+
+
+def cmd(slug, priv=PRIV.COMMON, visibility=VISIBILITY.VISIBLE):
+    def inner_wrapper(func):
+        commands = func.__globals__['COMMANDS']
+        if f"!{slug}" in commands:
+            raise ValueError(f"Command {slug} already exists")
+
+        @functools.wraps(func)
+        def cmd_wrapper(event, *args, **kwargs):
+            if "priv" not in event:
+                event["priv"] = PRIV.COMMON
+            if event["priv"] < priv:
+                return
+
+            return func(event, *args, **kwargs)
+
+        commands[f"!{slug}"] = (visibility, cmd_wrapper)
+        return cmd_wrapper
+    return inner_wrapper
+
+
+__all__ = ["PRIV", "VERBS", "db", "logger", "API_CLIENT", "send_message", "cmd", "VISIBILITY"]

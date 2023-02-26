@@ -21,6 +21,7 @@ chatlogs
 trained_model
 aitextgen.tokenizer.json
 chatbot
+aitextgen/*
 
 commands/*
 !commands/__init__.py

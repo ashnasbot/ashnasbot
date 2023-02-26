@@ -13,6 +13,7 @@ a {
 #app {
   height: 100vh;
   width: 100vw;
+  image-rendering: pixelated;
 }
 
 #chat {
@@ -102,4 +103,80 @@ img.emote {
 
 canvas {
   pointer-events: none;
+}
+
+
+/* Menu */
+.menu {
+  height: max-content;
+  transition: opacity .3s ease;
+  transition-delay: 0.1s;
+  opacity: 0;
+
+  position: absolute;
+  width: 99vw;
+  top: 0;
+  left: 0;
+  z-index: 10;
+  padding: 0.25ex 0.5ex;
+}
+
+.menu .popout {
+  position: absolute;
+  right: 1ex;
+  top: 1ex;
+}
+
+div.menu:focus-within, div.menu:hover {
+  opacity: 1 !important;
+}
+
+.popout::before {
+  content: "☰";
+  position: fixed;
+  width: fit-content;
+  right: 0;
+  margin: 0;
+  display: block;
+  padding: 0 1em;
+}
+
+.menu input[type=checkbox] {
+  transform: scale(1.5);
+}
+
+.form label {
+  display: block;
+  text-align: right;
+}
+
+.menu fieldset {
+  width: fit-content;
+  display: grid;
+  grid-template-columns: 0.1fr 10fr;
+  gap: 0 1ex;
+}
+
+/* Animation magic */
+
+.slide-fade-move,
+.slide-fade-enter-active,
+.slide-fade-leave-active {
+  transition: all 0.25s ease;
+}
+
+.slide-fade-enter-from,
+.slide-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-100%);
+}
+.slide-fade-leave-to {
+  transform-origin: top;
+}
+.slide-fade-enter-from {
+  transform-origin: bottom;
+}
+
+.slide-fade-leave-active {
+  position: absolute;
 }

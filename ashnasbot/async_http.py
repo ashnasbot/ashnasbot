@@ -8,6 +8,7 @@ import mimetypes
 import os
 from pathlib import Path
 import re
+import oauthlib
 from requests_oauthlib import OAuth2Session
 
 import base64
@@ -83,6 +84,10 @@ class WebServer(object):
     async def get_favicon(request):
         return web.FileResponse('public/favicon.ico')
 
+    @staticmethod
+    async def get_alerthandler(request):
+        return web.FileResponse('public/base/alertoverlay.html')
+
     def setup_routes(self):
         # API
         self.app.router.add_get('/api/config', self.get_config)
@@ -93,6 +98,8 @@ class WebServer(object):
         self.app.router.add_post('/api/config', self.post_config)
         self.app.router.add_post('/api/shutdown', self.post_shutdown)
         self.app.router.add_post('/replay_event', self.post_replay)
+
+        self.app.router.add_get('/views/{view}/alertoverlay.html', self.get_alerthandler)
 
         # Static
         try:
@@ -258,7 +265,12 @@ class WebServer(object):
                                        'redirect_uri': redirect_uri})
         twitch = OAuth2Session(client_id=self.client_id, state=state)
         code = request.query['code']
-        token = twitch.fetch_token(token_url, code=code, body=body)
+        token = {}
+        try:
+            token = twitch.fetch_token(token_url, code=code, body=body)
+        except oauthlib.oauth2.rfc6749.errors.MissingTokenError:
+            logger.error("Failed to auth token")
+            return aiohttp.web.HTTPFound('/static/base/chat.html')
         twitch.close()
 
         # At this point you can fetch protected resources, lets save the token

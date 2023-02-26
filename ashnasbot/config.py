@@ -25,7 +25,7 @@ class ConfigError(Exception):
 class Config():
 
     # Singleton stuff
-    instance = None
+    instance: "Config.__Config" = None
 
     def __new__(self):
         if not Config.instance:
@@ -34,6 +34,10 @@ class Config():
 
     def __getattr__(self, name) -> Any:
         return getattr(self.instance, name)
+
+    def __getitem__(self, name) -> Any:
+        assert self.instance is not None
+        return self.instance[name]
 
     # Actual class def
     class __Config():

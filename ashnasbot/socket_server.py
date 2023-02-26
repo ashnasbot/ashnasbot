@@ -28,17 +28,20 @@ from .users import Users
 logger = logging.getLogger(__name__)
 
 logging.getLogger("websockets").setLevel(logging.INFO)
-ctx_client_id = contextvars.ContextVar('client_id')
+ctx_client_id: contextvars.ContextVar = contextvars.ContextVar('client_id')
 
 
 # Metrics
 METRIC_CLIENTS = Gauge("clients", "Current client sessions")
-METRIC_MESSAGES = Counter("messages", "Number of messages received", ["channel"])
+METRIC_MESSAGES = Counter("msg_received", "Number of messages received", ["channel"])
+METRIC_MESSAGES_SENT = Counter("msg_sent", "Number of messages sent", ["channel"])
 METRIC_COMMANDS = Counter("commands", "Number of commands processed", ["channel"])
 METRIC_SUBS = Counter("subscriptions", "Number of subscriptions received", ["channel"])
 METRIC_FOLLOWS = Counter("followers", "Number of new followers received", ["channel"])
 METRIC_REDEMPTION = Counter("redemptions", "Number of redemption messages received", ["channel"])
 METRIC_EMOTES = Counter("emotes", "Number of emotes used in messages", ["channel"])
+
+connect_lock = asyncio.Lock()
 
 
 def update_event_metrics(event):
@@ -78,8 +81,8 @@ def allowed_content(event, commands=False, **kwargs):
         if event.type == 'TWITCHCHATMESSAGE':
             return False
     if "alert" not in kwargs:
-        # RAID, HOST, SUBGIFT, SUB
-        if event.type in ['TWITCHATUSERNOTICE', 'SUB', "RAID", "HOSTED"]:
+        # RAID, SUBGIFT, SUB
+        if event.type in ['TWITCHATUSERNOTICE', 'SUB', "RAID"]:
             return False
     return True
 
@@ -90,7 +93,7 @@ def pubsub_filter(event):
 
         if "pubsub" in ext:
             if hasattr(event, "type"):
-                if event.type in ["SUB", "RAID", "HOSTED"]:
+                if event.type in ["SUB", "RAID"]:
                     return True
     return False
 
@@ -126,7 +129,7 @@ class SocketServer():
                 if self.users and 'user-id' in content['tags']:
                     content['logo'] = await self.users.get_picture(content['tags']['user-id'])
             if 'response' in content['tags']:
-                self.chatbot.send_message(content['message'], channel)
+                self.chatbot.send_message(content['message'], channel, content['tags'])
                 content["message"] = await render_own_emotes(content["message"], self.chatbot.emotesets)
                 content["badges"] = await render_badges(channel, self.chatbot.badges)
 
@@ -165,7 +168,15 @@ class SocketServer():
                 if event is None:
                     return
                 processing = True
-                content = await handle_message(event)
+
+                auth = None
+                if event.channel:
+                    auth = [c["auth"] for c in self.channels[event.channel] if "auth" in c]
+                    if auth:
+                        auth = auth[0]
+
+                event.reply = self.add_chat
+                content = await handle_message(event, auth)
                 channel = event.channel
 
                 if not content:
@@ -186,6 +197,8 @@ class SocketServer():
                     # This message didn't come from us - maybe respond to it
                     METRIC_MESSAGES.labels(channel).inc()
                     await self.handle_chatbot(event)
+                elif content['message'].startswith("!"):
+                    await self.add_chat(event_from_output(content))
 
                 if any([allowed_content(event, **s) for s in self.channels[channel]]):
                     if event.type != 'TWITCHCHATMESSAGE':
@@ -201,7 +214,7 @@ class SocketServer():
                             await s["socket"].send(json.dumps(content))
 
             except websockets.exceptions.ConnectionClosed as e:
-                logger.info(f"ws Connection closed {e.code}")
+                logger.info(f"ws client connection closed {e.code}")
                 self.filter_closed_connections(channel)
                 for s in self.channels[channel]:
                     logging.debug(f"    {s.status}")
@@ -253,45 +266,49 @@ class SocketServer():
 
     async def disconnect_listener(self, ws, channel_client):
         await ws.wait_closed()
-        channel = channel_client["channel"]
-        logger.info("ws client disconnected")
-        if "alert" in channel_client:
-            if hasattr(channel_client["alert"], "cancel"):
-                task = channel_client["alert"]
-                task.count -= 1
-                if task.count < 1:
-                    task.cancel()
-                    if channel in self.alert_clients:  # BUG: this should always be true
+        async with connect_lock:
+            channel = channel_client["channel"]
+            logger.info("ws client disconnected")
+            # Sleep in case we're just refreshing
+            await asyncio.sleep(2)
+
+            if "alert" in channel_client:
+                if hasattr(channel_client["alert"], "cancel"):
+                    task = channel_client["alert"]
+                    task.count -= 1
+                    if task.count < 1:
+                        logger.debug("Leaving alerts")
+                        task.cancel()
+                        await asyncio.wait([task])
                         del self.alert_clients[channel]
-                channel_client["alert"].cancel()
-        if "pubsub" in channel_client:
-            c = channel_client["channel"]
-            if c in self.pubsub_clients:
-                last = await self.pubsub_clients[c].disconnect()
-                if last:
-                    del self.pubsub_clients[c]
 
-        # Sleep in case we're just refreshing
-        await asyncio.sleep(2)
+            if "pubsub" in channel_client:
+                c = channel_client["channel"]
+                if c in self.pubsub_clients:
+                    last = await self.pubsub_clients[c].disconnect()
+                    if last and c in self.pubsub_clients:
+                        del self.pubsub_clients[c]
 
-        self.channels[channel] = [s for s in self.channels[channel] if s["socket"].open]
-        if not self.channels[channel]:
-            # We're the last client, disconnect chat and clear caches
-            self.chatbot.unsubscribe(channel)
-            if channel in self.http_clients:
-                del self.http_clients[channel]
-            # TODO: cleanup API_CLIENT session
-        logger.debug("ws client disconnect cleanup complete")
-        self.debug_remaining_tasks()
+            self.channels[channel] = [s for s in self.channels[channel] if s["socket"].open]
+            if not self.channels[channel]:
+                # We're the last client, disconnect chat and clear caches
+                self.chatbot.unsubscribe(channel)
+                if channel in self.http_clients:
+                    del self.http_clients[channel]
+                # TODO: cleanup API_CLIENT session
+            logger.debug("ws client disconnect cleanup complete")
+            self.debug_remaining_tasks()
 
     async def followers(self, channel):
         try:
+            logger.debug(f"{channel}_followers starting")
             await asyncio.sleep(10)
             while not self.shutdown_event.is_set():
                 if channel not in self.http_clients:
                     try:
                         self.http_clients[channel] = TwitchClient(self.config["client_id"], channel)
                     except Exception:
+                        logger.debug(f"{channel}_followers exiting with error")
                         return
                 recent_followers = await self.http_clients[channel].get_new_followers()
                 if not recent_followers:
@@ -305,6 +322,7 @@ class SocketServer():
                 # Don't spam api
                 await asyncio.sleep(80 + randrange(20))
         except CancelledError:
+            logger.debug(f"{channel}_followers exiting")
             pass
 
     async def add_alert(self, evt):
@@ -312,6 +330,7 @@ class SocketServer():
         await self._event_queue.put(evt)
 
     async def add_chat(self, evt):
+        METRIC_MESSAGES_SENT.labels(evt.channel).inc()
         # this is threadsafe as we own the queue
         await self.chatbot.chat().put(evt)
 
@@ -373,71 +392,77 @@ class SocketServer():
         channel_client.update(commands)
 
         channel = commands["channel"]
-        if channel not in self.http_clients:
-            self.http_clients[channel] = TwitchClient(self.config["client_id"], channel)
+        async with connect_lock:
+            if channel not in self.http_clients:
+                self.http_clients[channel] = TwitchClient(self.config["client_id"], channel)
 
-        try:
-            channel_id = await self.http_clients[channel].get_channel_id(channel)
-        except Exception as e:
-            logger.error("Failed to retrieve channel_id: %s", e)
-            channel_id = ""
-
-        channel_client["channel_id"] = channel_id
-
-        if "chat" in commands:
-            if db.exists("banned") and db.find("banned", name=channel):
-                logger.error(f"We are banned from {channel}")
-                resp = {"type": "BANNED", "channel": channel}
-                await ws_in.send(json.dumps(resp))
-                return
-            self.chatbot.subscribe(channel)
-        if "auth" in commands and channel_id:
             try:
-                if channel in self.pubsub_clients:
-                    pubsub = self.pubsub_clients[channel]
-                    channel_client["pubsub"] = pubsub
-                    await pubsub.connect()
-                else:
-                    token = commands["auth"]
-                    pubsub = PubSubClient(channel, channel_id, token, self.add_alert)
-                    self.pubsub_clients[channel] = pubsub
-                    channel_client["pubsub"] = pubsub
-                    ps_conn = await pubsub.connect()
-                    tasks.append(self.make_task(pubsub.heartbeat(ps_conn), name=f"{channel}_ps_hb"))
-                    tasks.append(self.make_task(pubsub.receive_message(ps_conn),
-                                                name=f"{channel}_ps_receive"))
+                channel_id = await self.http_clients[channel].get_channel_id(channel)
+            except Exception as e:
+                logger.error("Failed to retrieve channel_id: %s", e)
+                channel_id = ""
 
-            except ValueError:
-                pass
+            channel_client["channel_id"] = channel_id
 
-        if "alert" in commands:
-            if channel in self.alert_clients:
-                self.alert_clients[channel].count += 1
-            else:
-                alert_task = self.make_task(self.followers(channel), name=f"{channel}_followers")
-                alert_task.count = 1
-                channel_client["alert"] = alert_task
-                self.alert_clients[channel] = alert_task
-                tasks.append(alert_task)
+            if "chat" in commands:
+                if db.exists("banned") and db.find("banned", name=channel):
+                    logger.error(f"We are banned from {channel}")
+                    resp = {"type": "BANNED", "channel": channel}
+                    await ws_in.send(json.dumps(resp))
+                    return
                 self.chatbot.subscribe(channel)
 
-        channel_client["channel"] = channel
-        if channel in self.channels:
-            self.channels[channel].append(channel_client)
-        else:
-            self.channels[channel] = [channel_client]
+            if channel in self.pubsub_clients:
+                pubsub = self.pubsub_clients[channel]
+                channel_client["pubsub"] = pubsub
+                await pubsub.connect()
+            else:
+                if "auth" in commands and channel_id:
+                    try:
+                        token = commands["auth"]
+                        pubsub = PubSubClient(channel, channel_id, token, self.add_alert)
+                        self.pubsub_clients[channel] = pubsub
+                        channel_client["pubsub"] = pubsub
+                        ps_conn = await pubsub.connect()
+                        tasks.append(self.make_task(pubsub.heartbeat(ps_conn), name=f"{channel}_ps_hb"))
+                        tasks.append(self.make_task(pubsub.receive_message(ps_conn),
+                                                    name=f"{channel}_ps_receive"))
+
+                    except ValueError:
+                        pass
+
+            if "alert" in commands:
+                if channel in self.alert_clients:
+                    self.alert_clients[channel].count += 1
+                else:
+                    alert_task = self.make_task(self.followers(channel), name=f"{channel}_followers")
+                    alert_task.count = 1
+                    channel_client["alert"] = alert_task
+                    self.alert_clients[channel] = alert_task
+                    tasks.append(alert_task)
+                    self.chatbot.subscribe(channel)
+
+            channel_client["channel"] = channel
+            if channel in self.channels:
+                self.channels[channel].append(channel_client)
+            else:
+                self.channels[channel] = [channel_client]
 
         tasks.append(self.make_task(
             self.disconnect_listener(ws_in, channel_client), name=f"{channel}_dc_hdlr"))
 
-        logger.info(f"Socket client join: {commands['channel']} \"{commands['for']}\"")
-        logger.debug(f"Socket client options: {command}")
+        log_id = channel_client['clientId'][-5:]
+
+        logger.info(f"{log_id} Socket client join: {commands['channel']}"
+                    f" \"{commands['for']}\"")
+        logger.debug(f"{log_id} Socket client options: {command}")
         await asyncio.gather(*tasks)
-        logger.info(f"Socket client leave: {commands['channel']} \"{commands['for']}\"")
-        logger.debug(f"Socket client options: {command}")
+        logger.info(f"{log_id} Socket client leave: {commands['channel']}"
+                    f" \"{commands['for']}\"")
+        logger.debug(f"{log_id} Socket client options: {command}")
         await ws_in.close()
         await asyncio.sleep(2.0)
-        logger.debug("Socket Cleanup complete")
+        logger.debug(f"{log_id} Socket Cleanup complete")
 
     def stop(self, *args):
         self.shutdown_event.set()

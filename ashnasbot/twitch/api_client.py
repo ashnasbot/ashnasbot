@@ -42,7 +42,10 @@ class TwitchClient():
             else:
                 cfg = config.Config()
                 logger.info("Retrieving API auth token")
-                body = urllib.parse.urlencode({'client_id': self.client_id, 'client_secret': cfg["secret"]})
+                body = urllib.parse.urlencode({
+                    'client_id': self.client_id,
+                    'client_secret': cfg["secret"]
+                })
                 client = BackendApplicationClient(client_id=cfg["client_id"])
                 oauth = OAuth2Session(client=client)
                 try:
@@ -60,7 +63,7 @@ class TwitchClient():
             logger.debug("Cleaning up client session for client %s", c)
             await s.close()
 
-    async def _make_api_request(self, url, params=None):
+    async def _make_api_request(self, url, params=None, postdata=None):
         headers = {
             "Client-ID": f"{self.client_id}",
             "Accept": "application/vnd.twitchtv.v5+json",
@@ -82,9 +85,14 @@ class TwitchClient():
             url = API_BASE + url
 
         try:
-            async with session.get(url, params=params, headers=headers) as resp:
-                # TODO: check status (too many requests? etc)
-                return await resp.json()
+            if postdata:
+                async with session.post(url, params=params, headers=headers, json=postdata) as resp:
+                    # TODO: check status (too many requests? etc)
+                    return await resp.json()
+            else:
+                async with session.get(url, params=params, headers=headers) as resp:
+                    # TODO: check status (too many requests? etc)
+                    return await resp.json()
         except aiohttp.ClientOSError:
             return
 
@@ -245,39 +253,6 @@ class TwitchClient():
         logger.debug("Getting clip details for slug: %s", clip)
         return await self._make_api_request(url, params=params)
 
-    async def get_channel_emotes(self, channel):
-        # NOTE: Unused, may be broken
-        if channel in self.channel_emotes_cache:
-            return self.channel_emotes_cache[channel]
-
-        url = "/helix/chat/emotes"
-        logger.debug("Getting channel emotes for %s", channel)
-        params = {
-            "broadcaster_id": await self.get_channel_id(channel)
-        }
-
-        emotes = {}
-        resp = await self._make_api_request(url, params)
-
-        try:
-            for emote in resp["data"]:
-                name = emote["prefix"]
-                res = {
-                    "id": emote["id"],
-                    "format": emote["format"][-1],
-                    "theme_mode": "dark",
-                    "scale": "2.0"
-                }
-
-                emotes[name] = EMOTE_URL_TEMPLATE.format(**res)
-        except Exception:
-            logger.warning("Failed to get emotes")
-
-        if emotes:
-            self.channel_emotes_cache[channel] = emotes
-
-        return emotes
-
     async def get_emotes_for_sets(self, sets):
         url = '/helix/chat/emotes/set'
 
@@ -305,3 +280,67 @@ class TwitchClient():
             logger.warning("Failed to get own emotes")
 
         return emotes
+
+    async def create_prediction(self):
+        CHOCOBOS = {
+            1: "Green",
+            2: "Blue",
+            3: "Pink",
+            4: "Red",
+            5: "Purple",
+            6: "White"
+        }
+        url = '/helix/predictions'
+        if self.channel_id is None:
+            broadcaster_id = await self.get_channel_id('ashnas')
+
+        data = {
+            "broadcaster_id": broadcaster_id,
+            "title": "Which Chocobo will win the Race?",
+            "outcomes": [
+                {"title": chocobo} for chocobo in CHOCOBOS.values()
+                ],
+            "prediction_window": 80}
+
+        logger.info(data)
+
+        resp = await self._make_api_request(url, postdata=data)
+        if not resp:
+            return
+
+        respdata = resp["data"][0]
+        ret = {}
+        ret["broadcaster_id"] = respdata["broadcaster_id"]
+        ret["prediction_id"] = respdata["id"]
+
+        for outcome in respdata["outcomes"]:
+            ret[list(CHOCOBOS.keys())[list(CHOCOBOS.values()).index(outcome["title"])]] = outcome["id"]
+
+        return ret
+
+    async def resolve_prediction(self, pid, data, result):
+        url = "https://api.twitch.tv/helix/predictions"
+        headers = {
+            "Client-ID": f"{self.client_id}",
+            "Accept": "application/vnd.twitchtv.v5+json",
+        }
+
+        if not self.oauth:
+            self.get_token()
+        headers["Authorization"] = f"Bearer {self.oauth}"
+
+        session = self.__sessions.get(self.client_id, None)
+
+        params = {
+            "broadcaster_id": data["broadcaster_id"],
+            "id": pid,
+            "status": "RESOLVED",
+            "winning_outcome_id": data[result]
+        }
+
+        try:
+            async with session.patch(url, params=params, headers=headers) as resp:
+                # TODO: check status (too many requests? etc)
+                return await resp.json()
+        except aiohttp.ClientOSError:
+            return

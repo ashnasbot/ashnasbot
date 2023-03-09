@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 import logging
+from logging.handlers import RotatingFileHandler
 import os.path
 import shutil
 import signal
 import sys
+
+DEBUG_LOGFILE = "debug.log"
 
 
 def patch_crypto():
@@ -47,7 +50,9 @@ if __name__ == '__main__':
     console.setFormatter(formatter)
     root_logger.addHandler(console)
 
-    logfile = logging.FileHandler('debug.log', 'w', 'utf-8')
+    # logfile = logging.FileHandler(DEBUG_LOGFILE, 'w', 'utf-8')
+    logfile = RotatingFileHandler(DEBUG_LOGFILE, 'a', encoding='utf-8', backupCount=5)
+    logfile.doRollover()
     logfile.setLevel(logging.DEBUG)
     formatter = logging.Formatter('%(asctime)s %(name)-32s %(levelname)-7s %(message)s', "%H:%M:%S")
     logfile.setFormatter(formatter)

@@ -2,7 +2,7 @@ aiohttp==3.8.1
 cryptography
 bleach==4.1.0
 dataset==1.5.2
-requests==2.26.0
+requests==2.31.0
 git+git://github.com/ashnasbot/twitch-observer@master#egg
 websockets==10.1
 websocket-client

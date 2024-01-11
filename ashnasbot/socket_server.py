@@ -13,8 +13,10 @@ import websockets
 from prometheus_client import Gauge, Counter
 from prometheus_async.aio import track_inprogress
 
+from ashnasbot.twitch.eventsub import EventSubClient
 
-from .async_http import WebServer
+
+from .http_server import HTTPServer
 from .chat_bot import ChatBot
 from .config import Config
 from .twitch import OWN_EMOTES, db, handle_message, get_bits, render_own_emotes, render_badges, cleanup
@@ -114,6 +116,7 @@ class SocketServer():
         self._event_queue = None
         self.recent_events = deque([], 20)
         self.replay_queue = Queue()
+        self.event_sub = None
 
     async def broadcast(self, msg):
         for c in self.channels:
@@ -242,6 +245,7 @@ class SocketServer():
                 if event.type in ['TWITCHCHATMESSAGE', 'BITS']:
                     channel = event.channel
                     output = await handle_message(event)
+                    await self.handle_content(channel, output)
                     for s in self.channels[channel]:
                         await s["socket"].send(json.dumps(output))
                 else:
@@ -292,10 +296,12 @@ class SocketServer():
             self.channels[channel] = [s for s in self.channels[channel] if s["socket"].open]
             if not self.channels[channel]:
                 # We're the last client, disconnect chat and clear caches
+                logger.debug("last client: closing sessions")
                 self.chatbot.unsubscribe(channel)
                 if channel in self.http_clients:
+                    logger.debug("last client: closing http client")
+                    await self.http_clients[channel].close()
                     del self.http_clients[channel]
-                # TODO: cleanup API_CLIENT session
             logger.debug("ws client disconnect cleanup complete")
             self.debug_remaining_tasks()
 
@@ -419,6 +425,7 @@ class SocketServer():
             else:
                 if "auth" in commands and channel_id:
                     try:
+                        # old pubsub
                         token = commands["auth"]
                         pubsub = PubSubClient(channel, channel_id, token, self.add_alert)
                         self.pubsub_clients[channel] = pubsub
@@ -427,6 +434,14 @@ class SocketServer():
                         tasks.append(self.make_task(pubsub.heartbeat(ps_conn), name=f"{channel}_ps_hb"))
                         tasks.append(self.make_task(pubsub.receive_message(ps_conn),
                                                     name=f"{channel}_ps_receive"))
+                        # new EventSub
+                        if not self.event_sub:
+                            eventsub = EventSubClient(token, self.add_alert)
+                            self.event_sub = eventsub
+                            es_conn = await eventsub.connect()
+                            await eventsub.subscribe(channel_id)  # TODO: manage subscriptions
+                            tasks.append(self.make_task(eventsub.receive_message(es_conn),
+                                                        name=f"{channel}_es_receive"))
 
                     except ValueError:
                         pass
@@ -434,13 +449,6 @@ class SocketServer():
             if "alert" in commands:
                 if channel in self.alert_clients:
                     self.alert_clients[channel].count += 1
-                else:
-                    alert_task = self.make_task(self.followers(channel), name=f"{channel}_followers")
-                    alert_task.count = 1
-                    channel_client["alert"] = alert_task
-                    self.alert_clients[channel] = alert_task
-                    tasks.append(alert_task)
-                    self.chatbot.subscribe(channel)
 
             channel_client["channel"] = channel
             if channel in self.channels:
@@ -539,15 +547,17 @@ class SocketServer():
 
         self.reload_event = asyncio.Event()
         self.shutdown_event = asyncio.Event()
-        self.make_task(self.chat(), name="chat")
-        self.make_task(self.alerts(), name="alert")
-        self.make_task(self.config_listener(), name="config")
-        self.make_task(self.shutdown_listener(), name="shutdown")
-        self.make_task(self.replay(), name="event_replay")
+        tasks = [
+            self.make_task(self.chat(), name="chat"),
+            self.make_task(self.alerts(), name="alert"),
+            self.make_task(self.config_listener(), name="config"),
+            self.make_task(self.shutdown_listener(), name="shutdown"),
+            self.make_task(self.replay(), name="event_replay")
+        ]
 
-        self.webserver = WebServer(reload_evt=self.reload_event, loop=self.loop,
-                                   shutdown_evt=self.shutdown_event, client_id=client_id, secret=secret,
-                                   events=self.recent_events, replay=self.replay_queue)
+        self.webserver = HTTPServer(reload_evt=self.reload_event, loop=self.loop,
+                                    shutdown_evt=self.shutdown_event, client_id=client_id, secret=secret,
+                                    events=self.recent_events, replay=self.replay_queue)
         self.loop.run_until_complete(self.webserver.start())
 
         logger.info("----- AshnasBot ready! -----")
@@ -557,6 +567,11 @@ class SocketServer():
         logger.info("----- AshnasBot shutting down! -----")
 
         self.websocket_server.close()
+
+        logger.debug("Cancelling global tasks")
+        for t in tasks:
+            t.cancel()
+        logger.debug("Global tasks cancelled")
 
         tasks = []
         tasks.append(self.make_task(self.webserver.stop(), "shutdown_web"))

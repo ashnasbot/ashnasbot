@@ -1,15 +1,14 @@
 /* TODO: combine .done with sounds component so both finish at same time */
-Vue.component('chase', {
+var chase = {
 	template: `<div>
 	<canvas ref="screen" width=640 height=480></canvas>
 	<banner v-if="alert !== null" v-bind="alert" @finished="makeready"></banner>
 	</div>`,
 	props: {
-		rate: {  // Number of chocos on screen at once
+		rate: {  // maximum number of sprites on screen at once
 			type: Number,
-			default: 32,
+			default: 50,
 		},
-		alert: Object
 	},
 	data: function() {
         var urlChunks = location.pathname.split('/');
@@ -32,14 +31,17 @@ Vue.component('chase', {
 		this.mainLoop()
     },
 	watch: {
-		queue: function(content) {
-            if (content.length == 0) {
-                return;
-            }
-			if (this.ready) {
-				this.ready = false;
-				this.alert = this.queue.shift();
-			}
+		queue: {
+			handler: function(content) {
+				if (content.length == 0) {
+					return;
+				}
+				if (this.ready) {
+					this.ready = false;
+					this.alert = this.queue.shift();
+				}
+			},
+			deep: true
 		},
 		ready: function(val) {
 			if (val) {
@@ -55,16 +57,18 @@ Vue.component('chase', {
     methods: {
 		makeready() {
 			this.ready = true;
+			this.alert = null;
 		},
 		mainLoop: function() {
+			var toRender = []
 		
 			window.requestAnimationFrame(this.mainLoop);
 
 			if (this.sprites.length > 0) {
 				const context = this.canvas.getContext('2d');
 				context.clearRect(0, 0, this.canvas.width, this.canvas.height);
-				if (!toRender) {
-					var toRender = this.sprites.slice(0, this.rate);
+				if (toRender.length === 0) {
+					toRender = this.sprites.slice(0, this.rate);
 				}
 
 				toRender.forEach(img => {
@@ -121,7 +125,7 @@ Vue.component('chase', {
 			// Draw the animation
 			that.context.drawImage(
 				that.image,
-				that.frameIndex * that.width / that.number_of_frames,
+				that.width - ((that.frameIndex + 1) * (that.width / that.number_of_frames)),
 				0,
 				that.width / that.number_of_frames,
 				that.height,
@@ -138,7 +142,7 @@ Vue.component('chase', {
 			let spriteImage = new Image()
 			spriteImage.src = `/res/${this.view}/image/${image_name}`;
 			spriteImage.addEventListener("load", (e) => {
-				updatefunc = function (ctx) {
+				var updatefunc = function (ctx) {
 					ctx.tickCount += 1;
 					ctx.x -= ctx.speed;
 					if (ctx.x < -(ctx.width / ctx.number_of_frames)) {
@@ -179,12 +183,11 @@ Vue.component('chase', {
 			// Load sprite sheet
 			let spriteImage = new Image()
 			spriteImage.src = `/res/${this.view}/image/red_jewel`;
-			h = this.canvas.height;
-			w = this.canvas.width;
-			radius = parseInt(w/3);
-			rads_per_second = 0.5
+			let h = this.canvas.height;
+			let w = this.canvas.width;
+			let radius = parseInt(w/3);
 			spriteImage.addEventListener("load", (e) => {
-				updatefunc = function (ctx) {
+				var updatefunc = function (ctx) {
 					if (typeof ctx.counter == "undefined") {
 						ctx.counter = 0;
 						ctx.x2 = ctx.x;
@@ -251,15 +254,7 @@ Vue.component('chase', {
 					break;
 
 				case "BITS":
-					re = /^(\w*Cheer\d+\(s+|$)+/i
-					if (msg.orig_message.match(re)) {
-						// Skip messages that are just bits
-					    speech = "";
-					} else {
-						// a little over zealous
-						speech = msg.orig_message.replace(/\w+\d+/, "");
-					}
-					ammount = msg.tags["bits"]
+					let ammount = msg.tags["bits"]
 					media = `/res/${this.view}/media/bits?value=${ammount}`;
 					break
 			}
@@ -301,9 +296,9 @@ Vue.component('chase', {
 			}
 		}
     }
-});
+};
 
-Vue.component('banner', {
+var banner = {
 	template: `
 	<transition mode="out-in">
 	<div v-show="!done" id="alertbox">
@@ -312,68 +307,71 @@ Vue.component('banner', {
 		    <source :src="media" v-if="type=='video'">
 		</video>
 	</div>
-	<div v-if="type=='gif'">
-	    <img :src="media" class="content"/> 
-	</div>
+	<img v-if="type=='gif'" :src="media" class="content"/> 
 
 	<p v-html="message" class="message"></p>
 	</div>
 	</transition>
 	`,
 	props: {
-		type: String,
 		media: String,
 		user: String,
 		message: String,
 		id: String
 	},
 	data() {
-		return { "done": true }
+		return {
+			"done": true,
+			"type": null,
+			"flag": false
+		}
 	},
-	watch: {
-		id: async function(newVal, oldVal) {
-			let response = await fetch(this.media)
-			var ct = response.headers.get("content-type", {method: "HEAD"});
-			if (ct.startsWith("image")){
-				this.type = "gif";
-			} else {
-				this.type = "video";
+	mounted: async function() {
+		let response = await fetch(this.media)
+		var ct = response.headers.get("content-type", {method: "HEAD"});
+		if (ct.startsWith("image")){
+			this.type = "gif";
+		} else {
+			this.type = "video";
+		}
+		console.log(`new ${this.type}!`)
+		this.done = false;
+		if (this.type == "video") {
+			if (this.$refs.media) {
+				if (!this.flag) {
+					// fist time, set listener
+					this.$refs.media.addEventListener('ended', this.setdone, false);
+					this.flag = true;
+				} else {
+					// otherwise reset playback time
+					this.$refs.media.currentTime = 0;
+					this.$refs.media.play();
+				}
 			}
-			console.log(`new ${this.type}!`)
-			this.done = false;
-			if (this.type == "video") {
-				if (this.$refs.media) {
-					if (!self.flag) {
-						// fist time, set listener
-						this.$refs.media.addEventListener('ended', this.setdone, false);
-						self.flag = true;
-					} else {
-						// otherwise reset playback time
-						this.$refs.media.currentTime = 0;
-						this.$refs.media.play();
-					}
-				}
-				var sources = this.$refs.media.querySelectorAll('source');
-				if (sources.length === 0) {
-					// If no sources, set a timeout (404'd video)
-					window.setTimeout(this.setdone, 5000);
-				}
-			} else {
+			var sources = this.$refs.media.querySelectorAll('source');
+			if (sources.length === 0) {
+				// If no sources, set a timeout (404'd video)
 				window.setTimeout(this.setdone, 5000);
 			}
-		},
+		} else {
+			window.setTimeout(this.setdone, 5000);
+		}
 	},
 	methods: {
 		setdone: function(event) {
-			console.log("done!")
 			this.done = true;
 			this.$emit('finished')
 		}
 	},
-});
+};
 
 function uuidv4() {
   return ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c =>
     (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
   );
+}
+
+export default {
+	chase: chase,
+	banner: banner
 }

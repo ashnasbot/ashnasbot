@@ -22,7 +22,7 @@ from prometheus_async import aio
 from ashnasbot.twitch import pokedex
 
 logger = logging.getLogger(__name__)
-logging.getLogger("aiohttp.access").setLevel(logging.ERROR)
+logging.getLogger("aiohttp.access").setLevel(logging.DEBUG)
 
 db = dataset.connect('sqlite:///ashnasbot.db')
 mimetypes.add_type('image/webp', '.webp')  # add webp support as an image type for serving
@@ -38,7 +38,7 @@ os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
 LOG_FORMAT = "%s %r %a"
 
 
-class WebServer(object):
+class HTTPServer(object):
     def __init__(self, reload_evt=None, address='0.0.0.0', port=8080, loop=None, shutdown_evt=None,
                  client_id=None, secret=None, events=None, replay=None):
         self.address = address
@@ -95,11 +95,12 @@ class WebServer(object):
         self.app.router.add_get('/res/{view}/sound/{event}', self.get_sound)
         self.app.router.add_get('/res/{view}/image/{name}', self.get_image)
         self.app.router.add_get('/res/{view}/media/{name}', self.get_media)
+        self.app.router.add_get('/views/{view}/{base}', self.get_base)
         self.app.router.add_post('/api/config', self.post_config)
         self.app.router.add_post('/api/shutdown', self.post_shutdown)
         self.app.router.add_post('/replay_event', self.post_replay)
 
-        self.app.router.add_get('/views/{view}/alertoverlay.html', self.get_alerthandler)
+        # self.app.router.add_get('/views/{view}/alertoverlay.html', self.get_alerthandler)
 
         # Static
         try:
@@ -170,6 +171,19 @@ class WebServer(object):
         return self.glob_var([views_path, "public/audio"], event,
                              self.AUDIO_FILETYPES, ammt)
 
+    async def get_base(self, request):
+        view = request.match_info['view']
+        base = request.match_info['base']
+        base_path = Path('public', "base", base)
+        views_path = Path('views', view, base)
+
+        if views_path.exists():
+            return web.FileResponse(views_path)
+        if base_path.exists():
+            return web.FileResponse(base_path)
+
+        return web.HTTPNotFound()
+
     IMAGE_FILETYPES = [".png"]
 
     async def get_image(self, request):
@@ -210,7 +224,12 @@ class WebServer(object):
         return web.Response()
 
     async def post_replay(self, request):
-        event = await request.json()
+        event = {}
+        if request.content_type == 'application/x-www-form-urlencoded':
+            data = await request.post()
+            event = json.loads(data["payload"])
+        else:
+            event = await request.json()
         self.replay_queue.put(event)
         return web.Response()
 
@@ -234,7 +253,8 @@ class WebServer(object):
 
     async def begin_auth(self, request):
         # Step 1
-        scope = ["channel:read:redemptions", "channel:read:subscriptions", "channel:manage:predictions"]
+        scope = ["channel:read:redemptions", "channel:read:subscriptions", "channel:manage:predictions",
+                 "moderator:read:followers"]
         oauth = OAuth2Session(client_id=self.client_id, redirect_uri=redirect_uri, scope=scope)
         authorization_url, state = oauth.authorization_url(auth_base_url, force_verify=True)
         oauth.close()
@@ -266,22 +286,24 @@ class WebServer(object):
         twitch = OAuth2Session(client_id=self.client_id, state=state)
         code = request.query['code']
         token = {}
-        try:
-            token = twitch.fetch_token(token_url, code=code, body=body)
-        except oauthlib.oauth2.rfc6749.errors.MissingTokenError:
-            logger.error("Failed to auth token")
-            return aiohttp.web.HTTPFound('/static/base/chat.html')
-        twitch.close()
-
-        # At this point you can fetch protected resources, lets save the token
-        session['token'] = token
         state = session['state']
         return_feature = state.split(";")[1]
         return_channel = state.split(";")[2]
         return_theme = state.split(";")[3]
+        try:
+            token = twitch.fetch_token(token_url, code=code, body=body)
+        except oauthlib.oauth2.rfc6749.errors.MissingTokenError:
+            logger.error("Failed to auth token")
+            return aiohttp.web.HTTPFound(f'/views/{return_theme}/{return_feature}?channel={return_channel}')
+        twitch.close()
+
+        # At this point you can fetch protected resources, lets save the token
+        session['token'] = token
 
         resp = aiohttp.web.HTTPFound(f'/views/{return_theme}/{return_feature}?channel={return_channel}')
-        resp.cookies['token'] = token["access_token"]
+        resp.set_cookie('token', token["access_token"], max_age=int(token["expires_in"]), secure=True)
+        resp.set_cookie('refresh', token["refresh_token"], secure=True)
+        resp.set_cookie('auth_expires', token["expires_in"])
         return resp
 
     def get_pokedex(self, request):

@@ -1,7 +1,7 @@
-Vue.component('config-menu', {
+export default {
     mounted: function () {
         if (localStorage.config) {
-            config = JSON.parse(localStorage.config);
+            let config = JSON.parse(localStorage.config);
             this.commands = config.commands;
             this.images = config.images;
             this.alert = config.alert;
@@ -14,7 +14,7 @@ Vue.component('config-menu', {
     },
     methods: {
         handleInput () {
-            data = Object.fromEntries(Object.entries(this._data));
+            let data = Object.fromEntries(Object.entries(this.$data));
             this.$emit("cfg-update", data);
         }
     },
@@ -81,4 +81,4 @@ Vue.component('config-menu', {
     </div>
     </div>
     `
-  })
+};

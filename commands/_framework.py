@@ -41,6 +41,7 @@ class PRIV(str, OrderedEnum):
     OWNER = auto()
     STAFF = auto()
 
+
 class VISIBILITY(Flag):
     VISIBLE = True
     NOT_VISIBLE = False

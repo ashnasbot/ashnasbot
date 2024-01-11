@@ -6,7 +6,6 @@ import logging
 import re
 from uuid import uuid4
 import time
-import typing
 import uuid
 
 import bleach
@@ -16,17 +15,10 @@ from .api_client import TwitchClient
 from ..config import Config
 from .data import EMOTE_FULL_TEMPLATE, EMOTE_IMG_TEMPLATE, SUB_TIERS, BADGE_URL_TEMPLATE, BITS_COLORS
 from .data import CHEERMOTE_TEXT_TEMPLATE, CHEERMOTE_URL_TEMPLATE, BITS_INDICIES, OutputMessage
-from .data import TEIRED_BADGES, CHEER_REGEX, CLIP_REGEX
+from .data import TEIRED_BADGES, CHEER_REGEX, CLIP_REGEX, CHEERMOTES, OWN_EMOTES, BADGES, CHANNEL_CHEERMOTES
 from . import commands
 from . import db
 from . import bttv
-
-# TODO: move to data
-
-CHEERMOTES: typing.Dict[str, typing.Dict] = {}
-CHANNEL_CHEERMOTES: typing.Dict[str, typing.Dict] = {}
-BADGES: typing.Dict[str, str] = {}  # id: url
-OWN_EMOTES: typing.Dict[str, typing.Tuple] = {}  # emoteName : (url, emoteset)
 
 logger = logging.getLogger(__name__)
 config = Config()
@@ -344,7 +336,11 @@ async def handle_message(event, auth=None):
         message = await render_emotes(raw_msg, temotes, bemotes)
     else:
         # Render emotes does this as a side-effect
-        message = html.escape(raw_msg)
+        # Responses are assumed to already be escaped
+        if "response" in etags:
+            message = html.unescape(raw_msg)
+        else:
+            message = html.escape(raw_msg)
 
     if re.search(CLIP_REGEX, message):
         message = await render_clips(message)
@@ -360,16 +356,16 @@ async def handle_message(event, auth=None):
         etags["id"] = str(uuid4())
 
     return OutputMessage({
-            'badges': badges,
-            'nickname': nickname,
-            'message': message,
-            'orig_message': orig_message,
-            'id': etags['id'],
-            'tags': etags,
-            'type': msg_type,
-            'channel': event.channel,
-            'extra': extra
-            })
+        'badges': badges,
+        'nickname': nickname,
+        'message': message,
+        'orig_message': orig_message,
+        'id': etags['id'],
+        'tags': etags,
+        'type': msg_type,
+        'channel': event.channel,
+        'extra': extra
+    })
 
 
 def create_event(from_evt, message):
@@ -383,6 +379,7 @@ async def cleanup():
         await API_CLIENT.close()
 
     await bttv.close()
+    logger.debug("ashnasbot cleanup complete")
 
 
 def handle_system_commands(event):
@@ -395,28 +392,28 @@ def handle_system_commands(event):
             # Delete a message by id
             logger.debug("CLEAR: %s", event.tags['target-msg-id'])
             return {
-                    'nickname': event.tags['login'],
-                    'orig_message': event._params,
-                    'id': event.tags['target-msg-id'],
-                    'type': event._command
-                    }
+                'nickname': event.tags['login'],
+                'orig_message': event._params,
+                'id': event.tags['target-msg-id'],
+                'type': event._command
+            }
         elif event._command == "CLEARCHAT":
             # Delete all messages
             user = event.tags.get('target-user-id', "")
             logger.debug("CLEAR: %s from %s", user, event.tags['room-id'])
             return {
-                    'id': str(uuid.uuid4()),
-                    'user': user,
-                    'room': event.tags['room-id'],
-                    'type': event._command
-                    }
+                'id': str(uuid.uuid4()),
+                'user': user,
+                'room': event.tags['room-id'],
+                'type': event._command
+            }
         elif event._command == "RECONNECT":
             # IRC is going to restart
             # NOTE: We don't actually handle this yet but the notification is useful
             #       Chatbot needs to reconnect
             ret_event = OutputMessage({
                 "type": "TWITCHCHATMESSAGE",
-                "nickname": "Ashnasbot",
+                "nickname": "Ashnasbot",  # TODO: Use generic event type
                 "tags": {
                     'display-name': "Ashnasbot",
                 },

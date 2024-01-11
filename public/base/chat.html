@@ -1,13 +1,16 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <link rel="stylesheet" type="text/css" href="base.css">
-    <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
-	<script src="/static/common/views.js"></script>
-	<script src="/static/common/config.js"></script>
+	<meta charset="UTF-8">
+    <link rel="stylesheet" type="text/css" href="/static/base/base.css">
+    <link rel="stylesheet" type="text/css" href="textbox.css">
+	<script> var scale_factor = 1.2; </script>
 </head>
 <body>
+<!--<div id="app" client="chat,alert">-->
 <div id="app" client="chat,alert">
+	<div>
+	<sound-handler ref="soundhandler" v-bind:tts="config.tts"></sound-handler>
 	<div class="menu frame">
 		<form method="GET">
 			<label for="menu_channel">Channel</label>
@@ -15,27 +18,11 @@
 			<input type="submit"/>
 		</form>
 		<view-select></view-select>
-		<config-menu v-on:cfg-update="updateCfg($event)"></config-menu>
+		<config-menu ref="menu" v-on:cfg-update="updateCfg($event)"></config-menu>
 	</div>
-	<div v-cloak class="chat_window frame">
-		<ol id="chat">
-		<li v-for="msg in chat" v-bind:key="msg.id" v-bind:id="msg.id">
-			<div v-bind:class="msg.type" >
-				<div v-if="msg.type != 'TWITCHCHATMESSAGE'" class="alert" v-html="msg.tags['system-msg']"></div>
-				<template v-if="msg.message">
-					<span class="nickname" v-bind:class="msg.extra" v-bind:style="{ color: msg.tags[&quot;color&quot;] }"
-						  v-html="msg.nickname">:</span>
-					<span v-if="msg.extra && msg.extra.includes(&quot;quoted&quot;)" class="message" 
-						  v-html="msg.message"></span>
-					<span v-else v-bind:style="{ color: msg.tags[&quot;color&quot;] }" class="message"
-					      v-html="msg.message"></p>
-				</template>
-			</div>
-		</li>
-		</ol>
+	<chat-window ref="chatwindow" :client="client"></chat-window>
 	</div>
 </div>
-<script src="/static/common/handlers.js"></script>
+<script src="/static/common/handlers.js" type="module"></script>
 </body>
 </html>
-

@@ -63,10 +63,14 @@ div.chat_window {
   padding: 0;
 }
 
-.chat_window li *{
+.chat_window li * {
   margin: 0;
   word-wrap: break-word;
   overflow-wrap: break-word;
+}
+
+.chat_window li .badges {
+  margin-right: 0.5ex;
 }
 
 img {
@@ -85,6 +89,11 @@ img.emote {
 .cheertext-green { color: #1db2a5}
 .cheertext-blue { color: #0099fe}
 .cheertext-red { color: #f43021}
+
+span[class^="cheertext-"] {
+  font-weight: 600;
+}
+
 
 .clip * {
   float: left;

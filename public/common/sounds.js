@@ -7,7 +7,7 @@ window.speechSynthesis.onvoiceschanged = function() {
 };
 
 
-Vue.component('sound-handler', {
+export default {
 	template: '<div style="display:none;"></div>',
 	props: {
 		tts: {
@@ -40,7 +40,7 @@ Vue.component('sound-handler', {
 			var speech = msg.orig_message;
 			switch (msg.type) {
 				case "BITS":
-					re = /^(\w*Cheer\d+\(s+|$)+/i
+					let re = /^(\w*Cheer\d+\(s+|$)+/i
 					if (msg.orig_message.match(re)) {
 						// Skip messages that are just bits
 					    speech = "";
@@ -48,7 +48,7 @@ Vue.component('sound-handler', {
 						// a little over zealous
 						speech = msg.orig_message.replace(/\w+\d+/, "");
 					}
-					ammount = msg.tags["bits"]
+					let ammount = msg.tags["bits"]
 					path = `/res/${this.view}/sound/bits?value=${ammount}`;
 					break;
 				case "SUBGIFT":
@@ -74,7 +74,7 @@ Vue.component('sound-handler', {
 				default:
 					return;
 			}
-			audio = new Audio(path);
+			let audio = new Audio(path);
 			this.playqueue.push([audio, speech]);
 			if (this.playqueue.length == 1)
 			{
@@ -86,9 +86,9 @@ Vue.component('sound-handler', {
 		play: function() {
 			if (this.playqueue.length > 0){
 				this.ready = false;
-				data = this.playqueue[0];
-				audio = data[0];
-				speech = data[1];
+				let data = this.playqueue[0];
+				let audio = data[0];
+				let speech = data[1];
 				this.audio = audio;
 				this.audio.addEventListener("canplay", function() {
 					audio.play().then(function() {
@@ -117,4 +117,4 @@ Vue.component('sound-handler', {
 			}.bind(this));
 		}
     }
-});
+};

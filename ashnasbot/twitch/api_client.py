@@ -5,8 +5,6 @@ import aiohttp
 from oauthlib.oauth2 import BackendApplicationClient
 from requests_oauthlib import OAuth2Session
 
-from ashnasbot.twitch.data import EMOTE_URL_TEMPLATE
-
 from . import db
 from .. import config
 
@@ -34,7 +32,7 @@ class TwitchClient():
         self.global_badges = {}
         self.oauth = None
 
-    def get_token(self):
+    def get_app_token(self):
         if self.oauth is None:
             if self.client_id in TOKEN_CACHE:
                 logger.debug("Using cached API auth token")
@@ -71,7 +69,7 @@ class TwitchClient():
 
         if "helix" in url:
             if not self.oauth:
-                self.get_token()
+                self.get_app_token()
             headers["Authorization"] = f"Bearer {self.oauth}"
 
         session = self.__sessions.get(self.client_id, None)
@@ -283,12 +281,12 @@ class TwitchClient():
 
     async def create_prediction(self):
         CHOCOBOS = {
-            1: "Green",
-            2: "Blue",
-            3: "Pink",
-            4: "Red",
-            5: "Purple",
-            6: "White"
+            1: "1 (Green)",
+            2: "2 (Blue)",
+            3: "3 (Pink)",
+            4: "4 (Red)",
+            5: "5 (Purple)",
+            6: "6 (White)"
         }
         url = '/helix/predictions'
         if self.channel_id is None:
@@ -299,7 +297,7 @@ class TwitchClient():
             "title": "Which Chocobo will win the Race?",
             "outcomes": [
                 {"title": chocobo} for chocobo in CHOCOBOS.values()
-                ],
+            ],
             "prediction_window": 80}
 
         logger.info(data)
@@ -326,7 +324,7 @@ class TwitchClient():
         }
 
         if not self.oauth:
-            self.get_token()
+            self.get_app_token()
         headers["Authorization"] = f"Bearer {self.oauth}"
 
         session = self.__sessions.get(self.client_id, None)
@@ -340,6 +338,40 @@ class TwitchClient():
 
         try:
             async with session.patch(url, params=params, headers=headers) as resp:
+                # TODO: check status (too many requests? etc)
+                return await resp.json()
+        except aiohttp.ClientOSError:
+            return
+
+    async def subscribe_eventsub(self, session_id, type, condition, channel_id, user_token):
+
+        # curl -X POST 'https://api.twitch.tv/helix/eventsub/subscriptions' \
+        # -H 'Authorization: Bearer 2gbdx6oar67tqtcmt49t3wpcgycthx' \
+        # -H 'Client-Id: wbmytr93xzw8zbg0p1izqyzzc5mbiz' \
+        # -H 'Content-Type: application/json' \
+        # -d '{"type":"channel.follow","version":"1","condition":{"broadcaster_user_id":"1234"},"transport":{"method":"webhook","callback":"https://example.com/callback","secret":"s3cre77890ab"}}'
+        url = "https://api.twitch.tv/helix/eventsub/subscriptions"
+        headers = {
+            "Client-ID": f"{self.client_id}",
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {user_token}"
+        }
+
+        session = self.__sessions.get(self.client_id, None)
+
+        postdata = {
+            "type": "channel.follow",
+            "version": "2",
+            "condition": condition,
+            "transport": {
+                "method": "websocket",
+                "session_id": session_id,
+            }
+        }
+        logger.debug(postdata)
+
+        try:
+            async with session.post(url, headers=headers, json=postdata) as resp:
                 # TODO: check status (too many requests? etc)
                 return await resp.json()
         except aiohttp.ClientOSError:

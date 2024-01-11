@@ -1,5 +1,6 @@
 import re
 import time
+import typing
 import uuid
 
 from twitchobserver import Event as Message
@@ -72,7 +73,7 @@ SUB_TIERS = [0, 3, 6, 9, 12, 18, 24, 30]
 EMOTE_URL_TEMPLATE = STATIC_CDN + "/emoticons/v2/{{id}}/{{format}}/{{theme_mode}}/{{scale}}"
 
 EMOTE_IMG_TEMPLATE = "<img src=\"" + STATIC_CDN + \
-   """emoticons/v2/{eid}/default/dark/2.0" class="emote"
+    """emoticons/v2/{eid}/default/dark/2.0" class="emote"
  alt="{alt}"
  title="{alt}"
 />"""
@@ -96,7 +97,7 @@ title="{alt}"
 
 CHEER_REGEX = re.compile(r"((?<=^)|(?<=\s))(?P<emotename>[a-zA-Z]+)(\d+)(?=(\s|$))", flags=re.IGNORECASE)
 CLIP_REGEX = re.compile(
-    r"(http(s)?://)?(clips\.twitch\.tv|www\.twitch\.tv/\w+/clip)/" +
+    r"(http(s)?://)?(clips\.twitch\.tv|www\.twitch\.tv/\w+/clip)/"
     r"(?P<slug>[-_a-zA-Z0-9]+)([?][=0-9a-zA-Z_&]*)*",
     flags=re.IGNORECASE)
 TEIRED_BADGES = ['bits', 'bits-leader', 'sub-gifter', 'sub-gift-leader']
@@ -122,6 +123,11 @@ OUTPUT_MESSAGE_TEMPLATE = {
     'extra': []
 }
 
+CHEERMOTES: typing.Dict[str, typing.Dict] = {}
+CHANNEL_CHEERMOTES: typing.Dict[str, typing.Dict] = {}
+BADGES: typing.Dict[str, str] = {}  # id: url
+OWN_EMOTES: typing.Dict[str, typing.Tuple] = {}  # emoteName : (url, emoteset)
+
 
 class OutputMessage(dict):
     def __init__(self, *args):
@@ -144,14 +150,14 @@ class OutputMessage(dict):
 
 
 def create_follower(nickname, channel):
-    evt = Message(channel)
+    evt = create_event(channel)
     evt.type = "FOLLOW"
     evt.nickname = nickname
     evt.tags = {
-            'system-msg': f"{nickname} followed the channel",
-            'tmi-sent-ts': str(int(time.time())) + "000",
-            'display-name': nickname
-        }
+        'system-msg': f"{nickname} followed the channel",
+        'tmi-sent-ts': str(int(time.time())) + "000",
+        'display-name': nickname
+    }
     return evt
 
 

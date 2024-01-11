@@ -4,6 +4,7 @@ config.json
 .vscode
 *.swp
 debug.log
+debug.log.*
 SECRET.txt
 .cache
 .mypy_cache
@@ -28,3 +29,5 @@ commands/*
 !commands/_template.py
 !commands/_common.py
 !commands/_framework.py
+chat_corpii.txt
+gameinfo.txt

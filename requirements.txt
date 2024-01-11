@@ -1,4 +1,4 @@
-aiohttp==3.8.1
+aiohttp==3.8.5
 cryptography
 bleach==4.1.0
 dataset==1.5.2

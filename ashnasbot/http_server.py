@@ -1,10 +1,14 @@
 import aiohttp
 import asyncio
+import bisect
 import json
 import logging
 import dataset
+import mimetypes
 import os
 from pathlib import Path
+import re
+import oauthlib
 from requests_oauthlib import OAuth2Session
 
 import base64
@@ -13,12 +17,15 @@ from aiohttp import web
 import urllib.parse
 from aiohttp_session import setup, get_session, new_session
 from aiohttp_session.cookie_storage import EncryptedCookieStorage
+from prometheus_async import aio
 
 from ashnasbot.twitch import pokedex
 
 logger = logging.getLogger(__name__)
+logging.getLogger("aiohttp.access").setLevel(logging.DEBUG)
 
 db = dataset.connect('sqlite:///ashnasbot.db')
+mimetypes.add_type('image/webp', '.webp')  # add webp support as an image type for serving
 
 # OAuth Details
 auth_base_url = 'https://id.twitch.tv/oauth2/authorize'
@@ -28,8 +35,10 @@ redirect_uri = "http://localhost:8080/authorize"
 
 os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
 
+LOG_FORMAT = "%s %r %a"
 
-class WebServer(object):
+
+class HTTPServer(object):
     def __init__(self, reload_evt=None, address='0.0.0.0', port=8080, loop=None, shutdown_evt=None,
                  client_id=None, secret=None, events=None, replay=None):
         self.address = address
@@ -44,19 +53,24 @@ class WebServer(object):
         self.secret = secret
         self.events = events
         self.replay_queue = replay
-        loop.create_task(self.start())
 
     async def start(self):
+        logger.info('Starting webserver')
         self.app = web.Application(loop=self.loop, logger=logger)
         fernet_key = fernet.Fernet.generate_key()
         secret_key = base64.urlsafe_b64decode(fernet_key)
         setup(self.app, EncryptedCookieStorage(secret_key))
         self.setup_routes()
-        self.runner = web.AppRunner(self.app, access_log=None)
+        self.runner = web.AppRunner(self.app, access_log_format=LOG_FORMAT)
         await self.runner.setup()
         self.site = web.TCPSite(self.runner, self.address, self.port)
         await self.site.start()
-        logger.info('------ serving on %s:%d ------' % (self.address, self.port))
+        logger.info('Serving on %s:%d' % (self.address, self.port))
+
+    async def stop(self):
+        if self.runner:
+            logger.info('Stopping webserver')
+            await self.runner.cleanup()
 
     @staticmethod
     async def get_dashboard(request):
@@ -70,26 +84,34 @@ class WebServer(object):
     async def get_favicon(request):
         return web.FileResponse('public/favicon.ico')
 
+    @staticmethod
+    async def get_alerthandler(request):
+        return web.FileResponse('public/base/alertoverlay.html')
+
     def setup_routes(self):
         # API
         self.app.router.add_get('/api/config', self.get_config)
         self.app.router.add_get('/api/views', self.get_views)
         self.app.router.add_get('/res/{view}/sound/{event}', self.get_sound)
         self.app.router.add_get('/res/{view}/image/{name}', self.get_image)
+        self.app.router.add_get('/res/{view}/media/{name}', self.get_media)
+        self.app.router.add_get('/views/{view}/{base}', self.get_base)
         self.app.router.add_post('/api/config', self.post_config)
         self.app.router.add_post('/api/shutdown', self.post_shutdown)
         self.app.router.add_post('/replay_event', self.post_replay)
+
+        # self.app.router.add_get('/views/{view}/alertoverlay.html', self.get_alerthandler)
 
         # Static
         try:
             self.app.router.add_static('/static', path="public/")
         except Exception:
-            logging.error("No Static dir")
+            logger.error("No Static dir")
 
         try:
             self.app.router.add_static('/views', path="views/")
         except Exception:
-            logging.warning("No views installed")
+            logger.warning("No views installed")
 
         # This is very important
         self.app.router.add_get('/favicon.ico', self.get_favicon)
@@ -104,6 +126,9 @@ class WebServer(object):
 
         # API
         self.app.router.add_get('/dex', self.get_pokedex)
+
+        # Metrics
+        self.app.router.add_get("/metrics", aio.web.server_stats)
 
     @staticmethod
     async def get_config(request):
@@ -136,22 +161,26 @@ class WebServer(object):
     async def get_sound(self, request):
         view = request.match_info['view']
         event = request.match_info['event']
-        # TODO: This
-        query = request.query_string
-        if query:
-            logger.error(query)
-
         views_path = os.path.join('views', view)
-        views_match = list(Path(views_path).glob(event + ".*"))
 
-        for match in views_match:
-            if match.suffix in self.AUDIO_FILETYPES:
-                return web.FileResponse(views_match[0])
+        query = request.query
+        ammt = 0
+        if query and "value" in query:
+            ammt = int(query["value"])
 
-        fallback_match = list(Path("public/audio").glob(event + ".*"))
-        for match in fallback_match:
-            if match.suffix in self.AUDIO_FILETYPES:
-                return web.FileResponse(fallback_match[0])
+        return self.glob_var([views_path, "public/audio"], event,
+                             self.AUDIO_FILETYPES, ammt)
+
+    async def get_base(self, request):
+        view = request.match_info['view']
+        base = request.match_info['base']
+        base_path = Path('public', "base", base)
+        views_path = Path('views', view, base)
+
+        if views_path.exists():
+            return web.FileResponse(views_path)
+        if base_path.exists():
+            return web.FileResponse(base_path)
 
         return web.HTTPNotFound()
 
@@ -175,13 +204,32 @@ class WebServer(object):
 
         return web.HTTPNotFound()
 
+    MEDIA_FILETYPES = [".mp4", ".gif", ".webp"]
+
+    async def get_media(self, request):
+        view = request.match_info['view']
+        event = request.match_info['name']
+        views_path = os.path.join('views', view)
+
+        query = request.query
+        ammt = 0
+        if query and "value" in query:
+            ammt = int(query["value"])
+        return self.glob_var([views_path, "public/media"], event,
+                             self.MEDIA_FILETYPES, ammt)
+
     async def post_shutdown(self, request):
         if self.shutdown_evt:
             self.shutdown_evt.set()
         return web.Response()
 
     async def post_replay(self, request):
-        event = await request.json()
+        event = {}
+        if request.content_type == 'application/x-www-form-urlencoded':
+            data = await request.post()
+            event = json.loads(data["payload"])
+        else:
+            event = await request.json()
         self.replay_queue.put(event)
         return web.Response()
 
@@ -205,13 +253,16 @@ class WebServer(object):
 
     async def begin_auth(self, request):
         # Step 1
-        scope = []
+        scope = ["channel:read:redemptions", "channel:read:subscriptions", "channel:manage:predictions",
+                 "moderator:read:followers"]
         oauth = OAuth2Session(client_id=self.client_id, redirect_uri=redirect_uri, scope=scope)
         authorization_url, state = oauth.authorization_url(auth_base_url, force_verify=True)
+        oauth.close()
+        return_feature = request.query.get("feature", "chat")
         return_channel = request.query.get("channel", None)
         return_theme = request.query.get("theme", "noir")
 
-        state = f"{state};{return_channel};{return_theme}"
+        state = f"{state};{return_feature};{return_channel};{return_theme}"
 
         session = await new_session(request)
         session['state'] = state
@@ -227,23 +278,32 @@ class WebServer(object):
         in the redirect URL. We will use that to obtain an access token.
         """
         session = await get_session(request)
-        state = session['state']
+        state = session['state'] if 'state' in session else None
 
         body = urllib.parse.urlencode({'client_id': self.client_id,
                                        'client_secret': self.secret,
                                        'redirect_uri': redirect_uri})
         twitch = OAuth2Session(client_id=self.client_id, state=state)
         code = request.query['code']
-        token = twitch.fetch_token(token_url, code=code, body=body)
+        token = {}
+        state = session['state']
+        return_feature = state.split(";")[1]
+        return_channel = state.split(";")[2]
+        return_theme = state.split(";")[3]
+        try:
+            token = twitch.fetch_token(token_url, code=code, body=body)
+        except oauthlib.oauth2.rfc6749.errors.MissingTokenError:
+            logger.error("Failed to auth token")
+            return aiohttp.web.HTTPFound(f'/views/{return_theme}/{return_feature}?channel={return_channel}')
+        twitch.close()
 
         # At this point you can fetch protected resources, lets save the token
         session['token'] = token
-        state = session['state']
-        return_channel = state.split(";")[1]
-        return_theme = state.split(";")[2]
 
-        resp = aiohttp.web.HTTPFound(f'/views/{return_theme}/chat.html?channel={return_channel}')
-        resp.cookies['token'] = token["access_token"]
+        resp = aiohttp.web.HTTPFound(f'/views/{return_theme}/{return_feature}?channel={return_channel}')
+        resp.set_cookie('token', token["access_token"], max_age=int(token["expires_in"]), secure=True)
+        resp.set_cookie('refresh', token["refresh_token"], secure=True)
+        resp.set_cookie('auth_expires', token["expires_in"])
         return resp
 
     def get_pokedex(self, request):
@@ -253,3 +313,41 @@ class WebServer(object):
         for row in dex:
             resp[row['id']] = row['caught']
         return web.json_response(resp)
+
+    def glob_var(self, paths, stub, filter, num=0):
+        # Paths = list of locations to check in order of preference
+        logger.debug(f"looking for {stub}{num}{filter} in {paths}")
+        matching_files = []
+        if num == 0:
+            matching_files = [list(Path(path).glob(stub + ".*")) for path in paths]
+        else:
+            # This is a glob, not a regex
+            matching_files = [list(Path(path).glob(stub + r"[123456789]*" + ".*")) for path in paths]
+
+        candidates = []
+        for mgroup in matching_files:
+            for match in mgroup:
+                if match.suffix in filter:
+                    m = re.search(r'\d+$', match.stem)
+                    if m:
+                        if not any([True for x in candidates if x[0] == m.group()]):
+                            candidates.append((int(m.group()), match))
+                    elif num == 0:
+                        candidates.append((0, match))
+
+        if not candidates:
+            logger.debug(f"No Candidates found for {stub}{num}{filter}")
+            return web.HTTPNotFound()
+
+        logger.debug(f"Candidates: {candidates}")
+        match = None
+        try:
+            # Exact match
+            match = [y[0] for y in candidates].index(num)
+            logger.debug(f"Found exact match for glob {num}")
+        except ValueError:
+            # Find closest
+            match = bisect.bisect_right(candidates, (num, )) - 1
+            logger.debug(f"Found closest match for glob {num}")
+        logger.debug(str(candidates[match]))
+        return web.FileResponse(candidates[match][1])

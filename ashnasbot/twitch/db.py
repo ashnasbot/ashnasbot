@@ -2,16 +2,12 @@ import dataset
 import time
 import logging
 
-db = dataset.connect('sqlite:///twitchdata.db')
-tables = {}
+db = dataset.connect('sqlite:///db/twitchdata.db')
 logger = logging.getLogger(__name__)
 
 
 def exists(tbl_name):
-    table = tables.get(tbl_name, None)
-    if not table:
-        table = db[tbl_name]
-        tables[tbl_name] = table
+    table = db[tbl_name]
     try:
         return table.exists
     except Exception:
@@ -20,16 +16,13 @@ def exists(tbl_name):
 
 
 def create(tbl_name, primary):
+    # Load or create table
     logger.info("Create table %s", tbl_name)
-    tbl = db.create_table(tbl_name, primary_id=primary, primary_type=db.types.text)
-    tables[tbl_name] = tbl
+    db.create_table(tbl_name, primary_id=primary, primary_type=db.types.text)
 
 
 def get(tbl_name):
-    table = tables.get(tbl_name, None)
-    if not table:
-        table = db[tbl_name]
-        tables[tbl_name] = table
+    table = db[tbl_name]
     return table.all()
 
 
@@ -41,34 +34,24 @@ def find(tbl_name, **kwargs):
 def update(tbl_name, record, keys):
     table = db[tbl_name]
     table.upsert(record, keys, ensure=True)
-    stats = tables.get("stats", None)
-    if not stats:
-        stats = db["stats"]
-    stats.upsert({"name": tbl_name, "val": time.time()}, keys=keys)
+    stats = db["stats"]
+    stats.upsert({"name": tbl_name, "val": time.time()}, keys=['name'])
 
 
 def update_multi(tbl_name, rows, primary, keys):
-    table = tables.get(tbl_name, None)
-    if not table:
-        table = db[tbl_name]
-        tables[tbl_name] = table
+    table = db[tbl_name]
     try:
         for record in rows:
             table.upsert(record, ["name"], ensure=True)
     except Exception as e:
         logger.error(e)
     else:
-        stats = tables.get("stats", None)
-        if not stats:
-            stats = db["stats"]
-        stats.upsert({"name": tbl_name, "val": time.time()}, keys=keys)
+        stats = db["stats"]
+        stats.upsert({"name": tbl_name, "val": time.time()}, keys=['name'])
 
 
 def insert_multi(tbl_name, rows, primary, keys):
-    table = tables.get(tbl_name, None)
-    if not table:
-        table = db[tbl_name]
-        tables[tbl_name] = table
+    table = db[tbl_name]
 
     try:
         for record in rows:
@@ -76,10 +59,8 @@ def insert_multi(tbl_name, rows, primary, keys):
     except Exception as e:
         logger.warning(e)
     else:
-        stats = tables.get("stats", None)
-        if not stats:
-            stats = db["stats"]
-        stats.upsert({"name": tbl_name, "val": time.time()}, keys=keys)
+        stats = db["stats"]
+        stats.upsert({"name": tbl_name, "val": time.time()}, keys=['name'])
 
 
 def expired(tbl_name):

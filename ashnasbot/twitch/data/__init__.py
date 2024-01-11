@@ -1,6 +1,12 @@
-STATIC_CDN = "https://static-cdn.jtvnw.net/"
+import re
+import time
+import typing
+import uuid
 
-ACTION = "action"
+from twitchobserver import Event as Message
+
+
+STATIC_CDN = "https://static-cdn.jtvnw.net/"
 
 BADGES = {
     'admin': STATIC_CDN + "chat-badges/admin-alpha.png",
@@ -57,16 +63,25 @@ BADGES = {
     'partner': STATIC_CDN + "badges/v1/d12a2e27-16f6-41d0-ab77-b780518f00a3/2",
     'premium': STATIC_CDN + "badges/v1/a1dd5073-19c3-4911-8cb4-c464a7bc1510/2",
     'vip': STATIC_CDN + "badges/v1/b817aba4-fad8-49e2-b88a-7cc744dfa6ec/2",
-    'founder': STATIC_CDN + "badges/v1/511b78a9-ab37-472f-9569-457753bbe7d3/2"
+    'founder': STATIC_CDN + "badges/v1/511b78a9-ab37-472f-9569-457753bbe7d3/2",
+    'predictions/blue-1': STATIC_CDN + 'badges/v1/e33d8b46-f63b-4e67-996d-4a7dcec0ad33/2',
+    'predictions/pink-2': STATIC_CDN + 'badges/v1/4b76d5f2-91cc-4400-adf2-908a1e6cfd1e/2',
 }
 
 SUB_TIERS = [0, 3, 6, 9, 12, 18, 24, 30]
 
-EMOTE_URL_TEMPLATE = "<img src=\"" + STATIC_CDN + \
-   """emoticons/v2/{eid}/default/dark/2.0" class="emote"
+EMOTE_URL_TEMPLATE = STATIC_CDN + "/emoticons/v2/{{id}}/{{format}}/{{theme_mode}}/{{scale}}"
+
+EMOTE_IMG_TEMPLATE = "<img src=\"" + STATIC_CDN + \
+    """emoticons/v2/{eid}/default/dark/2.0" class="emote"
  alt="{alt}"
  title="{alt}"
 />"""
+
+EMOTE_FULL_TEMPLATE = """<img class="emote" src="{url}"
+ alt="{alt}"
+ title="{alt}"
+\\>"""
 
 CHEERMOTE_URL_TEMPLATE = "<img src=\"{url}\" class=\"emote\"" + \
     """alt="{alt}"
@@ -80,6 +95,13 @@ alt="{alt}"
 title="{alt}"
 />"""
 
+CHEER_REGEX = re.compile(r"((?<=^)|(?<=\s))(?P<emotename>[a-zA-Z]+)(\d+)(?=(\s|$))", flags=re.IGNORECASE)
+CLIP_REGEX = re.compile(
+    r"(http(s)?://)?(clips\.twitch\.tv|www\.twitch\.tv/\w+/clip)/"
+    r"(?P<slug>[-_a-zA-Z0-9]+)([?][=0-9a-zA-Z_&]*)*",
+    flags=re.IGNORECASE)
+TEIRED_BADGES = ['bits', 'bits-leader', 'sub-gifter', 'sub-gift-leader']
+
 BITS_COLORS = [
     (1, 'gray'),
     (100, 'purple'),
@@ -88,3 +110,70 @@ BITS_COLORS = [
     (10000, 'red'),
 ]
 BITS_INDICIES = [1, 100, 1000, 5000, 10000]
+
+OUTPUT_MESSAGE_TEMPLATE = {
+    'badges': [],
+    'nickname': "",
+    'message': "",
+    'orig_message': "",
+    'id': str(uuid.uuid4()),
+    'tags': {'badges': []},
+    'type': "SYSTEM",
+    'channel': "",
+    'extra': []
+}
+
+CHEERMOTES: typing.Dict[str, typing.Dict] = {}
+CHANNEL_CHEERMOTES: typing.Dict[str, typing.Dict] = {}
+BADGES: typing.Dict[str, str] = {}  # id: url
+OWN_EMOTES: typing.Dict[str, typing.Tuple] = {}  # emoteName : (url, emoteset)
+
+
+class OutputMessage(dict):
+    def __init__(self, *args):
+        data = OUTPUT_MESSAGE_TEMPLATE.copy()
+        data.update(*args)
+        super().__init__(data)
+
+    @classmethod
+    def from_event(cls, event):
+        return cls({
+            "badges": event.badges if hasattr(event, "badges") else {},
+            "nickname": event.nickname if hasattr(event, "nickname") else "",
+            "message": event.message if hasattr(event, "message") else "",
+            "orig_message": event.message if hasattr(event, "message") else "",
+            "id": event.id if hasattr(event, "id") else str(uuid.uuid4()),
+            "tags": event.tags if hasattr(event, "tags") else {},
+            "type": event.type if hasattr(event, "type") else "SYSTEM",
+            "channel": event.channel if hasattr(event, "") else "",
+        })
+
+
+def create_follower(nickname, channel):
+    evt = create_event(channel)
+    evt.type = "FOLLOW"
+    evt.nickname = nickname
+    evt.tags = {
+        'system-msg': f"{nickname} followed the channel",
+        'tmi-sent-ts': str(int(time.time())) + "000",
+        'display-name': nickname
+    }
+    return evt
+
+
+def create_event(type, message=""):
+    evt = Message(channel=None, command=type, message=message)
+    evt.type = type  # override default type handling
+    evt.nickname = None
+    evt.badges = []
+    evt.id = str(uuid.uuid4())
+    evt.tags = {}
+    evt.extra = ["pubsub"]
+    return evt
+
+
+def event_from_output(from_evt):
+    out_evt = Message()
+    for prop, val in from_evt.items():
+        setattr(out_evt, prop, val)
+    return out_evt

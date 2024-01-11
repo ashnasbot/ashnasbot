@@ -9,9 +9,8 @@ from . import db
 from .. import config
 
 API_BASE = "https://api.twitch.tv"
+TOKEN_CACHE = {}
 logger = logging.getLogger(__name__)
-
-token = None
 
 
 class TwitchClient():
@@ -20,35 +19,57 @@ class TwitchClient():
     __sessions = {}
 
     def __init__(self, client_id=None, target_user=None):
-        global token
         cfg = config.Config()
-        self.client_id = cfg["client_id"]
+        if client_id:
+            self.client_id = client_id
+        else:
+            self.client_id = cfg["client_id"]
         logger.debug(f"Creating twitch API client for {self.client_id} {target_user}")
 
         self.target_user = target_user
         self.channel_id = None
         self.channel_emotes_cache = {}
         self.global_badges = {}
+        self.oauth = None
 
-        if not token:
-            logger.warning("No token - retriving new token")
-            body = urllib.parse.urlencode({'client_id': self.client_id, 'client_secret': cfg["secret"]})
-            client = BackendApplicationClient(client_id=cfg["client_id"])
-            oauth = OAuth2Session(client=client)
-            try:
-                token = oauth.fetch_token(token_url='https://id.twitch.tv/oauth2/token', body=body)
-            except Exception:
-                raise ValueError("OAuth: failed to get token")
+    def get_app_token(self):
+        if self.oauth is None:
+            if self.client_id in TOKEN_CACHE:
+                logger.debug("Using cached API auth token")
+                token = TOKEN_CACHE[self.client_id]
+            else:
+                cfg = config.Config()
+                logger.info("Retrieving API auth token")
+                body = urllib.parse.urlencode({
+                    'client_id': self.client_id,
+                    'client_secret': cfg["secret"]
+                })
+                client = BackendApplicationClient(client_id=cfg["client_id"])
+                oauth = OAuth2Session(client=client)
+                try:
+                    token = oauth.fetch_token(token_url='https://id.twitch.tv/oauth2/token', body=body)
+                    TOKEN_CACHE[self.client_id] = token
+                except Exception:
+                    self.oauth = ''
+                    raise ValueError("OAuth: failed to get token")
 
-        self.oauth = token["access_token"]
+            self.oauth = token["access_token"]
 
-    async def _make_api_request(self, url, params=None):
+    async def close(self):
+        logger.info("Closing client API sessions")
+        for c, s in self.__sessions.items():
+            logger.debug("Cleaning up client session for client %s", c)
+            await s.close()
+
+    async def _make_api_request(self, url, params=None, postdata=None):
         headers = {
             "Client-ID": f"{self.client_id}",
             "Accept": "application/vnd.twitchtv.v5+json",
         }
 
         if "helix" in url:
+            if not self.oauth:
+                self.get_app_token()
             headers["Authorization"] = f"Bearer {self.oauth}"
 
         session = self.__sessions.get(self.client_id, None)
@@ -61,9 +82,17 @@ class TwitchClient():
         if not url.startswith("http"):
             url = API_BASE + url
 
-        async with session.get(url, params=params, headers=headers) as resp:
-            # TODO: check status (too many requests? etc)
-            return await resp.json()
+        try:
+            if postdata:
+                async with session.post(url, params=params, headers=headers, json=postdata) as resp:
+                    # TODO: check status (too many requests? etc)
+                    return await resp.json()
+            else:
+                async with session.get(url, params=params, headers=headers) as resp:
+                    # TODO: check status (too many requests? etc)
+                    return await resp.json()
+        except aiohttp.ClientOSError:
+            return
 
     async def get_channel_id(self, channel=None):
         url = "/helix/users"
@@ -88,8 +117,10 @@ class TwitchClient():
         url = "/helix/users"
         if not user:
             return {}
-        if user.isnumeric():
+        if isinstance(user, int):
             params = {'id': user}
+        elif user.isnumeric():
+            params = {'id': int(user)}
         else:
             params = {'login': user}
 
@@ -220,34 +251,128 @@ class TwitchClient():
         logger.debug("Getting clip details for slug: %s", clip)
         return await self._make_api_request(url, params=params)
 
-    async def get_channel_emotes(self, channel):
-        if channel in self.channel_emotes_cache:
-            return self.channel_emotes_cache[channel]
+    async def get_emotes_for_sets(self, sets):
+        url = '/helix/chat/emotes/set'
 
-        url = "/helix/chat/emotes"
-        logger.debug("Getting channel emotes for %s", channel)
-        params = {
-            "broadcaster_id": await self.get_channel_id(channel)
-        }
-
+        params = [('emote_set_id', s) for s in sets]
+        encoded_params = urllib.parse.urlencode(params)
         emotes = {}
-        resp = await self._make_api_request(url, params)
+        logger.debug("Getting channel emote sets for %s", sets)
 
         try:
+            resp = await self._make_api_request(url, encoded_params)
             for emote in resp["data"]:
-                name = emote["prefix"]
-                res = {
+                name = emote["name"]
+                info = {
                     "id": emote["id"],
                     "format": emote["format"][-1],
                     "theme_mode": "dark",
                     "scale": "2.0"
                 }
+                emotes[name] = (resp["template"].format().format(**info), emote["emote_set_id"])
 
-                emote[name] = "https://static-cdn.jtvnw.net/emoticons/v2/{{id}}/{{format}}/{{theme_mode}}/{{scale}}".format(**res)
-        except Exception:
-            logger.warning("Failed to get emotes")
-
-        if emotes:
-            self.channel_emotes_cache[channel] = emotes
+        except Exception as e:
+            import traceback
+            print(e)
+            traceback.print_tb()
+            logger.warning("Failed to get own emotes")
 
         return emotes
+
+    async def create_prediction(self):
+        CHOCOBOS = {
+            1: "1 (Green)",
+            2: "2 (Blue)",
+            3: "3 (Pink)",
+            4: "4 (Red)",
+            5: "5 (Purple)",
+            6: "6 (White)"
+        }
+        url = '/helix/predictions'
+        if self.channel_id is None:
+            broadcaster_id = await self.get_channel_id('ashnas')
+
+        data = {
+            "broadcaster_id": broadcaster_id,
+            "title": "Which Chocobo will win the Race?",
+            "outcomes": [
+                {"title": chocobo} for chocobo in CHOCOBOS.values()
+            ],
+            "prediction_window": 80}
+
+        logger.info(data)
+
+        resp = await self._make_api_request(url, postdata=data)
+        if not resp:
+            return
+
+        respdata = resp["data"][0]
+        ret = {}
+        ret["broadcaster_id"] = respdata["broadcaster_id"]
+        ret["prediction_id"] = respdata["id"]
+
+        for outcome in respdata["outcomes"]:
+            ret[list(CHOCOBOS.keys())[list(CHOCOBOS.values()).index(outcome["title"])]] = outcome["id"]
+
+        return ret
+
+    async def resolve_prediction(self, pid, data, result):
+        url = "https://api.twitch.tv/helix/predictions"
+        headers = {
+            "Client-ID": f"{self.client_id}",
+            "Accept": "application/vnd.twitchtv.v5+json",
+        }
+
+        if not self.oauth:
+            self.get_app_token()
+        headers["Authorization"] = f"Bearer {self.oauth}"
+
+        session = self.__sessions.get(self.client_id, None)
+
+        params = {
+            "broadcaster_id": data["broadcaster_id"],
+            "id": pid,
+            "status": "RESOLVED",
+            "winning_outcome_id": data[result]
+        }
+
+        try:
+            async with session.patch(url, params=params, headers=headers) as resp:
+                # TODO: check status (too many requests? etc)
+                return await resp.json()
+        except aiohttp.ClientOSError:
+            return
+
+    async def subscribe_eventsub(self, session_id, type, condition, channel_id, user_token):
+
+        # curl -X POST 'https://api.twitch.tv/helix/eventsub/subscriptions' \
+        # -H 'Authorization: Bearer 2gbdx6oar67tqtcmt49t3wpcgycthx' \
+        # -H 'Client-Id: wbmytr93xzw8zbg0p1izqyzzc5mbiz' \
+        # -H 'Content-Type: application/json' \
+        # -d '{"type":"channel.follow","version":"1","condition":{"broadcaster_user_id":"1234"},"transport":{"method":"webhook","callback":"https://example.com/callback","secret":"s3cre77890ab"}}'
+        url = "https://api.twitch.tv/helix/eventsub/subscriptions"
+        headers = {
+            "Client-ID": f"{self.client_id}",
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {user_token}"
+        }
+
+        session = self.__sessions.get(self.client_id, None)
+
+        postdata = {
+            "type": "channel.follow",
+            "version": "2",
+            "condition": condition,
+            "transport": {
+                "method": "websocket",
+                "session_id": session_id,
+            }
+        }
+        logger.debug(postdata)
+
+        try:
+            async with session.post(url, headers=headers, json=postdata) as resp:
+                # TODO: check status (too many requests? etc)
+                return await resp.json()
+        except aiohttp.ClientOSError:
+            return

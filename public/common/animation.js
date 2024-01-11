@@ -1,17 +1,25 @@
-Vue.component('chase', {
-	template: '<canvas ref="screen" width=640 height=480></canvas>',
+/* TODO: combine .done with sounds component so both finish at same time */
+var chase = {
+	template: `<div>
+	<canvas ref="screen" width=640 height=480></canvas>
+	<banner v-if="alert !== null" v-bind="alert" @finished="makeready"></banner>
+	</div>`,
 	props: {
-		rate: {  // Number of chocos on screen at once
+		rate: {  // maximum number of sprites on screen at once
 			type: Number,
-			default: 32,
-		}
+			default: 50,
+		},
 	},
 	data: function() {
         var urlChunks = location.pathname.split('/');
 		return {
 			canvas: null,
 			sprites: [],
-			view: urlChunks[urlChunks.length - 2], audio: null
+			view: urlChunks[urlChunks.length - 2],
+			audio: null,
+			alert: null,
+			queue: [],
+			ready: true,
 		}
 	},
     mounted: function () {
@@ -21,23 +29,51 @@ Vue.component('chase', {
 		this.canvas.height = window.innerHeight;
 
 		this.mainLoop()
-		
     },
+	watch: {
+		queue: {
+			handler: function(content) {
+				if (content.length == 0) {
+					return;
+				}
+				if (this.ready) {
+					this.ready = false;
+					this.alert = this.queue.shift();
+				}
+			},
+			deep: true
+		},
+		ready: function(val) {
+			if (val) {
+				if (this.queue.length > 0) {
+					this.ready = false;
+					setTimeout(function () {
+						this.alert = this.queue.shift();
+					}.bind(this), 1000);
+				}
+			}
+		}
+	},
     methods: {
+		makeready() {
+			this.ready = true;
+			this.alert = null;
+		},
 		mainLoop: function() {
+			var toRender = []
 		
 			window.requestAnimationFrame(this.mainLoop);
 
 			if (this.sprites.length > 0) {
 				const context = this.canvas.getContext('2d');
 				context.clearRect(0, 0, this.canvas.width, this.canvas.height);
-				if (!toRender) {
-					var toRender = this.sprites.slice(0, this.rate);
+				if (toRender.length === 0) {
+					toRender = this.sprites.slice(0, this.rate);
 				}
 
 				toRender.forEach(img => {
-					if (!img.update()) {
-						// cull sprites that reach the left edge
+					if (!img.update(img)) {
+						// cull sprites that die (reach the edge)
 						this.sprites.splice(this.sprites.indexOf(img), 1);
 						var toRender = this.sprites.slice(0, this.rate);
 						// Sort by -y
@@ -45,62 +81,57 @@ Vue.component('chase', {
 					};
 					img.render();
 				});
+				// Cleanup if all are gone
+				if (this.sprites.length == 0) {
+					context.clearRect(0, 0, this.canvas.width, this.canvas.height);
+				}
 			}
 		},
 		sprite: function (options) {
 		
-			var that = {},
-				frameIndex = 0,
-				tickCount = 0,
-				ticksPerFrame = options.ticksPerFrame || 0,
-				numberOfFrames = options.numberOfFrames || 1;
+			var that = {}
+
+			that.frameIndex = 0,
+			that.tickCount = 0,
+			that.ticksPerFrame = options.ticksPerFrame || 0,
+			that.number_of_frames = options.numberOfFrames || 1;
 			
 			that.context = options.context;
 			that.width = options.width;
 			that.height = options.height;
 			that.image = options.image;
-			if (options.id < this.rate) {
-				that.x = options.context.canvas.width + ((options.context.canvas.width / this.rate) * options.id );
-			} else {
-				that.x = options.context.canvas.width + options.width;
+
+			/* Optionals */
+			that.x = options.x;
+			that.y = options.y;
+			that.speed = options.speed;
+			if (typeof that.x == 'undefined') {
+				if (options.id < this.rate) {
+					that.x = options.context.canvas.width + ((options.context.canvas.width / this.rate) * options.id );
+				} else {
+					that.x = options.context.canvas.width + options.width;
+				}
 			}
-			that.y = (options.context.canvas.height * 0.25) + (Math.random() * (options.context.canvas.height * 0.5));
-			that.speed = 1.5 + (Math.random());
-			
-			that.update = function () {
+			if (typeof that.y == 'undefined') {
+				that.y = (options.context.canvas.height * 0.25) + (Math.random() * (options.context.canvas.height * 0.5));
+			}
+			if (typeof that.speed == 'undefined') {
+				that.speed = 1.5 + (Math.random());
+			}
 
-				tickCount += 1;
-				that.x -= that.speed;
-				if (that.x < -(that.width / numberOfFrames)) {
-					return false;
-				}
-
-				if (tickCount > ticksPerFrame) {
-
-					tickCount = 0;
-					
-					// If the current frame index is in range
-					if (frameIndex < numberOfFrames - 1) {	
-						// Go to the next frame
-						frameIndex += 1;
-					} else {
-						frameIndex = 0;
-					}
-				}
-				return true
-			};
-			
+			/* methods */
+			that.update = options.updatefunc;
 			that.render = function () {
 			// Draw the animation
 			that.context.drawImage(
 				that.image,
-				frameIndex * that.width / numberOfFrames,
+				that.width - ((that.frameIndex + 1) * (that.width / that.number_of_frames)),
 				0,
-				that.width / numberOfFrames,
+				that.width / that.number_of_frames,
 				that.height,
 				that.x,
 				that.y,
-				that.width / numberOfFrames,
+				that.width / that.number_of_frames,
 				that.height);
 			};
 			
@@ -111,6 +142,27 @@ Vue.component('chase', {
 			let spriteImage = new Image()
 			spriteImage.src = `/res/${this.view}/image/${image_name}`;
 			spriteImage.addEventListener("load", (e) => {
+				var updatefunc = function (ctx) {
+					ctx.tickCount += 1;
+					ctx.x -= ctx.speed;
+					if (ctx.x < -(ctx.width / ctx.number_of_frames)) {
+						return false;
+					}
+
+					if (ctx.tickCount > ctx.ticksPerFrame) {
+
+						ctx.tickCount = 0;
+						
+						// If the current frame index is in range
+						if (ctx.frameIndex < ctx.number_of_frames - 1) {	
+							// Go to the next frame
+							ctx.frameIndex += 1;
+						} else {
+							ctx.frameIndex = 0;
+						}
+					}
+					return true
+				};
 				for (let i = 0; i < number; i++) {
 					// Create sprite
 					var newsprite = this.sprite({
@@ -120,15 +172,107 @@ Vue.component('chase', {
 						height: spriteImage.height,
 						image: spriteImage,
 						numberOfFrames: parseInt(spriteImage.width / spriteImage.height),
-						ticksPerFrame: 8
+						ticksPerFrame: 8,
+						updatefunc: updatefunc
 					});
 					this.sprites.push(newsprite)
 				}
 			});
 		},
+		creategem: function () {
+			// Load sprite sheet
+			let spriteImage = new Image()
+			spriteImage.src = `/res/${this.view}/image/red_jewel`;
+			let h = this.canvas.height;
+			let w = this.canvas.width;
+			let radius = parseInt(w/3);
+			spriteImage.addEventListener("load", (e) => {
+				var updatefunc = function (ctx) {
+					if (typeof ctx.counter == "undefined") {
+						ctx.counter = 0;
+						ctx.x2 = ctx.x;
+						ctx.y2 = ctx.y;
+					}
+
+					if (ctx.y2 < 0) {
+						if (ctx.y < 0) {
+							return false;
+						}
+					}
+
+					ctx.tickCount += 1;
+					ctx.counter += 1;
+					ctx.y2 -= ctx.speed * 0.75;
+					ctx.x = ctx.x2;
+					ctx.y = ctx.y2;
+
+					// follow a flat arc
+					ctx.x += radius * Math.cos(ctx.counter * 0.02);
+					ctx.y += radius * 0.5 * Math.sin(ctx.counter * 0.02);
+
+					if (ctx.tickCount > ctx.ticksPerFrame) {
+
+						ctx.tickCount = 0;
+						
+						// If the current frame index is in range
+						if (ctx.frameIndex < ctx.number_of_frames - 1) {	
+							// Go to the next frame
+							ctx.frameIndex += 1;
+						} else {
+							ctx.frameIndex = 0;
+						}
+					}
+					return true
+				};
+				// Create sprite
+				var newsprite = this.sprite({
+					id: 1,
+					context: this.canvas.getContext("2d"),
+					width: spriteImage.width,
+					height: spriteImage.height,
+					x: parseInt(w / 2),
+					y: h,
+					image: spriteImage,
+					numberOfFrames: parseInt(spriteImage.width / spriteImage.height),
+					ticksPerFrame: 8,
+					updatefunc: updatefunc
+				});
+				this.sprites.push(newsprite)
+			});
+		},
+		create_banner(msg) {
+			var media;
+			var	text = `${msg.tags['system-msg']}<br/>${msg.message}`;
+
+			switch (msg.type) {
+				case "FOLLOW":
+					media = `/res/${this.view}/media/follow`;
+					break;
+
+				case "RAID":
+					media = `/res/${this.view}/media/raid`;
+					break;
+
+				case "BITS":
+					let ammount = msg.tags["bits"]
+					media = `/res/${this.view}/media/bits?value=${ammount}`;
+					break
+			}
+
+			if (media) {
+				this.queue.push({
+					type: undefined,
+					media: media,
+					user: msg.nickname,
+					message: text,
+					id: msg.id
+				})
+			}
+		},
         do_alert(msg) {
 			try {
-				// TODO: Handle event while sprites still running
+				this.create_banner(msg);
+				// TODO: Handle event while previous event still running
 				if (msg.type == "FOLLOW") {
 					this.createsprites(1, "follow");
 				}
@@ -138,6 +282,9 @@ Vue.component('chase', {
 					if (msg.tags['reward-title'] == "Chocobos")
 					{
 						this.createsprites(15, "chocobo");
+					}
+					else if (msg.tags['reward-title'] == "Send Jewels to Gem") {
+						this.creategem();
 					}
 				} else if (["RAID", "HOSTED"].includes(msg.type)){
 				    let count = parseInt(msg.tags['msg-param-viewerCount']);
@@ -149,4 +296,82 @@ Vue.component('chase', {
 			}
 		}
     }
-});
+};
+
+var banner = {
+	template: `
+	<transition mode="out-in">
+	<div v-show="!done" id="alertbox">
+	<div v-show="type=='video'">
+	    <video ref="media" autoplay="true" class="content">
+		    <source :src="media" v-if="type=='video'">
+		</video>
+	</div>
+	<img v-if="type=='gif'" :src="media" class="content"/> 
+
+	<p v-html="message" class="message"></p>
+	</div>
+	</transition>
+	`,
+	props: {
+		media: String,
+		user: String,
+		message: String,
+		id: String
+	},
+	data() {
+		return {
+			"done": true,
+			"type": null,
+			"flag": false
+		}
+	},
+	mounted: async function() {
+		let response = await fetch(this.media)
+		var ct = response.headers.get("content-type", {method: "HEAD"});
+		if (ct.startsWith("image")){
+			this.type = "gif";
+		} else {
+			this.type = "video";
+		}
+		console.log(`new ${this.type}!`)
+		this.done = false;
+		if (this.type == "video") {
+			if (this.$refs.media) {
+				if (!this.flag) {
+					// fist time, set listener
+					this.$refs.media.addEventListener('ended', this.setdone, false);
+					this.flag = true;
+				} else {
+					// otherwise reset playback time
+					this.$refs.media.currentTime = 0;
+					this.$refs.media.play();
+				}
+			}
+			var sources = this.$refs.media.querySelectorAll('source');
+			if (sources.length === 0) {
+				// If no sources, set a timeout (404'd video)
+				window.setTimeout(this.setdone, 5000);
+			}
+		} else {
+			window.setTimeout(this.setdone, 5000);
+		}
+	},
+	methods: {
+		setdone: function(event) {
+			this.done = true;
+			this.$emit('finished')
+		}
+	},
+};
+
+function uuidv4() {
+  return ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c =>
+    (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
+  );
+}
+
+export default {
+	chase: chase,
+	banner: banner
+}

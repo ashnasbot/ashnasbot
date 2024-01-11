@@ -1,7 +1,7 @@
-Vue.component('view-select', {
+export default {
     data: function() {
-        var urlChunks = location.pathname.split('/');
-        current = urlChunks[urlChunks.length - 2];
+        let urlChunks = location.pathname.split('/');
+        let current = urlChunks[urlChunks.length - 2];
         return {
             views: [],
             search: window.location.search,
@@ -26,6 +26,6 @@ Vue.component('view-select', {
     template: `<select onchange="location.href=this.value">
         <option v-for="view in views"
                 v-bind:value="'/views/' + view + '/chat.html' + search"
-                :selected="view == current">{{view}}</option>
+                :selected="view.toLowerCase() == current.toLowerCase()">{{view}}</option>
     </select>`
-  })
+}

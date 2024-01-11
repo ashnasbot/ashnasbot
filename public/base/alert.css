@@ -1,0 +1,62 @@
+html, body {
+    width:  100%;
+    height: 100%;
+    margin: 0;
+}
+
+#alertbox {
+  position: absolute;
+  left: 0;
+  right: 0;
+  margin-left: auto;
+  margin-right: auto;
+  width: 50vw;
+  height: 50vh;
+  top: 2vw;
+  z-index: -1;
+}
+
+.content {
+  width:100%;
+  height:100%;
+  object-fit: contain;
+}
+
+.message {
+  background: linear-gradient(to right,
+              hsl(98 100% 62%),
+              hsl(204 100% 59%));
+
+  animation: textclip 2s linear infinite;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-align: center;
+  font-weight: bold;
+  font-family: sans-serif;  /* TODO: pick a font */
+  font-size: xx-large;
+  background-position: 0 0;
+}
+.message img {
+    height: 1em;
+    display: inline-block;
+}
+.message span {
+    display: inline-block;
+}
+
+.v-enter-active,
+.v-leave-active {
+  transition: opacity 0.5s ease;
+}
+
+.v-enter-from,
+.v-leave-to {
+  opacity: 0;
+}
+
+@keyframes textclip {
+  to {
+    background-position: 2000px 2000px;
+  }
+}

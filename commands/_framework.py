@@ -85,4 +85,20 @@ def cmd(slug, priv=PRIV.COMMON, visibility=VISIBILITY.VISIBLE):
     return inner_wrapper
 
 
-__all__ = ["PRIV", "VERBS", "db", "logger", "API_CLIENT", "send_message", "cmd", "VISIBILITY"]
+def redemption(slug, visibility=VISIBILITY.VISIBLE):
+    def inner_wrapper(func):
+        redemptions = func.__globals__['REDEMPTIONS']
+        if f"{slug}" in redemptions:
+            raise ValueError(f"Redemption handler '{slug}' already exists")
+
+        @functools.wraps(func)
+        def redemption_wrapper(event, *args, **kwargs):
+
+            return func(event, *args, **kwargs)
+
+        redemptions[f"{slug}"] = (visibility, redemption_wrapper)
+        return redemption_wrapper
+    return inner_wrapper
+
+
+__all__ = ["PRIV", "VERBS", "db", "logger", "API_CLIENT", "send_message", "cmd", "VISIBILITY", "redemption"]

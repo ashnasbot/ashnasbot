@@ -62,6 +62,9 @@ class EventSubClient():
                 evt = await self.handle_message(message)
                 if evt:
                     await self.alert_callback(evt)
+            except websockets.exceptions.ConnectionClosedError as e:
+                logger.error("EventSub Connection closed: %s", e)
+                self.stop_event.set()
             except Exception as e:
                 logger.error("EventSub failure: %s", e)
                 import traceback

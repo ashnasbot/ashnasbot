@@ -483,8 +483,6 @@ class SocketServer():
         logger.debug("Clients closed")
         if self.chatbot:
             self.chatbot.close()
-            queue = self.chatbot.chat()
-            await queue.put(None)
         await self._event_queue.put(None)
         await asyncio.sleep(2)
         logger.info("Stopping loop")

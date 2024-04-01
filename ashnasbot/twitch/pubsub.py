@@ -6,6 +6,8 @@ import uuid
 import websockets
 import websockets.client
 
+from . import redemptions
+
 from .data import create_event
 from ..config import Config
 
@@ -225,8 +227,10 @@ class PubSubClient():
 
         tags = {
             "color": color,
+            "title": title,
             "cost": cost,
             "reward-title": title,
+            "display-name": nickname,
             "system-msg": f"{nickname} redeemed {title}"
         }
         user_input = ""
@@ -240,9 +244,11 @@ class PubSubClient():
 
         out_msg.tags = tags
         out_msg.extra.append("quoted")
+        out_msg.channel = self.channel
 
         if reward["image"]:
             out_msg.logo = reward["image"]["url_2x"]
+        redemptions.handle_channel_redemption(out_msg)
 
         logger.info(f"PUBSUB: {tags['system-msg']}")
         return out_msg

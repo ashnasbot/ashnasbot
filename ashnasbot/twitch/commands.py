@@ -14,6 +14,7 @@ logging.getLogger("aitextgen").setLevel(logging.WARN)
 
 # TODO: command cooldown (per channel)
 COMMANDS: typing.Dict[str, typing.Callable] = {}
+REDEMPTIONS: typing.Dict[str, typing.Callable] = {}
 
 
 class BannedException(Exception):
@@ -22,13 +23,14 @@ class BannedException(Exception):
 
 
 def load_command(channel, command):
-    global COMMANDS
+    global COMMANDS, REDEMPTIONS
     res = None
     try:
         if channel not in COMMANDS:
             mod = []
-            if 'commands.ashnas' in sys.modules:
-                mod = sys.modules['commands.ashnas']
+            modstr = f'commands.{channel}'
+            if modstr in sys.modules:
+                mod = sys.modules[modstr]
             else:
                 logger.debug("Importing commands for %s", channel)
                 # TODO: sanitise this!

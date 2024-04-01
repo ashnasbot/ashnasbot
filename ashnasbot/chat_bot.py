@@ -141,4 +141,5 @@ class ChatBot():
         for c in self.channels:
             logger.info(f"Closing chat {c}")
             self.observer.leave_channel(c)
+            self.add_task(self.chat_queue.put(None))
         self.observer.stop()

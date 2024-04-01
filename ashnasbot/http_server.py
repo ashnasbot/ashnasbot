@@ -19,8 +19,6 @@ from aiohttp_session import setup, get_session, new_session
 from aiohttp_session.cookie_storage import EncryptedCookieStorage
 from prometheus_async import aio
 
-from ashnasbot.twitch import pokedex
-
 logger = logging.getLogger(__name__)
 logging.getLogger("aiohttp.access").setLevel(logging.DEBUG)
 
@@ -123,9 +121,6 @@ class HTTPServer(object):
         self.app.router.add_get('/chat', self.get_chat)
         self.app.router.add_get('/user_auth', self.begin_auth)
         self.app.router.add_get('/authorize', self.auth_callback)
-
-        # API
-        self.app.router.add_get('/dex', self.get_pokedex)
 
         # Metrics
         self.app.router.add_get("/metrics", aio.web.server_stats)
@@ -305,14 +300,6 @@ class HTTPServer(object):
         resp.set_cookie('refresh', token["refresh_token"], secure=True)
         resp.set_cookie('auth_expires', token["expires_in"])
         return resp
-
-    def get_pokedex(self, request):
-        player = request.query['channel']
-        resp = {}
-        dex = pokedex.get_player_pokedex(player)
-        for row in dex:
-            resp[row['id']] = row['caught']
-        return web.json_response(resp)
 
     def glob_var(self, paths, stub, filter, num=0):
         # Paths = list of locations to check in order of preference

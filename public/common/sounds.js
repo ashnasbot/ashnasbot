@@ -22,6 +22,7 @@ export default {
 	watch: {
 		ready: function(val) {
 			if(val) {
+				this.$emit('finished')
 				this.playqueue.shift();
 				this.play();
 			}

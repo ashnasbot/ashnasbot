@@ -135,7 +135,7 @@ const app = createApp(
         return {
             alert: "",
             auth: getAuth(),
-            backoff: null,
+            backoff: 1000,
             channel: getChannel(),
             config: {},
             curChannel: "",
@@ -205,12 +205,11 @@ const app = createApp(
         },
         socket_close: function () {
             this.status = "Reconnecting"
+            this.backoff = 1000;
             setTimeout(this.connect(), 2000);
         },
         connect: function() {
-            if (!Number.isInteger(this.backoff)) {
-                this.backoff = 1000;
-            } else {
+            if (this.backoff > 60000) {
                 this.backoff *= 1.5
             }
             var boundReconnect = this.connect.bind(this);
@@ -234,6 +233,11 @@ const app = createApp(
                     console.log(error);
                 }
                 setTimeout(boundReconnect, this.backoff);
+            }
+        },
+        animfinished: function() {
+            if(this.$refs.alerthandler) {
+                this.$refs.alerthandler.makeready();
             }
         }
     },

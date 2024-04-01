@@ -56,6 +56,11 @@ var chase = {
 	},
     methods: {
 		makeready() {
+			if (this.$root.$refs.soundhandler) {
+				if (!this.$root.$refs.soundhandler.ready) {
+					return;
+				}
+			}
 			this.ready = true;
 			this.alert = null;
 		},
@@ -253,6 +258,10 @@ var chase = {
 					media = `/res/${this.view}/media/raid`;
 					break;
 
+				case "SUB":
+					media = `/res/${this.view}/media/sub`;
+					break;
+
 				case "BITS":
 					let ammount = msg.tags["bits"]
 					media = `/res/${this.view}/media/bits?value=${ammount}`;
@@ -334,7 +343,6 @@ var banner = {
 		} else {
 			this.type = "video";
 		}
-		console.log(`new ${this.type}!`)
 		this.done = false;
 		if (this.type == "video") {
 			if (this.$refs.media) {
@@ -351,10 +359,10 @@ var banner = {
 			var sources = this.$refs.media.querySelectorAll('source');
 			if (sources.length === 0) {
 				// If no sources, set a timeout (404'd video)
-				window.setTimeout(this.setdone, 5000);
+				window.setTimeout(this.setdone, 7000);
 			}
 		} else {
-			window.setTimeout(this.setdone, 5000);
+			window.setTimeout(this.setdone, 7000);
 		}
 	},
 	methods: {

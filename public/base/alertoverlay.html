@@ -8,7 +8,8 @@
     </head>
     <body>
         <div id="app" client="alert">
-            <chase ref="alerthandler"></chase>
+            <chase ref="alerthandler" ></chase>
+            <sound-handler ref="soundhandler" v-bind:tts="$root.config.tts" @finished="animfinished"></sound-handler>
         </div>
         <script defer src="/static/common/handlers.js" type="module"></script>
     </body>

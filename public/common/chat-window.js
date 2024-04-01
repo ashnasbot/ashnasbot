@@ -85,10 +85,16 @@ export default {
 		container = this.$el.querySelector("#chat");
         alternator = false;
 
-        const urlParams = new URLSearchParams(window.location.search);
+        const urlParams = new URLSearchParams(viewport.location.search);
         this.channel = urlParams.get('channel');
 
         var clientCfg = this.client;
+
+        if ("obsstudio" in viewport) {
+            viewport.addEventListener('obsSceneChanged', function(event) {
+                this.store_chat();
+            }.bind(this))
+        }
 
         if (clientCfg.includes("chat")) {
             if (localStorage.getItem('chat-' + this.channel)) {
@@ -151,7 +157,7 @@ function checkOverflow(el)
     var isOverflowing = el.clientHeight < el.scrollHeight - 2; /* THIS IS A HACK */
 
     if (!isOverflowing){
-        isOverflowing = el.scrollHeight > window.innerHeight;
+        isOverflowing = el.scrollHeight > viewport.innerHeight;
     }
 
     return isOverflowing;

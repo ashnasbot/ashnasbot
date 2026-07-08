@@ -14,9 +14,9 @@
 		<form method="GET">
 			<label for="menu_channel">Channel</label>
 			<input v-model="channel" id="menu_channel" name="channel"/>
+			<view-select></view-select>
 			<input type="submit"/>
 		</form>
-		<view-select></view-select>
 		<config-menu ref="menu" v-on:cfg-update="updateCfg($event)"></config-menu>
 	</div>
 	<chat-window ref="chatwindow" :client="client"></chat-window>

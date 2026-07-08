@@ -4,12 +4,13 @@
         <meta charset="UTF-8">
         <link rel="stylesheet" type="text/css" href="/static/base/alert.css">
         <link rel="stylesheet" type="text/css" href="alert.css">
+        <link rel="stylesheet" type="text/css" href="/static/base/pokey.css">
         <title>Ashnasbot Alert Handler</title>
     </head>
     <body>
         <div id="app" client="alert">
-            <chase ref="alerthandler" ></chase>
-            <sound-handler ref="soundhandler" v-bind:tts="$root.config.tts" @finished="animfinished"></sound-handler>
+            <media-content ref="alerthandler" :sound="$root.config.sound" :tts="$root.config.tts"></media-content>
+            <pokey-widget ref="pokey"></pokey-widget>
         </div>
         <script defer src="/static/common/handlers.js" type="module"></script>
     </body>

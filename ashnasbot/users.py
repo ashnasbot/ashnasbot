@@ -1,4 +1,7 @@
 
+MAX_CACHED_USERS = 1000
+
+
 class Users():
 
     def __init__(self, http_client):
@@ -6,12 +9,17 @@ class Users():
         self.users = {}
 
     async def get_picture(self, user):
+        """Return the user's profile image URL, or None if lookup fails.
 
-        if user in self.users:
-            info = self.users[user]
+        Failed lookups are not cached, so transient API errors recover.
+        """
+        info = self.users.get(user)
 
-        else:
+        if not info:
             info = await self.http_client.get_user_info(user)
-            self.users[user] = info
+            if info:
+                if len(self.users) >= MAX_CACHED_USERS:
+                    self.users.pop(next(iter(self.users)))
+                self.users[user] = info
 
-        return info['profile_image_url']
+        return info.get('profile_image_url') if info else None

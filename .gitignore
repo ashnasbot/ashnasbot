@@ -17,7 +17,8 @@ db/*
 
 build/*
 dist/*
-venv
+venv/*
+.venv/*
 chatlogs
 trained_model
 aitextgen.tokenizer.json

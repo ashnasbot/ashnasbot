@@ -2,83 +2,71 @@
 A simple twitch integration project to play with some python, very basic.
 
 ## Running
-### exe
-Just download and run `ashnasbot.exe` no install needed.
-- run `ashnasbot.exe` in a terminal - it will create the required files.
-- use `CRTL`+`C` to quit and set the config.
-- Install required [views](https://github.com/ashnasbot/ashnasbot-views) into the directory.
-- run `ashnasbot.exe` again.
 
-### dev
-The dev version has far more testing and is likely more up-to-date.
+Requires Python 3.11+
 
-#### Install
-Requires python 3.6+ you can get it at https://www.python.org/downloads/
-
-These docs are untested, venv has issues on certain windows installs.
-```
-python3 -m pip install --upgrade pip
-python3 -m pip install --user virtualenv
-```
 ```
 git clone https://github.com/ashnasbot/ashnasbot.git
-cd ashnasbot/views
+cd ashnasbot
 git submodule init
 git submodule update
-cd ..
 
 python3 -m virtualenv env
 # Windows
 env\Scripts\activate.bat
 # Linux
-env\Scripts\activate
+source env/bin/activate
+
 pip install -r requirements.txt
 ```
 
-```python3 ./__main__.py```
+```
+python3 ./__main__.py
+```
 
-## config
-You must [register your application on the Twitch dev portal](https://dev.twitch.tv/dashboard/apps/create) to get a client id and a secret
-The bot requires both client_id/secret AND a user oauth token for accessing APIs and interacting with chat respectively.
+## Config
+[Register your application on the Twitch dev portal](https://dev.twitch.tv/dashboard/apps/create) to get a client id and secret.
 
-[TMI](https://twitchapps.com/tmi/) is a 3rd party service that offers an easy way to get a token.
-Then you just need the 'username' of the bot account you got the auth token for.
+Create `config.json` in the project root (the server will generate a blank one on first run):
 
-config.json
 ```json
 {
     "client_id": "abcdef0123456789",
-    "oauth": "oauth:abcdefghijklmnopqrstuvwxyz", 
     "secret": "abcdef0123456789",
     "username": "my_bot_user",
-    "user_id": 275857969,
     "log_level": "INFO"
 }
 ```
-- **client_id**: Required - App/client id from the developer portal see https://dev.twitch.tv/docs/v5#getting-a-client-id
-- **oauth**: Required - Oauth Token for API access see https://dev.twitch.tv/docs/authentication/getting-tokens-oauth/ and twitchapps.com/tokengen
-- **username**: Required - Username of your bot account
-- **secret**: Optional - Client Secret - used for authenticating (for pubsub)
-- **user_id**: Deprecated - The 'ID' of the given user
+- **client_id**: Required - App client ID from the developer portal
+- **secret**: Required - App client secret from the developer portal
+- **username**: Required - Username of the bot account
 - **log_level**: Required - `"INFO"` if unsure
-- **bttv**: Optional - `true` or `false` show bttv emotes in chat
+- **bttv**: Optional - `true` or `false` to show BTTV emotes in chat
+- **chat_model**: Optional - HuggingFace model ID for the chatbot (default: `"Qwen/Qwen3.5-2B"`)
+- **chat_model_quant**: Optional - Quantization mode: `"fp8"`, `"int8"`, `"int4"`, or `null` for none (default: `"fp8"`)
+
+### Auth
+Once running, authenticate via the browser:
+
+- `http://localhost:8080/bot_auth` — authorise the bot account (grants chat read/write)
+- `http://localhost:8080/user_auth` — authorise the broadcaster account (grants redemptions, follows, predictions)
+
+Tokens are stored automatically and refresh in the background.
 
 ### Usage
-In a browser source navigate to `http://localhost:8080/chat` select a style and enter a username to get chat!
-Hover over the top of the window to show the session config window.
+Navigate to `http://localhost:8080` in a browser to open the dashboard, select a view and enter a channel name.
 
 ### Session Config
-Each session keeps its own config, configured in the browser menu, hit submit commit these values.
- -  **Allow commands**: Allow the bot to process and respond to !commands (not recomended due no API for this so commands are junk)
- -  **Pull Avatars**: Some views show profile picture (Twitch rate-limites API requests so this must be disabled on really busy channels)
- -  **Show Chat Notifications**: Show Sub and other messages in chat
+Each session keeps its own config, configured in the browser menu.
+ -  **Allow commands**: Allow the bot to process and respond to !commands
+ -  **Pull Avatars**: Some views show profile pictures (disable on busy channels to avoid rate limits)
+ -  **Show Chat Notifications**: Show Sub and other alert messages in chat
  -  **Sounds**: Play sound effects on e.g. Subs
- -  **Show menu on load**: Shows the config menu when the page is loaded - hover over the top of the page to show
- -  **PubSub**: Experimental - uses pubsub api to get events and channel point redemptions
+ -  **Show menu on load**: Shows the config menu when the page loads
 
 ## Known Issues
-- some substitutions not supported e.g. "<3" as this isn't classed as an 'emote'
-- no channel cheermotes
+- Some substitutions not supported e.g. `<3` (not classed as an emote)
+- No channel cheermotes
 - Setting channel on 'base' returns a 404 (install & select a view first)
 
 ## Licence

@@ -1,20 +1,18 @@
 import bisect
-import copy
 import html
 from itertools import chain
 import logging
 import re
-from uuid import uuid4
 import time
+from uuid import uuid4
 import uuid
 
 import bleach
-from requests.exceptions import ConnectionError
 
 from .api_client import TwitchClient
 from ..config import Config
 from .data import EMOTE_FULL_TEMPLATE, EMOTE_IMG_TEMPLATE, SUB_TIERS, BADGE_URL_TEMPLATE, BITS_COLORS
-from .data import CHEERMOTE_TEXT_TEMPLATE, CHEERMOTE_URL_TEMPLATE, BITS_INDICIES, OutputMessage
+from .data import CHEERMOTE_TEXT_TEMPLATE, CHEERMOTE_URL_TEMPLATE, BITS_INDICIES, OutputMessage, EventType
 from .data import TEIRED_BADGES, CHEER_REGEX, CLIP_REGEX, CHEERMOTES, OWN_EMOTES, BADGES, CHANNEL_CHEERMOTES
 from . import commands
 from . import db
@@ -23,43 +21,25 @@ from . import bttv
 logger = logging.getLogger(__name__)
 config = Config()
 
-API_CLIENT = None
-retry = 5
+try:
+    API_CLIENT = TwitchClient(None, None)
+except ValueError:
+    API_CLIENT = None
+    logger.warning("No API client, API features unavailable")
 
-while API_CLIENT is None:
-    try:
-        API_CLIENT = TwitchClient(None, None)
-    except ValueError:
-        logger.warning("No API client, API features unavailable")
-        break
-    except ConnectionError:
-        logger.error("Failed to contact Twitch")
-        retry -= 1
-        if retry < 1:
-            break
-        time.sleep(2)
+# In-memory badge cache: channel -> (expiry_timestamp, badges dict).
+# Avoids a sqlite round-trip for every rendered message.
+_BADGE_CACHE_TTL = 3600
+_badge_cache: dict = {}
 
 
-async def render_own_emotes(message, emotesets):
-
-    if len(emotesets) > 25:
-        raise ValueError("Too many subs, multiple requests needed")
-
-    # filter to allowed emotesets
-    sets = [s[1] for s in OWN_EMOTES.values()]
-    missing = [s for s in emotesets if s not in sets]
-    if missing:
-        OWN_EMOTES.update(await API_CLIENT.get_emotes_for_sets(missing))
-    emotes = {k: v for k, v in OWN_EMOTES.items() if v[1] in emotesets}
-
-    for token in message.split():
-        if token in emotes:
-            message = re.sub(
-                rf"\b{re.escape(token)}\b",
-                EMOTE_FULL_TEMPLATE.format(url=emotes[token][0], alt=token),
-                message)
-
-    return message
+async def load_own_emotes(user_id, user_token):
+    if OWN_EMOTES or not API_CLIENT:
+        return
+    emotes = await API_CLIENT.get_user_emotes(user_id, user_token)
+    if emotes:
+        OWN_EMOTES.update(emotes)
+        logger.info("Loaded %d own emotes", len(emotes))
 
 
 async def render_emotes(message, emotes, bttv_channel=None):
@@ -68,6 +48,7 @@ async def render_emotes(message, emotes, bttv_channel=None):
     As a side effect, html-escapes the message
     This is unavoidable.
     """
+    raw_message = message
     try:
         pattern = ""
         twitch_pattern = ""
@@ -92,9 +73,11 @@ async def render_emotes(message, emotes, bttv_channel=None):
         if bttv_channel:
             bttv_emotes = await bttv.get_emotes(bttv_channel)
             if bttv_emotes:
-                bttv_pattern = "|".join([re.escape(k)
-                                         for k in sorted(bttv_emotes.keys(), key=len, reverse=True)])
-                replacements.update(**bttv_emotes)
+                # Keys must be html-escaped to match the escaped message text
+                escaped_bttv = {html.escape(k): v for k, v in bttv_emotes.items()}
+                bttv_pattern = "|".join([r"(?<!\S)" + re.escape(k) + r"(?!\S)"
+                                         for k in sorted(escaped_bttv.keys(), key=len, reverse=True)])
+                replacements.update(**escaped_bttv)
 
         message = html.escape(message)
 
@@ -104,61 +87,79 @@ async def render_emotes(message, emotes, bttv_channel=None):
             regex = re.compile(pattern, flags=re.DOTALL)
             message = regex.sub(lambda x: replacements[x.group(0)], message)
 
-    except Exception as e:
-        logger.error(e)
-        raise
+    except Exception:
+        # Never lose a message to emote rendering — fall back to plain text
+        logger.exception("Emote rendering failed")
+        return html.escape(raw_message)
 
     return message
 
 
 async def get_channel_badges(channel):
     tbl_name = channel + "_badges"
-    if not db.exists(tbl_name):
-        db.create(tbl_name, primary="name")
 
     if not API_CLIENT:
         return {}
 
-    if db.expired(channel + "_badges"):
-        logger.info("No badge cache for %s", channel)
-        badges = await API_CLIENT.get_badges_for_channel(channel)
-        rows = [{"name": k, "url": v} for k, v in badges.items()]
-        keys = ["name"]
+    cached = _badge_cache.get(channel)
+    if cached and cached[0] > time.time():
+        return cached[1]
 
-        if db.exists(tbl_name):
-            db.update_multi(tbl_name, rows, primary="name", keys=keys)
+    if db.expired(tbl_name):
+        logger.info("No badge cache for %s", channel)
+        try:
+            badges = await API_CLIENT.get_badges_for_channel(channel)
+        except ValueError as e:
+            logger.warning("Failed to fetch badges for %s: %s", channel, e)
+            badges = {}
+        rows = [{"name": k, "url": v} for k, v in badges.items()]
+
+        if rows:
+            db.ensure(tbl_name, primary="name")
+            db.update_multi(tbl_name, rows, keys=["name"])
         else:
-            db.insert_multi(tbl_name, rows, primary="name", keys=keys)
+            db.touch(tbl_name)
 
     ret = {}
-    for badge in db.get(tbl_name):
-        name = badge.pop('name')
-        ret[name] = badge["url"]
+    if db.exists(tbl_name):
+        for badge in db.get(tbl_name):
+            ret[badge["name"]] = badge["url"]
+    _badge_cache[channel] = (time.time() + _BADGE_CACHE_TTL, ret)
     return ret
 
 
 async def load_cheermotes(channel=None):
-    global CHEERMOTES, CHANNEL_CHEERMOTES
+    global CHEERMOTES
+
+    if not API_CLIENT:
+        return
+
     add_cheer = False
 
     if channel and channel not in CHANNEL_CHEERMOTES:
-        CHANNEL_CHEERMOTES[channel] = await API_CLIENT.get_cheermotes(channel=channel)
+        try:
+            CHANNEL_CHEERMOTES[channel] = await API_CLIENT.get_cheermotes(channel=channel)
+        except ValueError as e:
+            logger.warning("Failed to fetch cheermotes for %s: %s", channel, e)
+            CHANNEL_CHEERMOTES[channel] = {}
         add_cheer = True
 
-    if API_CLIENT and not CHEERMOTES:
+    if not CHEERMOTES:
         CHEERMOTES = await API_CLIENT.get_cheermotes()
         add_cheer = True
 
-    if not db.exists("cheermotes") or db.expired("cheermotes"):
-        db.create("cheermotes", ["cheer", "value"])
+    if db.expired("cheermotes"):
         add_cheer = True
+    if not db.exists("cheermotes"):
+        add_cheer = True
+    db.ensure("cheermotes", ["cheer", "value"])
 
     if not add_cheer:
         return
 
     data = []
 
-    for p, v in chain(CHEERMOTES.items(), CHANNEL_CHEERMOTES[channel].items()):
+    for p, v in chain(CHEERMOTES.items(), CHANNEL_CHEERMOTES.get(channel, {}).items()):
         for i, u in v.items():
             data.append({
                 "cheer": p,
@@ -181,16 +182,16 @@ def get_le(collection, val):
 
 async def render_badges(channel, badges):
     global BADGES
-    if not BADGES:
+    if not BADGES and API_CLIENT:
         BADGES = await API_CLIENT.get_global_badges()
 
     rendered = []
     channel_badges = await get_channel_badges(channel)
     for badgever in badges.split(','):
         if "/" in badgever:
-            badge, val = badgever.split('/')
+            badge, val = badgever.split('/', 1)
         else:
-            badge = badgever
+            badge, val = badgever, ""
         if badge == 'subscriber':
             if not val:
                 val = "0"
@@ -216,6 +217,90 @@ async def render_badges(channel, badges):
     return rendered
 
 
+async def _render_raw_badges(channel, badges_raw):
+    """Render an EventSub badge array ([{"set_id":..., "id":...}]) to badge HTML."""
+    global BADGES
+    if not BADGES and API_CLIENT:
+        BADGES = await API_CLIENT.get_global_badges()
+
+    rendered = []
+    channel_badges = await get_channel_badges(channel)
+    for badge_entry in badges_raw:
+        badge = badge_entry.get("set_id", "")
+        val = badge_entry.get("id", "")
+
+        if badge == "subscriber":
+            url = channel_badges.get(badge + val, None)
+            if not url:
+                badge_key = badge + str(get_le(SUB_TIERS, val))
+                url = channel_badges.get(badge_key, None)
+        elif badge in TEIRED_BADGES:
+            badge_key = badge + val
+            url = channel_badges.get(badge_key, None)
+            if not url:
+                url = BADGES.get(badge_key, None)
+        else:
+            url = channel_badges.get(badge, None)
+
+        if not url:
+            url = BADGES.get(badge, None)
+        if url:
+            rendered.append(BADGE_URL_TEMPLATE.format(url=url, alt=badge))
+
+    return rendered
+
+
+async def render_eventsub_message(fragments, badges_raw, channel, bits=None, room_id=None):
+    """Render an EventSub fragment list to an HTML message string plus badge list."""
+    if bits and (not CHEERMOTES or db.expired("cheermotes")):
+        await load_cheermotes(channel)
+
+    bttv_emotes = {}
+    if room_id and "bttv" in config and config["bttv"]:
+        bttv_emotes = await bttv.get_emotes(room_id) or {}
+
+    parts = []
+    for frag in fragments:
+        ftype = frag["type"]
+        if ftype == "text":
+            tokens = frag["text"].split(" ")
+            rendered_tokens = []
+            for token in tokens:
+                if token in OWN_EMOTES:
+                    url, _ = OWN_EMOTES[token]
+                    rendered_tokens.append(EMOTE_FULL_TEMPLATE.format(url=url, alt=html.escape(token)))
+                elif token in bttv_emotes:
+                    rendered_tokens.append(bttv_emotes[token])
+                else:
+                    rendered_tokens.append(html.escape(token))
+            parts.append(" ".join(rendered_tokens))
+        elif ftype == "emote":
+            eid = frag["emote"]["id"]
+            parts.append(EMOTE_IMG_TEMPLATE.format(eid=eid, alt=html.escape(frag["text"])))
+        elif ftype == "cheermote":
+            cheer_data = frag["cheermote"]
+            prefix = cheer_data["prefix"]
+            bit_amount = cheer_data["bits"]
+            bits_value, color = BITS_COLORS[bisect.bisect_right(BITS_INDICIES, bit_amount) - 1]
+            cheermote = get_cheermote(prefix, bits_value)
+            if cheermote is None:
+                cheermote = get_cheermote("Cheer", bits_value)
+            if cheermote:
+                parts.append(CHEERMOTE_URL_TEMPLATE.format(alt=html.escape(prefix), url=cheermote["url"]))
+                parts.append(CHEERMOTE_TEXT_TEMPLATE.format(color=color, text=bit_amount))
+            else:
+                parts.append(html.escape(frag["text"]))
+        elif ftype == "mention":
+            parts.append(html.escape(frag["text"]))
+        else:
+            parts.append(html.escape(frag.get("text", "")))
+
+    message = "".join(parts)
+    message = bleach.linkify(message)
+    badges = await _render_raw_badges(channel, badges_raw)
+    return message, badges
+
+
 async def render_bits(message, channel, bits):
     if not CHEERMOTES or db.expired("cheermotes"):
         await load_cheermotes(channel)
@@ -229,6 +314,7 @@ async def render_bits(message, channel, bits):
         real_value = match.group(3)
         if not emote_name or not real_value:
             logger.warning("Matched broken emote %s %s", emote_name, real_value)
+            return match.group(0)
 
         if emote_name == "cheer":
             emote_name = "Cheer"
@@ -239,6 +325,9 @@ async def render_bits(message, channel, bits):
         if cheermote is None:
             logger.info("Channel specific cheermote not found: %s", emote_name)
             cheermote = get_cheermote("Cheer", bits_value)
+        if cheermote is None:
+            # No cheermote art available at all — leave the text as-is
+            return match.group(0)
 
         res = CHEERMOTE_URL_TEMPLATE.format(alt=emote_name, url=cheermote["url"]) + \
             CHEERMOTE_TEXT_TEMPLATE.format(color=color, text=real_value)
@@ -246,8 +335,8 @@ async def render_bits(message, channel, bits):
 
     match = CHEER_REGEX.search(message)
     if not match:
-        logger.warn("Cannot find bits in message")
-        return message
+        logger.warning("Cannot find bits in message")
+        return message, int(bits) if bits else 0
 
     res = CHEER_REGEX.sub(render_cheer, message)
     return res, total
@@ -258,6 +347,8 @@ async def render_clips(message):
         return message
 
     match = CLIP_REGEX.search(message)
+    if not match:
+        return message
     slug = match.group("slug")
     if slug is None:
         logger.error("Malformed clip url %s", match.groups())
@@ -266,10 +357,10 @@ async def render_clips(message):
     try:
         details = await API_CLIENT.get_clip(slug)
     except Exception:
-        logger.error("Failed to get clip")
+        logger.exception("Failed to get clip")
         return message
 
-    if "data" not in details or len(details["data"]) < 1:
+    if not details or not details.get("data"):
         logger.error("Failed to get clip")
         return message
 
@@ -286,7 +377,7 @@ async def render_clips(message):
 
 
 def get_bits(evt):
-    evt["type"] = "BITS"
+    evt["type"] = EventType.BITS
     return evt
 
 
@@ -300,11 +391,11 @@ async def handle_message(event, auth=None):
     extra = []
 
     if raw_msg.startswith('!'):
-        return commands.handle_command(event, auth=auth)
+        return await commands.handle_command(event, auth=auth)
 
-    if msg_type == "RAID":
-        etags['system-msg'] = f"{etags['msg-param-displayName']} is raiding with a party of " \
-                              f"{etags['msg-param-viewerCount']}"
+    if msg_type == EventType.RAID:
+        etags['system-msg'] = f"{etags.get('msg-param-displayName', 'Someone')} is raiding with a party of " \
+                              f"{etags.get('msg-param-viewerCount', '?')}"
 
     if hasattr(event, "_command"):
         other = handle_system_commands(event)
@@ -327,30 +418,41 @@ async def handle_message(event, auth=None):
     nickname = etags['display-name'] if 'display-name' in etags else ''
 
     badges = []
-    if "badges" in etags and etags["badges"]:
-        badges = await render_badges(event.channel, etags['badges'])
-
-    temotes = 'emotes' in etags and etags["emotes"]
-    bemotes = etags["room-id"] if "bttv" in config and config["bttv"] and "room-id" in etags else None
-    if temotes or bemotes:
-        message = await render_emotes(raw_msg, temotes, bemotes)
+    if "_fragments" in etags:
+        # EventSub path: fragment-based rendering
+        message, badges = await render_eventsub_message(
+            etags["_fragments"], etags.get("_badges_raw", []), event.channel,
+            bits=etags.get("bits"), room_id=etags.get("room-id"))
     else:
-        # Render emotes does this as a side-effect
-        # Responses are assumed to already be escaped
-        if "response" in etags:
-            message = html.unescape(raw_msg)
+        # IRC path: position-based emote rendering
+        if "badges" in etags and etags["badges"]:
+            badges = await render_badges(event.channel, etags['badges'])
+
+        temotes = 'emotes' in etags and etags["emotes"]
+        bemotes = etags["room-id"] if "bttv" in config and config["bttv"] and "room-id" in etags else None
+        if temotes or bemotes:
+            message = await render_emotes(raw_msg, temotes, bemotes)
         else:
-            message = html.escape(raw_msg)
+            # Render emotes does this as a side-effect
+            # Responses are assumed to already be escaped
+            if "response" in etags:
+                message = html.unescape(raw_msg)
+            else:
+                message = html.escape(raw_msg)
 
-    if re.search(CLIP_REGEX, message):
-        message = await render_clips(message)
+        if re.search(CLIP_REGEX, message):
+            message = await render_clips(message)
 
-    message = bleach.linkify(message)
+        message = bleach.linkify(message)
 
     if "bits" in etags:
-        message, bits = await render_bits(message, event.channel, etags["bits"])
-        etags["system-msg"] = f"{etags['display-name']} cheered with {bits} bits!"
-        logger.info("BITS %s cheered %d", etags['display-name'], bits)
+        if "_fragments" in etags:
+            # Cheermotes already rendered inline by render_eventsub_message
+            bits = etags["bits"]
+        else:
+            message, bits = await render_bits(message, event.channel, etags["bits"])
+        etags["system-msg"] = f"{nickname} cheered with {bits} bits!"
+        logger.info("BITS %s cheered %s", nickname, bits)
 
     if "id" not in etags:
         etags["id"] = str(uuid4())
@@ -366,12 +468,6 @@ async def handle_message(event, auth=None):
         'channel': event.channel,
         'extra': extra
     })
-
-
-def create_event(from_evt, message):
-    new_evt = copy.copy(from_evt)
-    new_evt.message = message
-    return new_evt
 
 
 async def cleanup():
@@ -412,7 +508,7 @@ def handle_system_commands(event):
             # NOTE: We don't actually handle this yet but the notification is useful
             #       Chatbot needs to reconnect
             ret_event = OutputMessage({
-                "type": "TWITCHCHATMESSAGE",
+                "type": EventType.TWITCHCHATMESSAGE,
                 "nickname": "Ashnasbot",  # TODO: Use generic event type
                 "tags": {
                     'display-name': "Ashnasbot",
@@ -420,10 +516,10 @@ def handle_system_commands(event):
                 "extra": ['quoted'],
                 "channel": event.channel
             })
-            logger.warn("Twitch chat is going down")
+            logger.warning("Twitch chat is going down")
             ret_event['message'] = "Twitch chat is going down"
             return ret_event
 
-    except Exception as e:
-        logger.warn(e)
+    except Exception:
+        logger.exception("Failed to handle system command %s", getattr(event, "_command", "?"))
         return

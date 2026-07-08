@@ -162,7 +162,7 @@ Vue.component('event-create', {
           nickname: `${this.options.who.value}`,
           message: `${this.options.message.value}`,
           channel: `${this.options.channel.value}`,
-          id: "xxx",
+          id: uuid4(),
           tags: {
             "display-name": `${this.options.who.value}`,
             "id": uuid4(),
@@ -205,7 +205,7 @@ Vue.component('event-create', {
           channel: `${this.options.channel.value}`,
           message: `Cheer${this.options.value.value}`,
           orig_message: `Cheer${this.options.value.value}`,
-          id: "xxx",
+          id: uuid4(),
           tags: {
             "display-name": `${this.options.who.value}`,
             "id": uuid4(),

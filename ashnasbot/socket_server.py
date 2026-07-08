@@ -1,29 +1,31 @@
 import asyncio
-from asyncio import CancelledError as CancelledError
 from collections import deque
 import contextvars
+from dataclasses import dataclass
+from enum import Flag, auto
 import json
 import logging
 from queue import Queue, Empty
-from random import randrange
+import re
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 
 import websockets
+import websockets.exceptions
+from websockets.protocol import State as WSState
 from prometheus_client import Gauge, Counter
 from prometheus_async.aio import track_inprogress
 
 from ashnasbot.twitch.eventsub import EventSubClient
+from ashnasbot import llm
 
 
 from .http_server import HTTPServer
-from .chat_bot import ChatBot
 from .config import Config
-from .twitch import OWN_EMOTES, db, handle_message, get_bits, render_own_emotes, render_badges, cleanup
+from .twitch import db, handle_message, get_bits, cleanup, load_own_emotes
 from .twitch.chatter import ChatChatter
-from .twitch.data import OutputMessage, create_follower, event_from_output
-from .twitch.pubsub import PubSubClient
-from .twitch.api_client import TwitchClient
+from .twitch.data import Event, OutputMessage, event_from_output, EventType
+from .twitch.api_client import TwitchClient, ManagedToken, ChannelToken
 from .twitch.commands import BannedException
 from .users import Users
 
@@ -46,212 +48,296 @@ METRIC_EMOTES = Counter("emotes", "Number of emotes used in messages", ["channel
 connect_lock = asyncio.Lock()
 
 
-def update_event_metrics(event):
-    c = event.channel
-
-    match event.type:
-        case 'SUB':
-            METRIC_SUBS.labels(c).inc()
-        case 'FOLLOW':
-            METRIC_FOLLOWS.labels(c).inc()
-        case 'REDEMPTION':
-            METRIC_REDEMPTION.labels(c).inc()
-    if "emotes" in event.tags and event.tags["emotes"]:
-        METRIC_EMOTES.labels(c).inc(len(event.tags["emotes"].split(",")))
+class SubscriptionType(Flag):
+    CHAT = auto()
+    ALERT = auto()
 
 
-def filter_output(event, commands=False, **kwargs):
-    if "chat" not in kwargs:
-        if event["type"] == 'TWITCHCHATMESSAGE':
-            return False
-    elif "pubsub" in kwargs:
-        if "tags" in event and "custom-reward-id" in event["tags"]:
-            return False
-    if "alert" not in kwargs:
-        if event["type"] not in ['TWITCHCHATMESSAGE', 'BITS']:
-            return False
-    return True
+@dataclass
+class Subscription:
+    """Represents a single WebSocket client connection and its event subscriptions."""
+    socket: object  # websockets.WebSocketServerProtocol
+    channel: str
+    channel_id: str
+    client_id: str
+    types: SubscriptionType
+    commands: bool = False
+    auth: str | None = None
+    chatbot: bool = False
+    images: bool = False
 
+    @classmethod
+    def from_commands(cls, ws, commands, channel_id, client_id):
+        types = SubscriptionType(0)
+        if "chat" in commands:
+            types |= SubscriptionType.CHAT
+        if "alert" in commands:
+            types |= SubscriptionType.ALERT
+        return cls(
+            socket=ws,
+            channel=commands["channel"],
+            channel_id=channel_id,
+            client_id=client_id,
+            types=types,
+            commands=bool(commands.get("commands", False)),
+            auth=commands.get("auth"),
+            chatbot=bool(commands.get("chatbot", False)),
+            images=bool(commands.get("images", False)),
+        )
 
-def allowed_content(event, commands=False, **kwargs):
-    message = event.message if hasattr(event, "message") else ""
-    if not commands:
-        if message.startswith('!'):
+    def allows_event(self, event) -> bool:
+        """Return True if a raw Event object is eligible for processing by this subscriber.
+
+        Filters command messages unless this subscriber opted into commands, and gates
+        chat vs. alert events based on the subscriber's SubscriptionType flags.
+        """
+        message = event.message if hasattr(event, "message") else ""
+        if not self.commands and message.startswith('!'):
             logger.debug("COMMAND %s (Ignored)", message)
             return False
-    if "chat" not in kwargs:
-        if event.type == 'TWITCHCHATMESSAGE':
-            return False
-    if "alert" not in kwargs:
-        # RAID, SUBGIFT, SUB
-        if event.type in ['TWITCHATUSERNOTICE', 'SUB', "RAID"]:
-            return False
-    return True
+        if SubscriptionType.CHAT not in self.types:
+            if event.type == EventType.TWITCHCHATMESSAGE:
+                return False
+        if SubscriptionType.ALERT not in self.types:
+            if event.type in [EventType.TWITCHATUSERNOTICE, EventType.SUB, EventType.RAID]:
+                return False
+        return True
 
+    def should_forward(self, content) -> bool:
+        """Return True if a serialised OutputMessage dict should be forwarded to this subscriber.
 
-def pubsub_filter(event):
-    if hasattr(event, "extra"):
-        ext = event.extra
-
-        if "pubsub" in ext:
-            if hasattr(event, "type"):
-                if event.type in ["SUB", "RAID"]:
-                    return True
-    return False
+        Suppresses chat messages for alert-only subscribers, alert events for chat-only
+        subscribers, and duplicate custom-reward chat messages for auth'd subscribers
+        (EventSub reflects those back directly).
+        """
+        if SubscriptionType.CHAT not in self.types:
+            if content["type"] == EventType.TWITCHCHATMESSAGE:
+                return False
+        elif self.auth is not None:
+            # EventSub handles redemptions; suppress the duplicate IRC custom-reward message
+            if "tags" in content and "custom-reward-id" in content["tags"]:
+                return False
+        if SubscriptionType.ALERT not in self.types:
+            if content["type"] not in [EventType.TWITCHCHATMESSAGE, EventType.BITS]:
+                return False
+        return True
 
 
 class SocketServer():
 
     def __init__(self):
         self.channels = {}
-        self.chatbot = None
         self.users = None
         self.http_clients = {}
-        self.pubsub_clients = {}
-        self.alert_clients = {}
         self.loop = None
         self.reload_event = None
         self.shutdown_event = None
         self.websocket_server = None
         self._event_queue = None
+        self._chat_queue = None
         self.recent_events = deque([], 20)
         self.replay_queue = Queue()
         self.event_sub = None
+        self.broadcaster_event_sub = None  # separate session for broadcaster-only subs
+        self._bot_token = ManagedToken("bot_token", "bot_refresh_token")
+        self._channel_tokens: dict[str, ChannelToken] = {}
+        self._eventsub_channels: set[str] = set()
+        self._broadcaster_eventsub_channels: set[str] = set()
+
+    @staticmethod
+    def _update_event_metrics(event):
+        """Increment Prometheus counters for a processed Event object."""
+        c = event.channel
+        match event.type:
+            case EventType.SUB:
+                METRIC_SUBS.labels(c).inc()
+            case EventType.FOLLOW:
+                METRIC_FOLLOWS.labels(c).inc()
+            case EventType.REDEMPTION:
+                METRIC_REDEMPTION.labels(c).inc()
+        if "emotes" in event.tags and event.tags["emotes"]:
+            METRIC_EMOTES.labels(c).inc(len(event.tags["emotes"].split(",")))
 
     async def broadcast(self, msg):
         for c in self.channels:
             for s in self.channels[c]:
-                await s["socket"].send(json.dumps(msg))
+                await s.socket.send(json.dumps(msg))
 
     async def handle_content(self, channel, content):
         if "tags" in content:
             if "bits" in content["tags"]:
                 bits_evt = get_bits(content)
                 self.recent_events.append(bits_evt)
-            if any([s.get("images", None) for s in self.channels[channel]]):
+            if any(s.images for s in self.channels[channel]):
                 if self.users and 'user-id' in content['tags']:
-                    content['logo'] = await self.users.get_picture(content['tags']['user-id'])
+                    logo = await self.users.get_picture(content['tags']['user-id'])
+                    if logo:
+                        content['logo'] = logo
             if 'response' in content['tags']:
-                self.chatbot.send_message(content['message'], channel, content['tags'])
-                content["message"] = await render_own_emotes(content["message"], self.chatbot.emotesets)
-                content["badges"] = await render_badges(channel, self.chatbot.badges)
+                channel_id = next(
+                    (c.channel_id for c in self.channels[channel] if c.channel_id), None)
+                reply_to = content['tags'].get('reply-parent-msg-id')
+                # Prefer dedicated bot token (validated); fall back to broadcaster token
+                bot_token, bot_user_id = await self._get_valid_bot_credentials()
+                if bot_token and bot_user_id:
+                    send_token, sender_id = bot_token, bot_user_id
+                else:
+                    broadcaster_auth = next((c.auth for c in self.channels[channel] if c.auth), None)
+                    send_token, sender_id = broadcaster_auth, channel_id
+                if send_token and sender_id and channel_id and channel in self.http_clients:
+                    await self.http_clients[channel].send_chat_message(
+                        channel_id, sender_id, content['message'], send_token, reply_to)
 
     def ban_bot(self, channel):
         logger.warning("Account has been banned from this channel")
-        if not db.exists("banned"):
-            db.create("banned", primary=["name"])
+        db.ensure("banned", primary=["name"])
         db.update("banned", {"name": channel}, ["name"])
-        self.chatbot.unsubscribe(channel)
 
     def filter_closed_connections(self, channel):
-        self.channels[channel] = [s for s in self.channels[channel] if not s["socket"].closed]
+        self.channels[channel] = [s for s in self.channels[channel] if s.socket.state == WSState.OPEN]
 
     async def handle_chatbot(self, event):
         channel = event.channel
-        if any(["chatbot" in c and c["chatbot"] for c in self.channels[channel]]):
-            # TODO: this is a hack, when should we initialise this? add a watcher?
-            # also split rendering with populating OWN_EMOTES
-            if not OWN_EMOTES:
-                await render_own_emotes("", self.chatbot.emotesets)
-
-            cid = self.channels[channel][0]["channel_id"]
+        if any(c.chatbot for c in self.channels[channel]):
+            cid = self.channels[channel][0].channel_id
             if cid:
                 await self.chatter.handle_message(event, cid)
 
+    def _event_trigger(self, event) -> str:
+        """Build the LLM trigger string for a follow/sub/subgift event."""
+        if event.type == EventType.FOLLOW:
+            name = event.tags.get("display-name") or event.nickname or "someone"
+            return f"{name} just followed!"
+        return event.tags.get("system-msg") or ""
+
+    async def _post_event_response(self, channel: str, trigger: str) -> None:
+        """Generate an LLM reaction to a channel event and send it as POKEYSPEAK."""
+        if not trigger or not hasattr(self, 'chatter'):
+            return
+        text = await asyncio.to_thread(llm.generate_event_response, trigger)
+        if not text:
+            return
+        msg = self.chatter.make_message(channel)
+        msg.message = text
+        msg.tags["pokey-say"] = True
+        await self.add_chat(msg)
+
     async def chat(self):
         self.chatter = ChatChatter(self.add_chat)
+        self.make_task(self.chatter.warmup(), name="model_warmup")
 
-        # self.make_task(self.chatter.timer(), name="chatty")
-
-        queue = self.chatbot.chat()
-        processing = False
+        queue = self._chat_queue
+        assert queue is not None
         while not self.shutdown_event.is_set():
+            event = await queue.get()
+            if event is None:
+                return
             try:
-                event = await queue.get()
-                if event is None:
-                    return
-                processing = True
-
-                auth = None
-                if event.channel:
-                    auth = [c["auth"] for c in self.channels[event.channel] if "auth" in c]
-                    if auth:
-                        auth = auth[0]
-
-                event.reply = self.add_chat
-                content = await handle_message(event, auth)
-                channel = event.channel
-
-                if not content:
-                    continue
-
-                if not channel:
-                    await self.broadcast(content)
-                    continue
-
-                if channel not in self.channels:
-                    logger.error(f"Message for channel '{channel}' but no socket")
-                    self.chatbot.unsubscribe(channel)
-                    continue
-
-                update_event_metrics(event)
-
-                if 'response' not in content['tags']:
-                    # This message didn't come from us - maybe respond to it
-                    METRIC_MESSAGES.labels(channel).inc()
-                    await self.handle_chatbot(event)
-                elif content['message'].startswith("!"):
-                    await self.add_chat(event_from_output(content))
-
-                if any([allowed_content(event, **s) for s in self.channels[channel]]):
-                    if event.type != 'TWITCHCHATMESSAGE':
-                        self.recent_events.append(content)
-                    await self.handle_content(channel, content)
-
-                    self.filter_closed_connections(channel)
-                    if channel in self.pubsub_clients:
-                        if pubsub_filter(event):
-                            continue  # Discard pubsub duplicated messages
-                    for s in self.channels[channel]:
-                        if filter_output(content, **s):
-                            await s["socket"].send(json.dumps(content))
-
+                await self._process_chat_event(event)
             except websockets.exceptions.ConnectionClosed as e:
                 logger.info(f"ws client connection closed {e.code}")
-                self.filter_closed_connections(channel)
-                for s in self.channels[channel]:
-                    logging.debug(f"    {s.status}")
-
+                self.filter_closed_connections(event.channel)
             except BannedException as e:
                 self.ban_bot(e.channel)
-
-            except Exception as e:
-                print(e)
-                print(f"Error handling message: '{event}'")
-                import traceback
-                traceback.print_exc()
-
+            except Exception:
+                logger.exception("Error handling message: '%s'", event)
             finally:
-                if processing:
-                    processing = False
-                    queue.task_done()
+                queue.task_done()
+
+    async def _process_chat_event(self, event):
+        auth = next((c.auth for c in self.channels.get(event.channel, []) if c.auth), None)
+        event.reply = self.add_chat
+        content = await handle_message(event, auth)
+
+        if not content:
+            return
+
+        channel = event.channel
+        if not channel:
+            await self.broadcast(content)
+            return
+
+        if channel not in self.channels:
+            logger.error(f"Message for channel '{channel}' but no socket")
+            return
+
+        self._update_event_metrics(event)
+
+        if 'response' not in content['tags']:
+            if event.message.startswith('!'):
+                METRIC_COMMANDS.labels(channel).inc()
+            else:
+                METRIC_MESSAGES.labels(channel).inc()
+            await self.handle_chatbot(event)
+        elif content['message'].startswith("!"):
+            await self.add_chat(event_from_output(content))
+
+        await self._dispatch_to_subscribers(event, content, channel)
+
+        if event.tags.get("bits"):
+            name = event.tags.get("display-name") or event.nickname or "someone"
+            bits = event.tags["bits"]
+            raw = re.sub(r'\b[A-Za-z]+\d+\b', '', event.message or "").strip()
+            trigger = (f"{name} cheered {bits} bits and said: '{raw}'"
+                       if raw else f"{name} cheered {bits} bits!")
+            asyncio.create_task(self._post_event_response(channel, trigger))
+
+    async def _dispatch_to_subscribers(self, event, content, channel):
+        if not any(s.allows_event(event) for s in self.channels[channel]):
+            return
+
+        if event.type != EventType.TWITCHCHATMESSAGE:
+            self.recent_events.append(content)
+        await self.handle_content(channel, content)
+
+        # Don't broadcast bot responses directly — EventSub reflects
+        # the sent message back, which will display it exactly once.
+        if 'response' in content['tags']:
+            if content['tags'].get('pokey-say'):
+                pokey_msg = {'type': EventType.POKEYSPEAK, 'message': content['message'], 'channel': channel}
+                self.filter_closed_connections(channel)
+                for s in self.channels[channel]:
+                    await s.socket.send(json.dumps(pokey_msg))
+            return
+
+        self.filter_closed_connections(channel)
+        for s in self.channels[channel]:
+            if s.should_forward(content):
+                await s.socket.send(json.dumps(content))
 
     async def replay(self):
         while not self.shutdown_event.is_set():
             try:
                 obj = self.replay_queue.get_nowait()
-                event = event_from_output(obj)
-                event.id = str(uuid.uuid4())  # Reset the id
-                if event.type in ['TWITCHCHATMESSAGE', 'BITS']:
-                    channel = event.channel
-                    output = await handle_message(event)
-                    await self.handle_content(channel, output)
-                    for s in self.channels[channel]:
-                        await s["socket"].send(json.dumps(output))
-                else:
-                    await self._event_queue.put(event)
             except Empty:
                 await asyncio.sleep(1)
+                continue
+            try:
+                event = event_from_output(obj)
+                event.id = str(uuid.uuid4())  # Reset the id
+                if event.type in [EventType.TWITCHCHATMESSAGE, EventType.BITS]:
+                    channel = event.channel
+                    output = await handle_message(event)
+                    if output:
+                        await self.handle_content(channel, output)
+                    # Don't broadcast directly — EventSub reflects the message back,
+                    # so this way we'll only display it exactly once.
+                else:
+                    await self._event_queue.put(event)
+            except Exception:
+                logger.exception("Failed to replay event: %s", obj)
+
+    async def _get_valid_bot_credentials(self):
+        bot_token = await self._bot_token.get()
+        if not bot_token:
+            return None, None
+        bot_user_id = self.config.get("bot_user_id", None)
+        return (bot_token, str(bot_user_id)) if bot_user_id else (None, None)
+
+    async def _get_valid_channel_token(self, channel: str) -> str | None:
+        if channel not in self._channel_tokens:
+            self._channel_tokens[channel] = ChannelToken(channel)
+        return await self._channel_tokens[channel].get()
 
     async def config_listener(self):
         while not self.shutdown_event.is_set():
@@ -260,6 +346,9 @@ class SocketServer():
                 return
             logger.info("Reloading config")
             self.load_clients()
+            self._bot_token.invalidate()
+            for ct in self._channel_tokens.values():
+                ct.invalidate()
             self.reload_event.clear()
 
     async def shutdown_listener(self):
@@ -268,68 +357,22 @@ class SocketServer():
         logger.info("Shutdown Started")
         await self.shutdown()
 
-    async def disconnect_listener(self, ws, channel_client):
+    async def disconnect_listener(self, ws, sub: 'Subscription'):
         await ws.wait_closed()
         async with connect_lock:
-            channel = channel_client["channel"]
+            channel = sub.channel
             logger.info("ws client disconnected")
             # Sleep in case we're just refreshing
             await asyncio.sleep(2)
 
-            if "alert" in channel_client:
-                if hasattr(channel_client["alert"], "cancel"):
-                    task = channel_client["alert"]
-                    task.count -= 1
-                    if task.count < 1:
-                        logger.debug("Leaving alerts")
-                        task.cancel()
-                        await asyncio.wait([task])
-                        del self.alert_clients[channel]
-
-            if "pubsub" in channel_client:
-                c = channel_client["channel"]
-                if c in self.pubsub_clients:
-                    last = await self.pubsub_clients[c].disconnect()
-                    if last and c in self.pubsub_clients:
-                        del self.pubsub_clients[c]
-
-            self.channels[channel] = [s for s in self.channels[channel] if s["socket"].open]
+            subs = self.channels.get(channel, [])
+            self.channels[channel] = [s for s in subs if s.socket.state == WSState.OPEN]
             if not self.channels[channel]:
-                # We're the last client, disconnect chat and clear caches
-                logger.debug("last client: closing sessions")
-                self.chatbot.unsubscribe(channel)
-                if channel in self.http_clients:
-                    logger.debug("last client: closing http client")
-                    await self.http_clients[channel].close()
-                    del self.http_clients[channel]
+                # Last client for this channel — drop its API client.
+                # (Sessions are shared and closed at shutdown, not here.)
+                self.http_clients.pop(channel, None)
             logger.debug("ws client disconnect cleanup complete")
             self.debug_remaining_tasks()
-
-    async def followers(self, channel):
-        try:
-            logger.debug(f"{channel}_followers starting")
-            await asyncio.sleep(10)
-            while not self.shutdown_event.is_set():
-                if channel not in self.http_clients:
-                    try:
-                        self.http_clients[channel] = TwitchClient(self.config["client_id"], channel)
-                    except Exception:
-                        logger.debug(f"{channel}_followers exiting with error")
-                        return
-                recent_followers = await self.http_clients[channel].get_new_followers()
-                if not recent_followers:
-                    await asyncio.sleep(80 + randrange(20))
-                    continue
-
-                for nickname in recent_followers:
-                    follower = create_follower(nickname=nickname, channel=channel)
-                    await self.add_alert(follower)
-
-                # Don't spam api
-                await asyncio.sleep(80 + randrange(20))
-        except CancelledError:
-            logger.debug(f"{channel}_followers exiting")
-            pass
 
     async def add_alert(self, evt):
         self.recent_events.append(evt)
@@ -337,16 +380,16 @@ class SocketServer():
 
     async def add_chat(self, evt):
         METRIC_MESSAGES_SENT.labels(evt.channel).inc()
-        # this is threadsafe as we own the queue
-        await self.chatbot.chat().put(evt)
+        await self._chat_queue.put(evt)
 
     async def alerts(self):
+        assert self._event_queue is not None
         while not self.shutdown_event.is_set():
+            event = await self._event_queue.get()
+            if event is None:
+                logger.info("No more alerts")
+                return
             try:
-                event = await self._event_queue.get()
-                if event is None:
-                    logger.info("No more alerts")
-                    return
                 channel = event.channel
 
                 if not channel:
@@ -354,26 +397,91 @@ class SocketServer():
                     await self.broadcast(output)
                     continue
 
-                self.channels[channel] = [s for s in self.channels[channel] if not s["socket"].closed]
-                if channel in self.pubsub_clients:
-                    if pubsub_filter(event):
-                        continue  # Discard pubsub duplicated messages
+                if channel not in self.channels:
+                    logger.warning("Alert for channel '%s' but no connected clients", channel)
+                    continue
 
+                self.channels[channel] = [s for s in self.channels[channel] if s.socket.state == WSState.OPEN]
+                self._update_event_metrics(event)
                 output = OutputMessage.from_event(event)
 
                 for s in self.channels[channel]:
-                    await s["socket"].send(json.dumps(output))
-            except Exception as e:
-                logger.error(e)
-                import traceback
-                traceback.print_exc()
+                    await s.socket.send(json.dumps(output))
+
+                if event.type in (EventType.FOLLOW, EventType.SUB, EventType.SUBGIFT):
+                    asyncio.create_task(
+                        self._post_event_response(channel, self._event_trigger(event)))
+            except Exception:
+                logger.exception("Error handling alert: '%s'", event)
             finally:
                 self._event_queue.task_done()
 
             await asyncio.sleep(1)
 
+    async def _setup_eventsub(self, channel_id, bot_token, bot_user_id,
+                              broadcaster_auth, tasks, channel, channel_token=None):
+        """Create or update EventSub WebSocket sessions.
+
+        Twitch requires all subscriptions on a session to come from the same
+        user.  When a bot token is present, chat events go on the bot's session
+        and broadcaster-only events (follow, redemptions) go on a separate
+        broadcaster session.  When only a broadcaster token is available a
+        single session handles everything.
+        """
+        # Reconnect if bot identity newly became available.
+        if self.event_sub and bot_token and not self.event_sub.bot_token:
+            logger.info("Bot token newly available — reconnecting EventSub with bot identity")
+            await self.event_sub.close()
+            self.event_sub = None
+            self._eventsub_channels.clear()
+
+        # Primary session: chat subscriptions.
+        # Pass broadcaster_auth only in single-user mode (no bot token) so that
+        # subscribe() can also attach broadcaster-only subs on the same session.
+        chat_broadcaster = None if bot_token else broadcaster_auth
+        if (bot_token or broadcaster_auth) and not self.event_sub:
+            if bot_token and bot_user_id:
+                await load_own_emotes(bot_user_id, bot_token)
+            eventsub = EventSubClient(
+                self.add_alert, self.add_chat,
+                bot_token=bot_token, bot_user_id=bot_user_id)
+            self.event_sub = eventsub
+            await eventsub.connect()
+            if channel_id not in self._eventsub_channels:
+                await eventsub.subscribe(channel_id, broadcaster_token=chat_broadcaster)
+                self._eventsub_channels.add(channel_id)
+            tasks.append(self.make_task(eventsub.receive_message(),
+                                        name=f"{channel}_es_receive"))
+        elif self.event_sub:
+            if bot_token:
+                self.event_sub.bot_token = bot_token
+            if channel_id not in self._eventsub_channels:
+                await self.event_sub.subscribe(channel_id, broadcaster_token=chat_broadcaster)
+                self._eventsub_channels.add(channel_id)
+
+        # Secondary session: broadcaster-only subs (follow, redemptions).
+        # Only needed when bot is active — different Twitch users must use
+        # separate WebSocket sessions or Twitch returns a 400.
+        # Use channel_token (stored per-channel in DB) not broadcaster_auth,
+        # which may be a client-supplied token belonging to a different channel.
+        if channel_token and bot_token:
+            if not self.broadcaster_event_sub:
+                b_eventsub = EventSubClient(self.add_alert, self.add_chat)
+                self.broadcaster_event_sub = b_eventsub
+                await b_eventsub.connect()
+                if channel_id not in self._broadcaster_eventsub_channels:
+                    await b_eventsub.subscribe_broadcaster(channel_id, channel_token)
+                    self._broadcaster_eventsub_channels.add(channel_id)
+                tasks.append(self.make_task(b_eventsub.receive_message(),
+                                            name=f"{channel}_bc_es_receive"))
+            else:
+                if channel_id not in self._broadcaster_eventsub_channels:
+                    await self.broadcaster_event_sub.subscribe_broadcaster(
+                        channel_id, channel_token)
+                    self._broadcaster_eventsub_channels.add(channel_id)
+
     @track_inprogress(METRIC_CLIENTS)
-    async def handle_connect(self, ws_in, path):
+    async def handle_connect(self, ws_in):
         try:
             command = await ws_in.recv()
         except (websockets.ConnectionClosed, RuntimeError):
@@ -382,22 +490,20 @@ class SocketServer():
             return
         logger.debug(command)
 
-        commands = json.loads(command)
+        try:
+            commands = json.loads(command)
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            logger.error("Malformed socket handshake received")
+            return
 
-        if "channel" not in commands or "for" not in commands:
+        if not isinstance(commands, dict) or "channel" not in commands or "for" not in commands:
             logger.error("Invalid socket commands received")
             return
 
         tasks = []
-        channel = ""
-        channel_client = {
-            "channel": commands["channel"],
-            "socket": ws_in,
-            "clientId": ctx_client_id.get(str(uuid.uuid4()))
-        }
-        channel_client.update(commands)
-
         channel = commands["channel"]
+        client_id = ctx_client_id.get(str(uuid.uuid4()))
+
         async with connect_lock:
             if channel not in self.http_clients:
                 self.http_clients[channel] = TwitchClient(self.config["client_id"], channel)
@@ -408,58 +514,47 @@ class SocketServer():
                 logger.error("Failed to retrieve channel_id: %s", e)
                 channel_id = ""
 
-            channel_client["channel_id"] = channel_id
-
             if "chat" in commands:
                 if db.exists("banned") and db.find("banned", name=channel):
                     logger.error(f"We are banned from {channel}")
-                    resp = {"type": "BANNED", "channel": channel}
+                    resp = {"type": EventType.BANNED, "channel": channel}
                     await ws_in.send(json.dumps(resp))
                     return
-                self.chatbot.subscribe(channel)
 
-            if channel in self.pubsub_clients:
-                pubsub = self.pubsub_clients[channel]
-                channel_client["pubsub"] = pubsub
-                await pubsub.connect()
-            else:
-                if "auth" in commands and channel_id:
-                    try:
-                        # old pubsub
-                        token = commands["auth"]
-                        pubsub = PubSubClient(channel, channel_id, token, self.add_alert)
-                        self.pubsub_clients[channel] = pubsub
-                        channel_client["pubsub"] = pubsub
-                        ps_conn = await pubsub.connect()
-                        tasks.append(self.make_task(pubsub.heartbeat(ps_conn), name=f"{channel}_ps_hb"))
-                        tasks.append(self.make_task(pubsub.receive_message(ps_conn),
-                                                    name=f"{channel}_ps_receive"))
-                        # new EventSub
-                        if not self.event_sub:
-                            eventsub = EventSubClient(token, self.add_alert)
-                            self.event_sub = eventsub
-                            es_conn = await eventsub.connect()
-                            await eventsub.subscribe(channel_id)  # TODO: manage subscriptions
-                            tasks.append(self.make_task(eventsub.receive_message(es_conn),
-                                                        name=f"{channel}_es_receive"))
+            bot_token, bot_user_id = await self._get_valid_bot_credentials()
+            # Prefer the server-stored channel token (auto-refreshable);
+            # fall back to the token sent by the WS client for backward compat.
+            channel_token = await self._get_valid_channel_token(channel)
+            broadcaster_auth = channel_token or commands.get("auth")
 
-                    except ValueError:
-                        pass
+            if channel_id:
+                try:
+                    await self._setup_eventsub(
+                        channel_id, bot_token, bot_user_id, broadcaster_auth, tasks, channel,
+                        channel_token=channel_token)
+                except ValueError:
+                    pass
 
-            if "alert" in commands:
-                if channel in self.alert_clients:
-                    self.alert_clients[channel].count += 1
-
-            channel_client["channel"] = channel
+            first_chat_connection = "chat" in commands and channel not in self.channels
+            sub = Subscription.from_commands(ws_in, commands, channel_id, client_id)
             if channel in self.channels:
-                self.channels[channel].append(channel_client)
+                self.channels[channel].append(sub)
             else:
-                self.channels[channel] = [channel_client]
+                self.channels[channel] = [sub]
+
+            bot_display = self.config.get("displayname", None) or self.config.get("username", None)
+            if bot_display:
+                await ws_in.send(json.dumps({"type": EventType.BOTINFO, "username": bot_display}))
+
+        if first_chat_connection:
+            evt = Event(EventType.TWITCHCHATMESSAGE, channel=channel)
+            evt.tags["display-name"] = channel
+            await self.add_alert(evt)
 
         tasks.append(self.make_task(
-            self.disconnect_listener(ws_in, channel_client), name=f"{channel}_dc_hdlr"))
+            self.disconnect_listener(ws_in, sub), name=f"{channel}_dc_hdlr"))
 
-        log_id = channel_client['clientId'][-5:]
+        log_id = client_id[-5:]
 
         logger.info(f"{log_id} Socket client join: {commands['channel']}"
                     f" \"{commands['for']}\"")
@@ -477,12 +572,27 @@ class SocketServer():
 
     async def shutdown(self):
         logger.info("Shutting down server")
-        self.websocket_server.close()
+        self.stop()
+
         logger.debug("Closing clients")
-        await self.websocket_server.wait_closed()
+        if self.websocket_server:
+            self.websocket_server.close()
+
+        # Explicitly close all overlay WebSocket connections so that
+        # websocket_server.wait_closed() in run() doesn't block indefinitely.
+        for channel_clients in self.channels.values():
+            for client in channel_clients:
+                if client.socket.state == WSState.OPEN:
+                    await client.socket.close()
         logger.debug("Clients closed")
-        if self.chatbot:
-            self.chatbot.close()
+
+        # Close the EventSub WebSocket connections.
+        if self.event_sub:
+            await self.event_sub.close()
+        if self.broadcaster_event_sub:
+            await self.broadcaster_event_sub.close()
+
+        await self._chat_queue.put(None)
         await self._event_queue.put(None)
         await asyncio.sleep(2)
         logger.info("Stopping loop")
@@ -491,10 +601,10 @@ class SocketServer():
     def load_clients(self):
         config = Config()
         try:
-            self.config = config
-        except KeyError as e:
-            logger.error(f"Missing config ({e})")
-            logger.error("Go to 'http://localhost:8080' to set")
+            config.reload()
+        except Exception as e:
+            logger.error("Failed to reload config (%s) — keeping previous values", e)
+        self.config = config
 
     def make_task(self, func, name):
         try:
@@ -516,24 +626,17 @@ class SocketServer():
         self.loop = asyncio.new_event_loop()
         self.loop.set_default_executor(ThreadPoolExecutor(max_workers=5))
         self._event_queue = asyncio.Queue()
+        self._chat_queue = asyncio.Queue()
         asyncio.set_event_loop(self.loop)
         self.loop.set_debug(enabled=False)
-        start_server = websockets.serve(self.handle_connect, '0.0.0.0', 8765)
-        self.websocket_server = self.loop.run_until_complete(start_server)
+
+        async def _start_ws():
+            return await websockets.serve(self.handle_connect, '0.0.0.0', 8765)
+        self.websocket_server = self.loop.run_until_complete(_start_ws())
 
         self.load_clients()
         secret = self.config.get("secret", None)
         client_id = self.config.get("client_id", None)
-        oauth = self.config.get("oauth", None)
-        user = self.config.get("username", None)
-
-        if user and oauth:
-            try:
-                self.chatbot = ChatBot(self.loop, user, oauth)
-            except RuntimeError:
-                logger.warning("Bad config user/oauth - Chat unavailable")
-        else:
-            logger.warning("No config user/oauth - Chat unavailable")
 
         if client_id:
             try:

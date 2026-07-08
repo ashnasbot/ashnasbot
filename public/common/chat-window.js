@@ -27,9 +27,9 @@ export default {
 					</span>
 					<span class="nickname" v-bind:class="msg.extra" v-bind:style="{ color: msg.tags[&quot;color&quot;] }"
 						  v-html="msg.nickname"></span>
-					<span v-if="msg.extra && msg.extra.includes(&quot;quoted&quot;)" class="message" 
+					<span v-if="msg.extra && msg.extra.includes(&quot;quoted&quot;)" class="message" v-bind:class="{ jumbo: msg.tags[&quot;jumbo&quot;] }"
 						  v-html="msg.message"></span>
-					<span v-else v-bind:style="{ color: msg.tags[&quot;color&quot;] }" class="message"
+					<span v-else v-bind:style="{ color: msg.tags[&quot;color&quot;] }" class="message me"
 					      v-html="msg.message"></span>
 				</template>
 			</div>
@@ -109,7 +109,7 @@ export default {
                         console.log("Cache exists but is over 10 minutes old")
                     }
                 } catch(e) {
-                    localStorage.removeItem('chat-' + channel);
+                    localStorage.removeItem('chat-' + this.channel);
                 }
             }
         }
@@ -123,44 +123,39 @@ let animrate = "0.3s";
 
 function setSlideDelay(rate) {
     for (const ss of document.styleSheets) {
-        if (!ss.href) {
+        if (!ss.href || !ss.href.endsWith("textbox.css")) {
             continue;
         }
-        if (ss.href.endsWith("textbox.css")) {
-            for(const r of ss.cssRules) {
-                if (!r.style) {
-                    continue;
-                }
-                if (r.style["transition-duration"] && r.selectorText.includes("slide-fade")){
-                    r.style["transition-duration"] = rate;
-                }
+        let rules;
+        try {
+            rules = ss.cssRules;
+        } catch (e) {
+            continue; // cross-origin sheet
+        }
+        for (const r of rules) {
+            if (!r.style || !r.selectorText) {
+                continue;
+            }
+            if (r.style["transition-duration"] && r.selectorText.includes("slide-fade")) {
+                r.style["transition-duration"] = rate;
             }
         }
-		return 100;
-    }    
+    }
 }
 
-// Determines if the passed element is overflowing its bounds.
+// Determines if the passed element is overflowing its visible bounds.
+// Uses #app.clientHeight as the constraint: intermediate ancestors like
+// .chat_window resolve height:100% to auto when their parent has no explicit
+// height, so they grow with the content and cannot be used as a limit.
+// #app always has an explicit height (100vh base, 50vh+zoom:200% earthbound, etc).
 function checkOverflow(el)
 {
-
-    var curOverflow = getComputedStyle(el).overflowY;
     if (document.hidden) {
-        return false
-    }
-
-    if (curOverflow != "hidden" )
-    {
         return false;
     }
-
-    var isOverflowing = el.clientHeight < el.scrollHeight - 2; /* THIS IS A HACK */
-
-    if (!isOverflowing){
-        isOverflowing = el.scrollHeight > viewport.innerHeight;
-    }
-
-    return isOverflowing;
+    const app = document.getElementById('app');
+    const maxHeight = app ? app.clientHeight : viewport.innerHeight;
+    return el.scrollHeight > maxHeight;
 }
 
 function refreshLoop() {

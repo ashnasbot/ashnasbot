@@ -73,6 +73,10 @@ div.chat_window {
   margin-right: 0.5ex;
 }
 
+.chat_window li .badges img {
+  height: 1em;
+}
+
 img {
   vertical-align: middle;
   display: inline-block;
@@ -82,6 +86,10 @@ img {
 img.emote {
   height: 1em;
   margin: -1ex 0;
+}
+
+.jumbo img.emote {
+  height: 5em;
 }
 
 .cheertext-gray { color: #979797}
@@ -130,6 +138,12 @@ canvas {
   padding: 0.25ex 0.5ex;
 }
 
+.menu form {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5ex;
+}
+
 .menu .popout {
   position: absolute;
   right: 1ex;
@@ -140,14 +154,16 @@ div.menu:focus-within, div.menu:hover {
   opacity: 1 !important;
 }
 
-.popout::before {
-  content: "☰";
+.hamburger {
   position: fixed;
-  width: fit-content;
   right: 0;
+  width: fit-content;
   margin: 0;
-  display: block;
   padding: 0 1em;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: inherit;
 }
 
 .menu input[type=checkbox] {

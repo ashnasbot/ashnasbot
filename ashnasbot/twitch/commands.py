@@ -1,16 +1,20 @@
 from importlib import import_module
+import inspect
 import logging
+import re
 import sys
 import typing
 
-from ashnasbot.twitch.data import OutputMessage
+from ashnasbot.twitch.data import OutputMessage, EventType
 from commands._framework import PRIV
 import commands._common as common  # noqa used elsewhere, imported here as a helper
 
 from .. import config
 
 logger = logging.getLogger(__name__)
-logging.getLogger("aitextgen").setLevel(logging.WARN)
+
+# Channel names come from external input and are used as module names — keep them tame.
+_CHANNEL_MODULE_RE = re.compile(r'^[a-z0-9_]+$')
 
 # TODO: command cooldown (per channel)
 COMMANDS: typing.Dict[str, typing.Callable] = {}
@@ -23,47 +27,44 @@ class BannedException(Exception):
 
 
 def load_command(channel, command):
-    global COMMANDS, REDEMPTIONS
     res = None
     try:
         if channel not in COMMANDS:
-            mod = []
+            if not _CHANNEL_MODULE_RE.match(channel or ""):
+                logger.warning("Refusing to load commands for channel %r", channel)
+                return GLOBAL_COMMANDS.get(command)
             modstr = f'commands.{channel}'
             if modstr in sys.modules:
                 mod = sys.modules[modstr]
             else:
                 logger.debug("Importing commands for %s", channel)
-                # TODO: sanitise this!
-                mod = import_module('commands.' + channel)
+                mod = import_module(modstr)
                 logger.info("Imported commands for %s", channel)
                 mod.logger = logger
 
-            if "COMMANDS" in mod.__dict__.keys():
+            if "COMMANDS" in mod.__dict__:
                 mod.COMMANDS.update(common.COMMANDS)
                 COMMANDS[channel] = mod.COMMANDS
             else:
-                return
+                COMMANDS[channel] = {}
 
         if command in COMMANDS[channel]:
             res = COMMANDS[channel][command]
     except ImportError:
-        # Module doesn't exist, all good
-        pass
-    except Exception as e:
-        logger.warn(e)
-    finally:
-        if not res:
-            if command in GLOBAL_COMMANDS:
-                return GLOBAL_COMMANDS[command]
-        return res
+        # Module doesn't exist, all good — cache that so we don't retry per message
+        COMMANDS[channel] = {}
+    except Exception:
+        logger.exception("Failed to load commands for %s", channel)
+
+    if not res:
+        res = GLOBAL_COMMANDS.get(command)
+    return res
 
 
-def handle_command(event, auth):
-    # TODO: more robust exception handling / bad data handling here
-    #       this function trusts the commands to be in a good format
+async def handle_command(event, auth):
     etags = event.tags
     raw_msg = event.message
-    logger.debug(f"{etags['display-name']} COMMAND: {raw_msg}")
+    logger.debug(f"{etags.get('display-name', '?')} COMMAND: {raw_msg}")
     args = raw_msg.split(" ")
     command = args.pop(0).lower()
     cmd = load_command(event.channel, command)
@@ -71,16 +72,16 @@ def handle_command(event, auth):
         return
 
     cfg = config.Config()
-    name = cfg['displayname'] if 'displayname' in cfg else cfg['username']
+    name = cfg.get('displayname', None) or cfg.get('username', 'AshnasBot')
 
     ret_event = OutputMessage({
-        "type": "TWITCHCHATMESSAGE",
+        "type": EventType.TWITCHCHATMESSAGE,
         "nickname": "Ashnasbot",
         "tags": {
             'display-name': name,
             'user-id': cfg["user_id"],
             'caller': event.tags['display-name'],
-            'user-type': event.tags['user-type'],
+            'user-type': event.tags.get('user-type', ''),
             'badges': []
         },
         "extra": ['quoted'],
@@ -91,16 +92,24 @@ def handle_command(event, auth):
         "reply": event.reply
     })
 
+    # Resolve badge set IDs from either EventSub (_badges_raw list) or IRC (badges string).
+    raw_badges = event.tags.get('_badges_raw')
+    if raw_badges is not None:
+        badge_ids = {b.get('set_id', '') for b in raw_badges}
+    else:
+        badge_str = event.tags.get('badges', '')
+        badge_ids = {b.split('/')[0] for b in badge_str.split(',') if b}
+
     priv_level = PRIV.COMMON
-    if 'staff' in event.tags['badges']:
+    if 'staff' in badge_ids:
         priv_level = PRIV.STAFF
-    elif 'broadcaster' in event.tags['badges']:
+    elif 'broadcaster' in badge_ids:
         priv_level = PRIV.OWNER
-    elif 'moderator' in event.tags['badges']:
+    elif 'moderator' in badge_ids:
         priv_level = PRIV.MOD
-    elif 'vip' in event.tags['badges']:
+    elif 'vip' in badge_ids:
         priv_level = PRIV.VIP
-    elif 'subscriber' in event.tags['badges']:
+    elif 'subscriber' in badge_ids:
         priv_level = PRIV.SUB
 
     ret_event["priv"] = priv_level
@@ -108,14 +117,17 @@ def handle_command(event, auth):
     if callable(cmd[1]):
         try:
             ret_event = cmd[1](ret_event, *args)
+            if inspect.isawaitable(ret_event):
+                ret_event = await ret_event
             if ret_event:
-                del ret_event["priv"]
-                del ret_event["auth"]
-                del ret_event["reply"]
+                for helper_key in ("priv", "auth", "reply"):
+                    ret_event.pop(helper_key, None)
                 logger.debug("COMMANDRESPONSE: %s", ret_event)
                 return ret_event
-        except Exception as e:
-            logger.warn(e)
+        except BannedException:
+            raise
+        except Exception:
+            logger.exception("Command %s failed", command)
             return
 
 

@@ -1,5 +1,7 @@
-import aiohttp
+import asyncio
 import logging
+
+import aiohttp
 
 logger = logging.getLogger(__name__)
 
@@ -10,54 +12,46 @@ BTTV_EMOTE_URL_TEMPLATE = """<img src=\"https://cdn.betterttv.net/emote/{id}/2x\
                              class="emote" alt=\"{name}\" title=\"{name}\" />"""
 
 SESSION = None
-EMOTES = {} # channel : {code : id}
+EMOTES = {}  # channel : {code : id}
 REGEX = {}
 
 
-async def get_emotes_for_channel(channel):
+def _session():
     global SESSION
-    global EMOTES
-    global REGEX
     if not SESSION or SESSION.closed:
         logger.info("Starting new BTTV API session")
-        SESSION = aiohttp.ClientSession()
+        SESSION = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15))
+    return SESSION
 
-    EMOTES[channel] = {}
-    REGEX[channel] = {}
+
+async def get_emotes_for_channel(channel):
+    channel_emotes = {}
 
     if "global" not in EMOTES:
         EMOTES["global"] = await get_global_emotes()
 
     url = BTTV_API_CHANNEL.format(channel=channel)
 
-    async with SESSION.get(url) as resp:
+    async with _session().get(url) as resp:
         logger.debug("GET channel Emotes %s", url)
         emotes = await resp.json()
 
-    if "message" in emotes and emotes["message"] == "user not found":
-        if "global" not in EMOTES:
-            return
+    if isinstance(emotes, dict) and "message" in emotes:
+        # "user not found" etc. — fall through with global emotes only
+        logger.debug("BTTV: %s for channel %s", emotes["message"], channel)
     else:
-        EMOTES[channel] = {
-            emote["code"]: emote["id"] for emote in emotes["channelEmotes"]}
-        EMOTES[channel].update(**{
-            emote["code"]: emote["id"] for emote in emotes["sharedEmotes"]})
+        channel_emotes = {
+            emote["code"]: emote["id"] for emote in emotes.get("channelEmotes", [])}
+        channel_emotes.update({
+            emote["code"]: emote["id"] for emote in emotes.get("sharedEmotes", [])})
 
-    EMOTES[channel].update(**EMOTES["global"])
-    if channel not in REGEX:
-        REGEX[channel] = {}
-    REGEX[channel] = {k: BTTV_EMOTE_URL_TEMPLATE.format(name=k, id=v) for k, v in EMOTES[channel].items()}
+    channel_emotes.update(EMOTES["global"])
+    EMOTES[channel] = channel_emotes
+    REGEX[channel] = {k: BTTV_EMOTE_URL_TEMPLATE.format(name=k, id=v) for k, v in channel_emotes.items()}
 
 
 async def get_global_emotes():
-    global SESSION
-    global EMOTES
-    global REGEX
-    if not SESSION or SESSION.closed:
-        logger.info("Starting new BTTV API session")
-        SESSION = aiohttp.ClientSession()
-
-    async with SESSION.get(BTTV_API_GLOBAL) as resp:
+    async with _session().get(BTTV_API_GLOBAL) as resp:
         logger.debug("GET global Emotes %s", BTTV_API_GLOBAL)
         emotes = await resp.json()
 
@@ -65,11 +59,17 @@ async def get_global_emotes():
 
 
 async def get_emotes(channel):
+    """Return the channel's BTTV emote map, or None if unavailable.
+
+    Failures are not cached — the next call retries the fetch.
+    """
     if channel not in REGEX:
-        await get_emotes_for_channel(channel)
-    if channel not in REGEX:
-        return None
-    return REGEX[channel]
+        try:
+            await get_emotes_for_channel(channel)
+        except (aiohttp.ClientError, asyncio.TimeoutError, ValueError) as e:
+            logger.warning("BTTV emote fetch failed for %s: %s", channel, e)
+            return None
+    return REGEX.get(channel)
 
 
 def emotes():

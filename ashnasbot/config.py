@@ -5,16 +5,15 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 CONFIG_FILE = 'config.json'
-DEFAULT_CFG = """{
+DEFAULT_CFG = {
     "client_id": "",
     "oauth": "oauth:",
     "username": "BOT_USERNAME",
     "secret": "",
     "user_id": 123456789,
-    "log_level":"INFO",
-    "bttv": true
+    "log_level": "INFO",
+    "bttv": True
 }
-"""
 _no_default = object()
 
 
@@ -27,7 +26,7 @@ class Config():
     # Singleton stuff
     instance: "Config.__Config" = None
 
-    def __new__(self):
+    def __new__(cls):
         if not Config.instance:
             Config.instance = Config.__Config()
         return Config.instance
@@ -46,10 +45,10 @@ class Config():
             self._load()
 
         def __contains__(self, key):
-            return key in self._config.keys()
+            return key in self._config
 
         def __getitem__(self, key) -> Any:
-            if key not in self._config.keys():
+            if key not in self._config:
                 raise ValueError(f"{key} not configured")
             logger.log(0, "Config access: %s : %s", key, self._config[key])
             return self._config[key]
@@ -59,19 +58,42 @@ class Config():
                 logger.info("Reading config from %s", CONFIG_FILE)
                 with open(CONFIG_FILE) as f:
                     self._config = json.load(f)
-            except Exception:
-                with open(CONFIG_FILE, 'w') as f:
-                    f.write(DEFAULT_CFG)
-                raise ConfigError(f"{CONFIG_FILE} not found")
+            except FileNotFoundError:
+                logger.error("%s not found — creating default; "
+                             "go to 'http://localhost:8080' to configure", CONFIG_FILE)
+                self._config = dict(DEFAULT_CFG)
+                self._save()
+            except (OSError, json.JSONDecodeError) as e:
+                # Don't overwrite a config that exists but can't be parsed.
+                raise ConfigError(f"Cannot read {CONFIG_FILE}: {e}") from e
             logger.debug("Config loaded")
 
             return self
 
+        def reload(self):
+            """Re-read the config file from disk."""
+            self._load()
+
         def get(self, key, default=_no_default):
-            if key not in self._config.keys():
+            if key not in self._config:
                 if default is _no_default:
                     raise ValueError(f"{key} not configured")
                 else:
                     return default
             logger.log(0, "Config access: %s : %s", key, self._config[key])
             return self._config[key]
+
+        def update(self, key, value):
+            self._config[key] = value
+            self._save()
+
+        def update_many(self, values: dict):
+            self._config.update(values)
+            self._save()
+
+        def _save(self):
+            try:
+                with open(CONFIG_FILE, 'w') as f:
+                    json.dump(self._config, f, indent=4)
+            except OSError as e:
+                logger.error("Failed to save config: %s", e)

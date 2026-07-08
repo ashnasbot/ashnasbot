@@ -10,7 +10,9 @@ DEBUG_LOGFILE = "debug.log"
 
 
 def patch_crypto():
-    # This is needed to help pyinstaller find the right backend
+    # This is only needed to help pyinstaller find the right backend on Windows
+    if not getattr(sys, 'frozen', False):
+        return
     from cryptography.hazmat import backends
     from cryptography.hazmat.backends.openssl.backend import backend as be_cc
     backends._available_backends_list = [be_cc]
@@ -57,6 +59,8 @@ if __name__ == '__main__':
     formatter = logging.Formatter('%(asctime)s %(name)-32s %(levelname)-7s %(message)s', "%H:%M:%S")
     logfile.setFormatter(formatter)
     root_logger.addHandler(logfile)
+
+    logging.getLogger("alembic").setLevel(logging.WARNING)
 
     # These must only be imported after the resources are in place
     # ...and post logging config

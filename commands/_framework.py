@@ -5,7 +5,7 @@ import logging
 
 from ashnasbot.config import Config
 from ashnasbot.twitch import db, api_client
-from ashnasbot.twitch.data import create_event
+from ashnasbot.twitch.data import Event, EventType
 from ashnasbot.twitch.data.verbs import VERBS
 
 logger = logging.Logger('framework', logging.NOTSET)
@@ -51,7 +51,7 @@ API_CLIENT = api_client.TwitchClient()
 
 
 def make_message(channel, message=""):
-    msg = create_event('TWITCHCHATMESSAGE', message)
+    msg = Event(EventType.TWITCHCHATMESSAGE, message)
     username = Config()["username"]
     msg.channel = channel
     msg.nickname = username
